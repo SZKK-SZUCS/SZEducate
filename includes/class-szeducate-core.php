@@ -15,6 +15,7 @@ class SZEducate_Core {
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-client.php';
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-client-api.php';
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-import-export.php';
+		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-elementor.php';
 
 		$this->settings = get_option( 'szeducate_settings', array() );
 
@@ -58,5 +59,9 @@ class SZEducate_Core {
 		// CSV Importáló inicializálása
 		$import_export = new SZEducate_Import_Export();
 		$import_export->init();
+
+		// Elementor integráció inicializálása
+		$elementor = new SZEducate_Elementor();
+		$elementor->init();
 	}
 }
