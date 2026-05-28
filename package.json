@@ -1,0 +1,16 @@
+{
+  "name": "szeducate",
+  "version": "0.0.1",
+  "description": "SZEducate React Editor",
+  "main": "build/index.js",
+  "scripts": {
+    "build": "wp-scripts build",
+    "start": "wp-scripts start"
+  },
+  "dependencies": {
+    "react-hook-form": "^7.48.2"
+  },
+  "devDependencies": {
+    "@wordpress/scripts": "^26.17.0"
+  }
+}
