@@ -13,7 +13,6 @@ import {
   TabPanel,
 } from "@wordpress/components";
 
-// --- SEgédFÜGGVÉNYEK ---
 const parseOptions = (optionsString) => {
   if (!optionsString) return [{ label: "Válassz...", value: "" }];
   const opts = optionsString.split(",").map((opt) => ({
@@ -23,8 +22,14 @@ const parseOptions = (optionsString) => {
   return [{ label: "Válassz...", value: "" }, ...opts];
 };
 
-// --- 1. WYSIWYG Komponens (KÍVÜLRE MOZGATVA) ---
-const WysiwygControl = ({ label, fieldKey, value, isRequired, onChange }) => {
+const WysiwygControl = ({
+  label,
+  fieldKey,
+  value,
+  isRequired,
+  isReadonly,
+  onChange,
+}) => {
   const editorId = useRef(
     `wysiwyg_${fieldKey}_${Math.random().toString(36).substr(2, 9)}`,
   ).current;
@@ -33,14 +38,15 @@ const WysiwygControl = ({ label, fieldKey, value, isRequired, onChange }) => {
     if (window.wp && window.wp.editor) {
       window.wp.editor.initialize(editorId, {
         tinymce: {
+          readonly: isReadonly ? 1 : 0,
           setup: function (editor) {
             editor.on("Change KeyUp", function () {
-              onChange(fieldKey, editor.getContent());
+              if (!isReadonly) onChange(fieldKey, editor.getContent());
             });
           },
         },
-        quicktags: true,
-        mediaButtons: true,
+        quicktags: !isReadonly,
+        mediaButtons: !isReadonly,
       });
     }
     return () => {
@@ -51,20 +57,37 @@ const WysiwygControl = ({ label, fieldKey, value, isRequired, onChange }) => {
   }, []);
 
   return (
-    <div style={{ marginBottom: "24px" }}>
+    <div
+      style={{
+        marginBottom: "24px",
+        opacity: isReadonly ? 0.7 : 1,
+        pointerEvents: isReadonly ? "none" : "auto",
+      }}>
       <p style={{ fontWeight: 600, marginBottom: "8px" }}>
-        {label} {isRequired && <span style={{ color: "#d63638" }}>*</span>}
+        {label} {isRequired && <span style={{ color: "#d63638" }}>*</span>}{" "}
+        {isReadonly && (
+          <span style={{ color: "#888", fontSize: "12px" }}>
+            (Csak olvasható)
+          </span>
+        )}
       </p>
       <textarea
         id={editorId}
         defaultValue={value || ""}
-        style={{ width: "100%", minHeight: "200px" }}></textarea>
+        style={{ width: "100%", minHeight: "200px" }}
+        disabled={isReadonly}></textarea>
     </div>
   );
 };
 
-// --- 2. Links Komponens (KÍVÜLRE MOZGATVA) ---
-const LinksControl = ({ label, fieldKey, value, isRequired, onChange }) => {
+const LinksControl = ({
+  label,
+  fieldKey,
+  value,
+  isRequired,
+  isReadonly,
+  onChange,
+}) => {
   const links = Array.isArray(value) ? value : [];
 
   const addLink = () => onChange(fieldKey, [...links, { title: "", url: "" }]);
@@ -83,13 +106,18 @@ const LinksControl = ({ label, fieldKey, value, isRequired, onChange }) => {
     <div
       style={{
         marginBottom: "24px",
-        background: "#f9f9f9",
+        background: isReadonly ? "#f0f0f0" : "#f9f9f9",
         padding: "15px",
         border: "1px solid #ddd",
         borderRadius: "4px",
       }}>
       <p style={{ fontWeight: 600, marginBottom: "12px" }}>
-        {label} {isRequired && <span style={{ color: "#d63638" }}>*</span>}
+        {label} {isRequired && <span style={{ color: "#d63638" }}>*</span>}{" "}
+        {isReadonly && (
+          <span style={{ color: "#888", fontSize: "12px" }}>
+            (Csak olvasható)
+          </span>
+        )}
       </p>
       {links.map((link, index) => (
         <div
@@ -105,6 +133,7 @@ const LinksControl = ({ label, fieldKey, value, isRequired, onChange }) => {
               placeholder="Gomb szövege"
               value={link.title}
               onChange={(v) => updateLink(index, "title", v)}
+              disabled={isReadonly}
               style={{ marginBottom: 0 }}
             />
           </div>
@@ -114,23 +143,34 @@ const LinksControl = ({ label, fieldKey, value, isRequired, onChange }) => {
               type="url"
               value={link.url}
               onChange={(v) => updateLink(index, "url", v)}
+              disabled={isReadonly}
               style={{ marginBottom: 0 }}
             />
           </div>
-          <Button isDestructive isSmall onClick={() => removeLink(index)}>
-            X
-          </Button>
+          {!isReadonly && (
+            <Button isDestructive isSmall onClick={() => removeLink(index)}>
+              X
+            </Button>
+          )}
         </div>
       ))}
-      <Button isSecondary onClick={addLink} style={{ marginTop: "10px" }}>
-        + Link hozzáadása
-      </Button>
+      {!isReadonly && (
+        <Button isSecondary onClick={addLink} style={{ marginTop: "10px" }}>
+          + Link hozzáadása
+        </Button>
+      )}
     </div>
   );
 };
 
-// --- 3. Repeater Komponens (KÍVÜLRE MOZGATVA) ---
-const RepeaterControl = ({ label, field, value, isRequired, onChange }) => {
+const RepeaterControl = ({
+  label,
+  field,
+  value,
+  isRequired,
+  isReadonly,
+  onChange,
+}) => {
   const rows = Array.isArray(value) ? value : [];
   const subFields = field.sub_fields || [];
 
@@ -157,6 +197,7 @@ const RepeaterControl = ({ label, field, value, isRequired, onChange }) => {
         background: "#fff",
         border: "1px solid #ccd0d4",
         borderRadius: "4px",
+        opacity: isReadonly ? 0.7 : 1,
       }}>
       <div
         style={{
@@ -165,7 +206,12 @@ const RepeaterControl = ({ label, field, value, isRequired, onChange }) => {
           borderBottom: "1px solid #ccd0d4",
           fontWeight: 600,
         }}>
-        {label} {isRequired && <span style={{ color: "#d63638" }}>*</span>}
+        {label} {isRequired && <span style={{ color: "#d63638" }}>*</span>}{" "}
+        {isReadonly && (
+          <span style={{ color: "#888", fontSize: "12px" }}>
+            (Csak olvasható)
+          </span>
+        )}
       </div>
       <div style={{ padding: "15px", overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -183,7 +229,7 @@ const RepeaterControl = ({ label, field, value, isRequired, onChange }) => {
                   {sf.label}
                 </th>
               ))}
-              <th style={{ width: "40px" }}></th>
+              {!isReadonly && <th style={{ width: "40px" }}></th>}
             </tr>
           </thead>
           <tbody>
@@ -197,12 +243,14 @@ const RepeaterControl = ({ label, field, value, isRequired, onChange }) => {
                       <ToggleControl
                         checked={!!row[sf.key]}
                         onChange={(v) => updateRow(index, sf.key, v)}
+                        disabled={isReadonly}
                       />
                     ) : sf.type === "select" ? (
                       <SelectControl
                         value={row[sf.key] || ""}
                         options={parseOptions(sf.options)}
                         onChange={(v) => updateRow(index, sf.key, v)}
+                        disabled={isReadonly}
                         style={{ marginBottom: 0 }}
                       />
                     ) : (
@@ -216,45 +264,51 @@ const RepeaterControl = ({ label, field, value, isRequired, onChange }) => {
                         }
                         value={row[sf.key] || ""}
                         onChange={(v) => updateRow(index, sf.key, v)}
+                        disabled={isReadonly}
                         style={{ marginBottom: 0 }}
                       />
                     )}
                   </td>
                 ))}
-                <td
-                  style={{
-                    padding: "8px",
-                    borderBottom: "1px solid #eee",
-                    textAlign: "center",
-                  }}>
-                  <Button
-                    isDestructive
-                    isSmall
-                    onClick={() => removeRow(index)}>
-                    X
-                  </Button>
-                </td>
+                {!isReadonly && (
+                  <td
+                    style={{
+                      padding: "8px",
+                      borderBottom: "1px solid #eee",
+                      textAlign: "center",
+                    }}>
+                    <Button
+                      isDestructive
+                      isSmall
+                      onClick={() => removeRow(index)}>
+                      X
+                    </Button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
         </table>
-        <Button isSecondary onClick={addRow} style={{ marginTop: "10px" }}>
-          + Sor hozzáadása
-        </Button>
+        {!isReadonly && (
+          <Button isSecondary onClick={addRow} style={{ marginTop: "10px" }}>
+            + Sor hozzáadása
+          </Button>
+        )}
       </div>
     </div>
   );
 };
 
-// --- 4. Képfeltöltő Komponens (KÍVÜLRE MOZGATVA) ---
 const ImageUploadControl = ({
   label,
   fieldKey,
   value,
   isRequired,
+  isReadonly,
   onChange,
 }) => {
   const openMediaUploader = () => {
+    if (isReadonly) return;
     const wpMedia = window.wp.media({
       title: "Kép kiválasztása vagy feltöltése",
       button: { text: "Kép használata" },
@@ -268,9 +322,14 @@ const ImageUploadControl = ({
   };
 
   return (
-    <div style={{ marginBottom: "24px" }}>
+    <div style={{ marginBottom: "24px", opacity: isReadonly ? 0.7 : 1 }}>
       <p style={{ fontWeight: 600, marginBottom: "8px" }}>
-        {label} {isRequired && <span style={{ color: "#d63638" }}>*</span>}
+        {label} {isRequired && <span style={{ color: "#d63638" }}>*</span>}{" "}
+        {isReadonly && (
+          <span style={{ color: "#888", fontSize: "12px" }}>
+            (Csak olvasható)
+          </span>
+        )}
       </p>
       {value && (
         <div
@@ -287,33 +346,53 @@ const ImageUploadControl = ({
           />
         </div>
       )}
-      <div>
-        <Button isSecondary onClick={openMediaUploader}>
-          {value ? "Kép cseréje" : "Kép feltöltése"}
-        </Button>
-        {value && (
-          <Button
-            isDestructive
-            isLink
-            onClick={() => onChange(fieldKey, "")}
-            style={{ marginLeft: "10px" }}>
-            Törlés
+      {!isReadonly && (
+        <div>
+          <Button isSecondary onClick={openMediaUploader}>
+            {value ? "Kép cseréje" : "Kép feltöltése"}
           </Button>
-        )}
-      </div>
+          {value && (
+            <Button
+              isDestructive
+              isLink
+              onClick={() => onChange(fieldKey, "")}
+              style={{ marginLeft: "10px" }}>
+              Törlés
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 };
 
-// --- FŐ KOMPONENS ---
 const SZEducateEditor = () => {
-  const { postId, nonce, restUrl, schema, existingTitle, existingData } =
-    window.szEducateData || {};
+  const {
+    postId,
+    nonce,
+    restUrl,
+    schema,
+    permissions,
+    existingTitle,
+    existingData,
+  } = window.szEducateData || {};
 
   const [title, setTitle] = useState(existingTitle || "");
   const [formData, setFormData] = useState(existingData || {});
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState(null);
+
+  // Jogosultságok feldolgozása
+  const actions = permissions?.actions || {
+    create: true,
+    edit: true,
+    delete: false,
+  };
+  const isNewPost = !existingTitle;
+
+  // Ha nem új poszt és nincs szerkesztési jog, MINDEN readonly lesz.
+  const globalReadonly = !isNewPost && !actions.edit;
+  const canSave = isNewPost ? actions.create : actions.edit;
 
   const handleChange = (key, value) => {
     setFormData((prev) => ({ ...prev, [key]: value }));
@@ -327,9 +406,18 @@ const SZEducateEditor = () => {
       ) : (
         ""
       );
+
+    // Mezőszintű vagy globális readonly
+    const isReadonly = !!field.is_readonly || globalReadonly;
+    const readonlyMark = isReadonly ? (
+      <span style={{ color: "#888", fontSize: "12px" }}> (Csak olvasható)</span>
+    ) : (
+      ""
+    );
+
     const labelWithRequired = (
       <>
-        {field.label} {requiredMark}
+        {field.label} {requiredMark} {readonlyMark}
       </>
     );
 
@@ -351,7 +439,8 @@ const SZEducateEditor = () => {
             }
             value={value}
             onChange={(val) => handleChange(field.key, val)}
-            help={field.is_filterable ? "Indexelt mező." : ""}
+            help={field.is_filterable && !isReadonly ? "Indexelt mező." : ""}
+            disabled={isReadonly}
           />
         );
       case "textarea":
@@ -361,6 +450,7 @@ const SZEducateEditor = () => {
             label={labelWithRequired}
             value={value}
             onChange={(val) => handleChange(field.key, val)}
+            disabled={isReadonly}
           />
         );
       case "wysiwyg":
@@ -371,6 +461,7 @@ const SZEducateEditor = () => {
             fieldKey={field.key}
             value={value}
             isRequired={field.is_required}
+            isReadonly={isReadonly}
             onChange={handleChange}
           />
         );
@@ -382,6 +473,7 @@ const SZEducateEditor = () => {
             fieldKey={field.key}
             value={value}
             isRequired={field.is_required}
+            isReadonly={isReadonly}
             onChange={handleChange}
           />
         );
@@ -393,6 +485,7 @@ const SZEducateEditor = () => {
             field={field}
             value={value}
             isRequired={field.is_required}
+            isReadonly={isReadonly}
             onChange={handleChange}
           />
         );
@@ -405,6 +498,7 @@ const SZEducateEditor = () => {
             value={value}
             options={parseOptions(field.options)}
             onChange={(val) => handleChange(field.key, val)}
+            disabled={isReadonly}
           />
         );
       case "boolean":
@@ -414,6 +508,7 @@ const SZEducateEditor = () => {
             label={labelWithRequired}
             checked={!!value}
             onChange={(val) => handleChange(field.key, val)}
+            disabled={isReadonly}
           />
         );
       case "checkbox":
@@ -426,7 +521,13 @@ const SZEducateEditor = () => {
           ? value.split(",").map((v) => v.trim())
           : [];
         return (
-          <div key={field.key} style={{ marginBottom: "24px" }}>
+          <div
+            key={field.key}
+            style={{
+              marginBottom: "24px",
+              opacity: isReadonly ? 0.7 : 1,
+              pointerEvents: isReadonly ? "none" : "auto",
+            }}>
             <p style={{ fontWeight: 600, marginBottom: "8px" }}>
               {labelWithRequired}
             </p>
@@ -435,6 +536,7 @@ const SZEducateEditor = () => {
                 key={opt}
                 label={opt}
                 checked={selectedValues.includes(opt)}
+                disabled={isReadonly}
                 onChange={(isChecked) => {
                   const newVal = isChecked
                     ? [...selectedValues, opt]
@@ -453,6 +555,7 @@ const SZEducateEditor = () => {
             fieldKey={field.key}
             value={value}
             isRequired={field.is_required || field.is_locked}
+            isReadonly={isReadonly}
             onChange={handleChange}
           />
         );
@@ -468,7 +571,6 @@ const SZEducateEditor = () => {
       return "A Képzési Forma kiválasztása kötelező!";
 
     const activeFormat = formData["kepzesi_forma"];
-
     if (schema && schema.length > 0) {
       for (const group of schema) {
         if (
@@ -507,10 +609,13 @@ const SZEducateEditor = () => {
 
         if (!group.fields) continue;
         for (const field of group.fields) {
-          if (field.is_required || field.is_locked) {
+          if (
+            (field.is_required || field.is_locked) &&
+            !field.is_readonly &&
+            !globalReadonly
+          ) {
             const val = formData[field.key];
             let isEmpty = false;
-
             if (val === undefined || val === null) {
               isEmpty = true;
             } else if (field.type === "repeater" || field.type === "links") {
@@ -532,6 +637,7 @@ const SZEducateEditor = () => {
   };
 
   const handleSave = () => {
+    if (!canSave) return;
     const errorMsg = validateForm();
     if (errorMsg) {
       setMessage({ type: "error", text: errorMsg });
@@ -564,11 +670,8 @@ const SZEducateEditor = () => {
     })
       .then((res) => res.json())
       .then((data) => {
-        if (data.success) {
-          setMessage({ type: "success", text: data.message });
-        } else {
-          setMessage({ type: "error", text: data.message || data.code });
-        }
+        if (data.success) setMessage({ type: "success", text: data.message });
+        else setMessage({ type: "error", text: data.message || data.code });
         setIsSaving(false);
         window.scrollTo({ top: 0, behavior: "smooth" });
       })
@@ -580,7 +683,6 @@ const SZEducateEditor = () => {
 
   const buildTabs = () => {
     if (!schema || schema.length === 0) return [];
-
     const activeFormat = formData["kepzesi_forma"] || "";
     const fixedFormats = [
       "BSc",
@@ -641,7 +743,10 @@ const SZEducateEditor = () => {
         </Notice>
       )}
 
-      <Panel header="SZEducate Képzés Szerkesztő">
+      <Panel
+        header={`SZEducate Képzés Szerkesztő ${
+          globalReadonly ? "(Csak Megtekintés)" : ""
+        }`}>
         {schema && schema.length > 0 ? (
           <div style={{ background: "#fff", border: "1px solid #e2e4e7" }}>
             <TabPanel
@@ -661,11 +766,18 @@ const SZEducateEditor = () => {
                         label={
                           <>
                             Képzés Címe (Szak megnevezése){" "}
-                            <span style={{ color: "#d63638" }}>*</span>
+                            <span style={{ color: "#d63638" }}>*</span>{" "}
+                            {globalReadonly && (
+                              <span style={{ color: "#888", fontSize: "12px" }}>
+                                {" "}
+                                (Csak olvasható)
+                              </span>
+                            )}
                           </>
                         }
                         value={title}
                         onChange={(value) => setTitle(value)}
+                        disabled={globalReadonly}
                       />
                     </div>
                   )}
@@ -695,22 +807,30 @@ const SZEducateEditor = () => {
           alignItems: "center",
         }}>
         <span style={{ fontSize: "12px", color: "#666" }}>
-          A <span style={{ color: "#d63638" }}>*</span>-gal jelölt mezők
-          kitöltése kötelező.
-        </span>
-        <Button
-          isPrimary
-          isBusy={isSaving}
-          onClick={handleSave}
-          style={{ padding: "5px 30px", backgroundColor: "#007cba" }}>
-          {isSaving ? (
-            <>
-              <Spinner /> Mentés...
-            </>
+          {globalReadonly ? (
+            "Nincs jogosultságod módosítani ezt a képzést."
           ) : (
-            "Véglegesítés és Mentés"
+            <>
+              A <span style={{ color: "#d63638" }}>*</span>-gal jelölt mezők
+              kitöltése kötelező.
+            </>
           )}
-        </Button>
+        </span>
+        {canSave && (
+          <Button
+            isPrimary
+            isBusy={isSaving}
+            onClick={handleSave}
+            style={{ padding: "5px 30px", backgroundColor: "#007cba" }}>
+            {isSaving ? (
+              <>
+                <Spinner /> Mentés...
+              </>
+            ) : (
+              "Véglegesítés és Mentés"
+            )}
+          </Button>
+        )}
       </div>
     </div>
   );

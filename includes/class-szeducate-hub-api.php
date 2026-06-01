@@ -5,6 +5,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class SZEducate_Hub_API {
 
+	private $current_client = null;
+
 	public function init() {
 		add_action( 'rest_api_init', array( $this, 'register_endpoints' ) );
 	}
@@ -17,7 +19,7 @@ class SZEducate_Hub_API {
 		) );
 
 		register_rest_route( 'szeducate/v1/hub', '/courses', array(
-			'methods'             => WP_REST_Server::CREATABLE, // POST
+			'methods'             => WP_REST_Server::CREATABLE,
 			'callback'            => array( $this, 'receive_course_data' ),
 			'permission_callback' => array( $this, 'verify_bearer_token' ),
 		) );
@@ -30,33 +32,114 @@ class SZEducate_Hub_API {
 			return new WP_Error( 'missing_token', 'Hiányzó Bearer token.', array( 'status' => 401 ) );
 		}
 
-		$incoming_token = $matches[1];
-		$incoming_hash = hash( 'sha256', $incoming_token );
+		$incoming_token = trim( sanitize_text_field( $matches[1] ) );
+		$incoming_hash = hash( 'sha256', $incoming_token ); 
+		
+		global $wpdb;
+		$table_name = $wpdb->prefix . 'szeducate_clients';
+		
+		$client = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table_name WHERE api_token = %s", $incoming_hash ), ARRAY_A );
 
-		$stored_tokens = get_option( 'szeducate_api_tokens', array() );
-
-		foreach ( $stored_tokens as $token_data ) {
-			if ( hash_equals( $token_data['hash'], $incoming_hash ) ) {
-				return true;
-			}
+		if ( $client ) {
+			$this->current_client = $client;
+			return true;
 		}
 
-		return new WP_Error( 'invalid_token', 'Érvénytelen API token.', array( 'status' => 403 ) );
+		return new WP_Error( 'invalid_token', 'Érvénytelen vagy visszavont API token.', array( 'status' => 403 ) );
 	}
 
 	public function get_schema( WP_REST_Request $request ) {
-		$schema = get_option( 'szeducate_schema', '[]' );
-		return new WP_REST_Response( json_decode( $schema ), 200 );
+		$schema = json_decode( get_option( 'szeducate_schema', '[]' ), true );
+		$client = $this->current_client;
+		$permissions = array();
+
+		if ( $client && is_array( $schema ) ) {
+			$permissions = json_decode( $client['permissions'], true );
+			$fields_perms = isset( $permissions['fields'] ) ? $permissions['fields'] : array();
+
+			foreach ( $schema as &$group ) {
+				if ( ! empty( $group['fields'] ) && is_array( $group['fields'] ) ) {
+					foreach ( $group['fields'] as &$field ) {
+						if ( isset( $fields_perms[ $field['key'] ] ) && $fields_perms[ $field['key'] ] === 'readonly' ) {
+							$field['is_readonly'] = true;
+						}
+					}
+				}
+			}
+		}
+
+		// ÚJ: A Séma mellé csomagoljuk a Kliens jogosultságait is!
+		return new WP_REST_Response( array(
+			'schema'      => $schema,
+			'permissions' => $permissions
+		), 200 );
 	}
 
-	// ÚJ: A tényleges adatbázisba mentő logika a Hub-on
+	/**
+	 * Rekurzív függvény a beágyazott feltételek kiértékelésére
+	 */
+	private function evaluate_conditions( $conditions, $course_data ) {
+		if ( empty( $conditions ) || empty( $conditions['rules'] ) ) {
+			return true; // Nincs korlátozó szabály
+		}
+
+		$logical_operator = isset( $conditions['logical_operator'] ) ? $conditions['logical_operator'] : 'AND';
+		$results = array();
+
+		foreach ( $conditions['rules'] as $rule ) {
+			if ( isset( $rule['logical_operator'] ) ) {
+				// Al-csoport kiértékelése
+				$results[] = $this->evaluate_conditions( $rule, $course_data );
+			} else {
+				// Szimpla szabály kiértékelése
+				$field = isset( $rule['field'] ) ? $rule['field'] : '';
+				$operator = isset( $rule['operator'] ) ? $rule['operator'] : '==';
+				$target_value = isset( $rule['value'] ) ? $rule['value'] : '';
+
+				$actual_value = isset( $course_data[ $field ] ) ? $course_data[ $field ] : '';
+				// Ha a bejövő adat tömb (pl. checkbox), sztringgé alakítjuk az összehasonlításhoz
+				$actual_string = is_array( $actual_value ) ? implode( ',', $actual_value ) : (string) $actual_value;
+
+				$rule_result = true;
+				switch ( $operator ) {
+					case '==':
+						$rule_result = ( $actual_string === $target_value );
+						break;
+					case '!=':
+						$rule_result = ( $actual_string !== $target_value );
+						break;
+					case 'contains':
+						$rule_result = ( strpos( $actual_string, $target_value ) !== false );
+						break;
+				}
+				$results[] = $rule_result;
+			}
+		}
+
+		if ( $logical_operator === 'AND' ) {
+			return ! in_array( false, $results, true );
+		} else { // OR
+			return in_array( true, $results, true );
+		}
+	}
+
 	public function receive_course_data( WP_REST_Request $request ) {
 		global $wpdb;
 		$table_name = $wpdb->prefix . 'szeducate_courses_data';
 
+		$client = $this->current_client;
+		
+		if ( ! $client ) {
+			return new WP_Error( 'unauthorized', 'Nem azonosítható kliens.', array( 'status' => 401 ) );
+		}
+		
+		$permissions = json_decode( $client['permissions'], true );
+		$actions = isset( $permissions['actions'] ) ? $permissions['actions'] : array( 'create' => true, 'edit' => true );
+		$conditions = isset( $permissions['conditions'] ) ? $permissions['conditions'] : array();
+		$fields_perms = isset( $permissions['fields'] ) ? $permissions['fields'] : array();
+
 		$params = $request->get_json_params();
 
-		// Alapvető validáció
 		if ( empty( $params['title'] ) ) {
 			return new WP_Error( 'missing_data', 'A képzés címe hiányzik.', array( 'status' => 400 ) );
 		}
@@ -65,7 +148,44 @@ class SZEducate_Hub_API {
 		$local_post_id = isset( $params['local_post_id'] ) ? intval( $params['local_post_id'] ) : 0;
 		$course_data = isset( $params['course_data'] ) && is_array( $params['course_data'] ) ? $params['course_data'] : array();
 
-		// Sémából kinyerjük az indexelt (szűrhető) mezőket
+		// --- 1. JOGOSULTSÁG: REKORDSZINTŰ SZŰRÉS ---
+		if ( ! $this->evaluate_conditions( $conditions, $course_data ) ) {
+			return new WP_Error( 'forbidden_record', 'Nincs jogosultsága a kliensnek ezen paraméterekkel rendelkező képzést beküldeni.', array( 'status' => 403 ) );
+		}
+
+		// Keresés, hogy létezik-e már a képzés
+		$existing_row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table_name WHERE title = %s LIMIT 1", $title ), ARRAY_A );
+
+		// --- 2. JOGOSULTSÁG: CRUD AKCIÓK ---
+		if ( $existing_row ) {
+			if ( empty( $actions['edit'] ) ) {
+				return new WP_Error( 'forbidden_edit', 'A kliensnek nincs engedélye meglévő képzések felülírására.', array( 'status' => 403 ) );
+			}
+		} else {
+			if ( empty( $actions['create'] ) ) {
+				return new WP_Error( 'forbidden_create', 'A kliensnek nincs engedélye új képzések létrehozására.', array( 'status' => 403 ) );
+			}
+		}
+
+		// --- 3. JOGOSULTSÁG: MEZŐSZINTŰ VÉDELEM (READ-ONLY) ---
+		$existing_course_data = array();
+		if ( $existing_row && !empty( $existing_row['course_data'] ) ) {
+			$existing_course_data = json_decode( $existing_row['course_data'], true );
+		}
+
+		foreach ( $fields_perms as $field_key => $perm_type ) {
+			if ( $perm_type === 'readonly' ) {
+				if ( isset( $existing_course_data[ $field_key ] ) ) {
+					// Ha van régi adat, azzal felülírjuk a bejövőt (védjük a módosítástól)
+					$course_data[ $field_key ] = $existing_course_data[ $field_key ];
+				} else {
+					// Ha új adat lenne, elvesszük a jogosultságot a beállításához
+					unset( $course_data[ $field_key ] );
+				}
+			}
+		}
+
+		// --- ADATBÁZIS MENTÉS INNENTŐL ---
 		$schema_json = get_option( 'szeducate_schema', '[]' );
 		$schema = json_decode( $schema_json, true );
 
@@ -76,7 +196,6 @@ class SZEducate_Hub_API {
 			'status'        => 'publish'
 		);
 
-		// Dedikált MySQL oszlopok feltöltése, ha az indexelés be van pipálva a sémában
 		if ( is_array( $schema ) ) {
 			foreach ( $schema as $group ) {
 				if ( ! empty( $group['fields'] ) && is_array( $group['fields'] ) ) {
@@ -87,13 +206,11 @@ class SZEducate_Hub_API {
 
 							$val = isset( $course_data[ $field['key'] ] ) ? $course_data[ $field['key'] ] : '';
 							
-							// Típuskonverzió SQL-hez
 							if ( $field['type'] === 'number' ) {
 								$db_data[$key] = $val !== '' ? intval( $val ) : null;
 							} elseif ( $field['type'] === 'boolean' ) {
 								$db_data[$key] = $val ? 1 : 0;
 							} else {
-								// Szöveges vagy checkbox (multiselect)
 								if ( is_array( $val ) ) {
 									$val = implode( ', ', $val );
 								}
@@ -105,26 +222,17 @@ class SZEducate_Hub_API {
 			}
 		}
 
-		// Megnézzük, létezik-e már ez a képzés a Hub-on (a cím alapján)
-		$existing_id = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $table_name WHERE title = %s LIMIT 1", $title ) );
-
-		if ( $existing_id ) {
-			// Frissítés
-			$wpdb->update( $table_name, $db_data, array( 'id' => $existing_id ) );
-			$hub_id = $existing_id;
-			$message = 'Sikeresen frissítve a Hub-on!';
+		if ( $existing_row ) {
+			$wpdb->update( $table_name, $db_data, array( 'id' => $existing_row['id'] ) );
+			$hub_id = $existing_row['id'];
+			$message = 'Sikeresen frissítve a Hub-on! (Jogosultságok érvényesítve)';
 		} else {
-			// Új beszúrás
 			$wpdb->insert( $table_name, $db_data );
 			$hub_id = $wpdb->insert_id;
-			
-			// Mivel ez a Hub, a saját belső 'id'-je lesz a hivatalos 'hub_id' is. 
 			$wpdb->update( $table_name, array( 'hub_id' => $hub_id ), array( 'id' => $hub_id ) );
-			
-			$message = 'Sikeresen létrehozva a Hub-on!';
+			$message = 'Sikeresen létrehozva a Hub-on! (Jogosultságok érvényesítve)';
 		}
 
-		// Visszaküldjük a Hub ID-t a Kliensnek, amit ő a saját táblájába szépen lement
 		return new WP_REST_Response( array( 
 			'success' => true, 
 			'message' => $message,

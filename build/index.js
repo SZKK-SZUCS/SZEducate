@@ -122,8 +122,6 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
-
-// --- SEgédFÜGGVÉNYEK ---
 const parseOptions = optionsString => {
   if (!optionsString) return [{
     label: "Válassz...",
@@ -138,13 +136,12 @@ const parseOptions = optionsString => {
     value: ""
   }, ...opts];
 };
-
-// --- 1. WYSIWYG Komponens (KÍVÜLRE MOZGATVA) ---
 const WysiwygControl = ({
   label,
   fieldKey,
   value,
   isRequired,
+  isReadonly,
   onChange
 }) => {
   const editorId = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useRef)(`wysiwyg_${fieldKey}_${Math.random().toString(36).substr(2, 9)}`).current;
@@ -152,14 +149,15 @@ const WysiwygControl = ({
     if (window.wp && window.wp.editor) {
       window.wp.editor.initialize(editorId, {
         tinymce: {
+          readonly: isReadonly ? 1 : 0,
           setup: function (editor) {
             editor.on("Change KeyUp", function () {
-              onChange(fieldKey, editor.getContent());
+              if (!isReadonly) onChange(fieldKey, editor.getContent());
             });
           }
         },
-        quicktags: true,
-        mediaButtons: true
+        quicktags: !isReadonly,
+        mediaButtons: !isReadonly
       });
     }
     return () => {
@@ -170,7 +168,9 @@ const WysiwygControl = ({
   }, []);
   return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
     style: {
-      marginBottom: "24px"
+      marginBottom: "24px",
+      opacity: isReadonly ? 0.7 : 1,
+      pointerEvents: isReadonly ? "none" : "auto"
     }
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("p", {
     style: {
@@ -181,22 +181,27 @@ const WysiwygControl = ({
     style: {
       color: "#d63638"
     }
-  }, "*")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("textarea", {
+  }, "*"), " ", isReadonly && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+    style: {
+      color: "#888",
+      fontSize: "12px"
+    }
+  }, "(Csak olvashat\xF3)")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("textarea", {
     id: editorId,
     defaultValue: value || "",
     style: {
       width: "100%",
       minHeight: "200px"
-    }
+    },
+    disabled: isReadonly
   }));
 };
-
-// --- 2. Links Komponens (KÍVÜLRE MOZGATVA) ---
 const LinksControl = ({
   label,
   fieldKey,
   value,
   isRequired,
+  isReadonly,
   onChange
 }) => {
   const links = Array.isArray(value) ? value : [];
@@ -213,7 +218,7 @@ const LinksControl = ({
   return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
     style: {
       marginBottom: "24px",
-      background: "#f9f9f9",
+      background: isReadonly ? "#f0f0f0" : "#f9f9f9",
       padding: "15px",
       border: "1px solid #ddd",
       borderRadius: "4px"
@@ -227,7 +232,12 @@ const LinksControl = ({
     style: {
       color: "#d63638"
     }
-  }, "*")), links.map((link, index) => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+  }, "*"), " ", isReadonly && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+    style: {
+      color: "#888",
+      fontSize: "12px"
+    }
+  }, "(Csak olvashat\xF3)")), links.map((link, index) => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
     key: index,
     style: {
       display: "flex",
@@ -243,6 +253,7 @@ const LinksControl = ({
     placeholder: "Gomb sz\xF6vege",
     value: link.title,
     onChange: v => updateLink(index, "title", v),
+    disabled: isReadonly,
     style: {
       marginBottom: 0
     }
@@ -255,14 +266,15 @@ const LinksControl = ({
     type: "url",
     value: link.url,
     onChange: v => updateLink(index, "url", v),
+    disabled: isReadonly,
     style: {
       marginBottom: 0
     }
-  })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
+  })), !isReadonly && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
     isDestructive: true,
     isSmall: true,
     onClick: () => removeLink(index)
-  }, "X"))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
+  }, "X"))), !isReadonly && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
     isSecondary: true,
     onClick: addLink,
     style: {
@@ -270,13 +282,12 @@ const LinksControl = ({
     }
   }, "+ Link hozz\xE1ad\xE1sa"));
 };
-
-// --- 3. Repeater Komponens (KÍVÜLRE MOZGATVA) ---
 const RepeaterControl = ({
   label,
   field,
   value,
   isRequired,
+  isReadonly,
   onChange
 }) => {
   const rows = Array.isArray(value) ? value : [];
@@ -297,7 +308,8 @@ const RepeaterControl = ({
       marginBottom: "24px",
       background: "#fff",
       border: "1px solid #ccd0d4",
-      borderRadius: "4px"
+      borderRadius: "4px",
+      opacity: isReadonly ? 0.7 : 1
     }
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
     style: {
@@ -310,7 +322,12 @@ const RepeaterControl = ({
     style: {
       color: "#d63638"
     }
-  }, "*")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+  }, "*"), " ", isReadonly && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+    style: {
+      color: "#888",
+      fontSize: "12px"
+    }
+  }, "(Csak olvashat\xF3)")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
     style: {
       padding: "15px",
       overflowX: "auto"
@@ -328,7 +345,7 @@ const RepeaterControl = ({
       borderBottom: "2px solid #ddd",
       fontSize: "13px"
     }
-  }, sf.label)), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+  }, sf.label)), !isReadonly && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
     style: {
       width: "40px"
     }
@@ -342,11 +359,13 @@ const RepeaterControl = ({
     }
   }, sf.type === "boolean" ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.ToggleControl, {
     checked: !!row[sf.key],
-    onChange: v => updateRow(index, sf.key, v)
+    onChange: v => updateRow(index, sf.key, v),
+    disabled: isReadonly
   }) : sf.type === "select" ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.SelectControl, {
     value: row[sf.key] || "",
     options: parseOptions(sf.options),
     onChange: v => updateRow(index, sf.key, v),
+    disabled: isReadonly,
     style: {
       marginBottom: 0
     }
@@ -354,10 +373,11 @@ const RepeaterControl = ({
     type: sf.type === "number" ? "number" : sf.type === "url" ? "url" : "text",
     value: row[sf.key] || "",
     onChange: v => updateRow(index, sf.key, v),
+    disabled: isReadonly,
     style: {
       marginBottom: 0
     }
-  }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+  }))), !isReadonly && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
     style: {
       padding: "8px",
       borderBottom: "1px solid #eee",
@@ -367,7 +387,7 @@ const RepeaterControl = ({
     isDestructive: true,
     isSmall: true,
     onClick: () => removeRow(index)
-  }, "X")))))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
+  }, "X")))))), !isReadonly && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
     isSecondary: true,
     onClick: addRow,
     style: {
@@ -375,16 +395,16 @@ const RepeaterControl = ({
     }
   }, "+ Sor hozz\xE1ad\xE1sa")));
 };
-
-// --- 4. Képfeltöltő Komponens (KÍVÜLRE MOZGATVA) ---
 const ImageUploadControl = ({
   label,
   fieldKey,
   value,
   isRequired,
+  isReadonly,
   onChange
 }) => {
   const openMediaUploader = () => {
+    if (isReadonly) return;
     const wpMedia = window.wp.media({
       title: "Kép kiválasztása vagy feltöltése",
       button: {
@@ -400,7 +420,8 @@ const ImageUploadControl = ({
   };
   return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
     style: {
-      marginBottom: "24px"
+      marginBottom: "24px",
+      opacity: isReadonly ? 0.7 : 1
     }
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("p", {
     style: {
@@ -411,7 +432,12 @@ const ImageUploadControl = ({
     style: {
       color: "#d63638"
     }
-  }, "*")), value && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+  }, "*"), " ", isReadonly && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+    style: {
+      color: "#888",
+      fontSize: "12px"
+    }
+  }, "(Csak olvashat\xF3)")), value && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
     style: {
       marginBottom: "10px",
       border: "1px solid #ddd",
@@ -426,7 +452,7 @@ const ImageUploadControl = ({
       maxHeight: "150px",
       display: "block"
     }
-  })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
+  })), !isReadonly && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
     isSecondary: true,
     onClick: openMediaUploader
   }, value ? "Kép cseréje" : "Kép feltöltése"), value && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
@@ -438,14 +464,13 @@ const ImageUploadControl = ({
     }
   }, "T\xF6rl\xE9s")));
 };
-
-// --- FŐ KOMPONENS ---
 const SZEducateEditor = () => {
   const {
     postId,
     nonce,
     restUrl,
     schema,
+    permissions,
     existingTitle,
     existingData
   } = window.szEducateData || {};
@@ -453,6 +478,18 @@ const SZEducateEditor = () => {
   const [formData, setFormData] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useState)(existingData || {});
   const [isSaving, setIsSaving] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useState)(false);
   const [message, setMessage] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useState)(null);
+
+  // Jogosultságok feldolgozása
+  const actions = permissions?.actions || {
+    create: true,
+    edit: true,
+    delete: false
+  };
+  const isNewPost = !existingTitle;
+
+  // Ha nem új poszt és nincs szerkesztési jog, MINDEN readonly lesz.
+  const globalReadonly = !isNewPost && !actions.edit;
+  const canSave = isNewPost ? actions.create : actions.edit;
   const handleChange = (key, value) => {
     setFormData(prev => ({
       ...prev,
@@ -466,7 +503,16 @@ const SZEducateEditor = () => {
         color: "#d63638"
       }
     }, "*") : "";
-    const labelWithRequired = (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, field.label, " ", requiredMark);
+
+    // Mezőszintű vagy globális readonly
+    const isReadonly = !!field.is_readonly || globalReadonly;
+    const readonlyMark = isReadonly ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+      style: {
+        color: "#888",
+        fontSize: "12px"
+      }
+    }, " (Csak olvashat\xF3)") : "";
+    const labelWithRequired = (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, field.label, " ", requiredMark, " ", readonlyMark);
     switch (field.type) {
       case "text":
       case "number":
@@ -478,14 +524,16 @@ const SZEducateEditor = () => {
           type: field.type === "date" ? "date" : field.type === "url" ? "url" : field.type,
           value: value,
           onChange: val => handleChange(field.key, val),
-          help: field.is_filterable ? "Indexelt mező." : ""
+          help: field.is_filterable && !isReadonly ? "Indexelt mező." : "",
+          disabled: isReadonly
         });
       case "textarea":
         return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.TextareaControl, {
           key: field.key,
           label: labelWithRequired,
           value: value,
-          onChange: val => handleChange(field.key, val)
+          onChange: val => handleChange(field.key, val),
+          disabled: isReadonly
         });
       case "wysiwyg":
         return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(WysiwygControl, {
@@ -494,6 +542,7 @@ const SZEducateEditor = () => {
           fieldKey: field.key,
           value: value,
           isRequired: field.is_required,
+          isReadonly: isReadonly,
           onChange: handleChange
         });
       case "links":
@@ -503,6 +552,7 @@ const SZEducateEditor = () => {
           fieldKey: field.key,
           value: value,
           isRequired: field.is_required,
+          isReadonly: isReadonly,
           onChange: handleChange
         });
       case "repeater":
@@ -512,6 +562,7 @@ const SZEducateEditor = () => {
           field: field,
           value: value,
           isRequired: field.is_required,
+          isReadonly: isReadonly,
           onChange: handleChange
         });
       case "select":
@@ -521,14 +572,16 @@ const SZEducateEditor = () => {
           label: labelWithRequired,
           value: value,
           options: parseOptions(field.options),
-          onChange: val => handleChange(field.key, val)
+          onChange: val => handleChange(field.key, val),
+          disabled: isReadonly
         });
       case "boolean":
         return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.ToggleControl, {
           key: field.key,
           label: labelWithRequired,
           checked: !!value,
-          onChange: val => handleChange(field.key, val)
+          onChange: val => handleChange(field.key, val),
+          disabled: isReadonly
         });
       case "checkbox":
         const chkOptions = field.options ? field.options.split(",").map(o => o.trim()) : [];
@@ -536,7 +589,9 @@ const SZEducateEditor = () => {
         return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
           key: field.key,
           style: {
-            marginBottom: "24px"
+            marginBottom: "24px",
+            opacity: isReadonly ? 0.7 : 1,
+            pointerEvents: isReadonly ? "none" : "auto"
           }
         }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("p", {
           style: {
@@ -547,6 +602,7 @@ const SZEducateEditor = () => {
           key: opt,
           label: opt,
           checked: selectedValues.includes(opt),
+          disabled: isReadonly,
           onChange: isChecked => {
             const newVal = isChecked ? [...selectedValues, opt] : selectedValues.filter(v => v !== opt);
             handleChange(field.key, newVal);
@@ -559,6 +615,7 @@ const SZEducateEditor = () => {
           fieldKey: field.key,
           value: value,
           isRequired: field.is_required || field.is_locked,
+          isReadonly: isReadonly,
           onChange: handleChange
         });
       default:
@@ -601,7 +658,7 @@ const SZEducateEditor = () => {
         }
         if (!group.fields) continue;
         for (const field of group.fields) {
-          if (field.is_required || field.is_locked) {
+          if ((field.is_required || field.is_locked) && !field.is_readonly && !globalReadonly) {
             const val = formData[field.key];
             let isEmpty = false;
             if (val === undefined || val === null) {
@@ -623,6 +680,7 @@ const SZEducateEditor = () => {
     return null;
   };
   const handleSave = () => {
+    if (!canSave) return;
     const errorMsg = validateForm();
     if (errorMsg) {
       setMessage({
@@ -661,17 +719,13 @@ const SZEducateEditor = () => {
         course_data: processedData
       })
     }).then(res => res.json()).then(data => {
-      if (data.success) {
-        setMessage({
-          type: "success",
-          text: data.message
-        });
-      } else {
-        setMessage({
-          type: "error",
-          text: data.message || data.code
-        });
-      }
+      if (data.success) setMessage({
+        type: "success",
+        text: data.message
+      });else setMessage({
+        type: "error",
+        text: data.message || data.code
+      });
       setIsSaving(false);
       window.scrollTo({
         top: 0,
@@ -732,7 +786,7 @@ const SZEducateEditor = () => {
       marginBottom: "20px"
     }
   }, message.text), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Panel, {
-    header: "SZEducate K\xE9pz\xE9s Szerkeszt\u0151"
+    header: `SZEducate Képzés Szerkesztő ${globalReadonly ? "(Csak Megtekintés)" : ""}`
   }, schema && schema.length > 0 ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
     style: {
       background: "#fff",
@@ -757,9 +811,15 @@ const SZEducateEditor = () => {
       style: {
         color: "#d63638"
       }
-    }, "*")),
+    }, "*"), " ", globalReadonly && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+      style: {
+        color: "#888",
+        fontSize: "12px"
+      }
+    }, " ", "(Csak olvashat\xF3)")),
     value: title,
-    onChange: value => setTitle(value)
+    onChange: value => setTitle(value),
+    disabled: globalReadonly
   })), tab.fields && tab.fields.map(field => renderField(field))))) : (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Notice, {
     status: "warning",
     isDismissible: false,
@@ -781,11 +841,11 @@ const SZEducateEditor = () => {
       fontSize: "12px",
       color: "#666"
     }
-  }, "A ", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+  }, globalReadonly ? "Nincs jogosultságod módosítani ezt a képzést." : (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, "A ", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
     style: {
       color: "#d63638"
     }
-  }, "*"), "-gal jel\xF6lt mez\u0151k kit\xF6lt\xE9se k\xF6telez\u0151."), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
+  }, "*"), "-gal jel\xF6lt mez\u0151k kit\xF6lt\xE9se k\xF6telez\u0151.")), canSave && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
     isPrimary: true,
     isBusy: isSaving,
     onClick: handleSave,

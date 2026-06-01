@@ -10,14 +10,63 @@ class SZEducate_Client_API {
 	}
 
 	public function register_endpoints() {
+		// Meglévő: Képzés mentése a React formból
 		register_rest_route( 'szeducate/v1/client', '/course', array(
 			'methods'             => WP_REST_Server::CREATABLE,
 			'callback'            => array( $this, 'save_course_data' ),
 			'permission_callback' => function() {
-				// Csak bejelentkezett WP adminok menthetnek a React formból
 				return current_user_can( 'edit_posts' ); 
 			}
 		) );
+
+		// ÚJ: Webhook végpont, amit a Hub hív meg a szinkronizálás indításához
+		register_rest_route( 'szeducate/v1/client', '/sync', array(
+			'methods'             => WP_REST_Server::CREATABLE, // POST kérést várunk
+			'callback'            => array( $this, 'webhook_sync_schema' ),
+			'permission_callback' => '__return_true', // Nem kell auth, mert csak egy trigger (a kliens a saját kulcsával kérdezi le a Hubot)
+		) );
+	}
+
+	public function webhook_sync_schema( WP_REST_Request $request ) {
+		$options = get_option( 'szeducate_settings', array() );
+		
+		if ( empty( $options['hub_url'] ) || empty( $options['api_token'] ) ) {
+			return new WP_Error( 'not_configured', 'A Kliens nincs beállítva a Hubhoz.', array( 'status' => 400 ) );
+		}
+
+		$endpoint = rtrim( $options['hub_url'], '/' ) . '/wp-json/szeducate/v1/hub/schema';
+
+		// A Kliens lehívja az adatokat a Hubról a saját tokenjével
+		$response = wp_remote_get( $endpoint, array(
+			'headers' => array( 'Authorization' => 'Bearer ' . $options['api_token'] ),
+			'timeout' => 15
+		) );
+
+		if ( is_wp_error( $response ) ) {
+			return new WP_Error( 'sync_failed', $response->get_error_message(), array( 'status' => 500 ) );
+		}
+
+		$code = wp_remote_retrieve_response_code( $response );
+		if ( $code === 200 ) {
+			$body = wp_remote_retrieve_body( $response );
+			$data = json_decode( $body, true );
+			
+			if ( isset( $data['schema'] ) ) {
+				update_option( 'szeducate_local_schema', wp_json_encode( $data['schema'], JSON_UNESCAPED_UNICODE ) );
+			}
+			if ( isset( $data['permissions'] ) ) {
+				update_option( 'szeducate_client_permissions', wp_json_encode( $data['permissions'], JSON_UNESCAPED_UNICODE ) );
+			}
+
+			// Taxonómiák frissítése a háttérben
+			require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-client.php';
+			$client = new SZEducate_Client();
+			$client->register_dynamic_taxonomies();
+			
+			return new WP_REST_Response( array( 'success' => true, 'message' => 'Sikeres automatikus szinkronizáció a Hub utasítására.' ), 200 );
+		}
+
+		return new WP_Error( 'hub_error', 'Hub hiba (Kód: ' . $code . ')', array( 'status' => 500 ) );
 	}
 
 	public function save_course_data( WP_REST_Request $request ) {
@@ -32,14 +81,11 @@ class SZEducate_Client_API {
 		$post_id = ! empty( $params['local_post_id'] ) ? intval( $params['local_post_id'] ) : 0;
 		$title = sanitize_text_field( $params['title'] );
 		
-		// Sémából származó dinamikus adatok
 		$dynamic_data = isset( $params['course_data'] ) ? $params['course_data'] : array();
 
-		// 1. LÉPÉS: TRANZAKCIÓ INDÍTÁSA
 		$wpdb->query( 'START TRANSACTION' );
 
 		try {
-			// 2. LÉPÉS: WordPress CPT mentése (A permalink miatt)
 			$post_args = array(
 				'post_title'  => $title,
 				'post_type'   => 'sz_course',
@@ -56,14 +102,9 @@ class SZEducate_Client_API {
 			if ( is_wp_error( $saved_post_id ) ) {
 				throw new Exception( 'Nem sikerült létrehozni a WP bejegyzést.' );
 			}
-
-			// 3. LÉPÉS: Egyedi Adatbázis tábla mentése (A hibrid mezők szétválogatása)
-			// (Itt valójában végig kell iterálni a sémán, hogy mi megy saját oszlopba és mi JSON blobba.
-			// Ezt egyelőre egyszerűsítve mentjük, amíg a React SPA-t rákötjük).
 			
 			$table_name = $wpdb->prefix . 'szeducate_courses_data';
 			
-			// A JSON blob létrehozása az összes adatból
 			$json_blob = wp_json_encode( $dynamic_data, JSON_UNESCAPED_UNICODE );
 
 			$db_data = array(
@@ -73,7 +114,6 @@ class SZEducate_Client_API {
 			);
 			$db_formats = array( '%d', '%s', '%s' );
 
-			// Ha ez egy frissítés
 			$existing = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $table_name WHERE local_post_id = %d", $saved_post_id ) );
 			
 			if ( $existing ) {
@@ -86,7 +126,6 @@ class SZEducate_Client_API {
 				throw new Exception( 'Adatbázis írási hiba az egyedi táblában.' );
 			}
 
-			// 4. LÉPÉS: Taxonómiák beállítása (A Láthatatlan SEO URL-ekhez)
 			$schema_json = get_option( 'szeducate_local_schema', '[]' );
 			$schema = json_decode( $schema_json, true );
 			if ( is_array( $schema ) ) {
@@ -96,7 +135,6 @@ class SZEducate_Client_API {
 							$tax_slug = 'sz_' . preg_replace( '/[^a-z0-9_]/', '', strtolower( $field['key'] ) );
 							$term_val = sanitize_text_field( $dynamic_data[ $field['key'] ] );
 							
-							// Ráakasztjuk a szót (pl. 'Győr') a posztra, ha létezik az érték
 							if ( ! empty( $term_val ) ) {
 								wp_set_object_terms( $saved_post_id, $term_val, $tax_slug, false );
 							}
@@ -105,11 +143,8 @@ class SZEducate_Client_API {
 				}
 			}
 
-			// MINDEN SIKERES: Véglegesítjük a tranzakciót
 			$wpdb->query( 'COMMIT' );
 
-			// 5. LÉPÉS: Aszinkron Hub szinkronizáció beütemezése
-			// A WP-Cron a háttérben meghívja majd a sync_course_to_hub() függvényt
 			wp_schedule_single_event( time(), 'szeducate_background_sync', array( $saved_post_id ) );
 
 			return new WP_REST_Response( array( 
@@ -119,7 +154,6 @@ class SZEducate_Client_API {
 			), 200 );
 
 		} catch ( Exception $e ) {
-			// HIBA TÖRTÉNT: Visszagörgetünk mindent, mintha mi sem történt volna (Árva poszt védelem)
 			$wpdb->query( 'ROLLBACK' );
 			return new WP_Error( 'db_transaction_failed', $e->getMessage(), array( 'status' => 500 ) );
 		}

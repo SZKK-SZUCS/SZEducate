@@ -136,7 +136,15 @@ class SZEducate_Settings {
 			$code = wp_remote_retrieve_response_code( $response );
 			if ( $code === 200 ) {
 				$body = wp_remote_retrieve_body( $response );
-				update_option( 'szeducate_local_schema', $body );
+				$data = json_decode( $body, true );
+				
+				// ÚJ: Külön mentjük a Sémát és a Jogosultságokat
+				if ( isset( $data['schema'] ) ) {
+					update_option( 'szeducate_local_schema', wp_json_encode( $data['schema'], JSON_UNESCAPED_UNICODE ) );
+				}
+				if ( isset( $data['permissions'] ) ) {
+					update_option( 'szeducate_client_permissions', wp_json_encode( $data['permissions'], JSON_UNESCAPED_UNICODE ) );
+				}
 				
 				require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-client.php';
 				$client = new SZEducate_Client();

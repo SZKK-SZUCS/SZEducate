@@ -9,7 +9,6 @@ class SZEducate_Schema {
 
 	public function init() {
 		add_action( 'admin_menu', array( $this, 'add_schema_page' ) );
-		// Nincs szükség külön admin_init-re a mentéshez, mert a render_page-ben lekezeljük
 	}
 
 	public function add_schema_page() {
@@ -26,11 +25,30 @@ class SZEducate_Schema {
 	public function render_page() {
 		// --- 1. TISZTA PHP MENTÉSI LOGIKA ---
 		if ( isset( $_POST['szeducate_schema'] ) && isset( $_POST['szeducate_schema_nonce'] ) ) {
-			// Biztonsági ellenőrzés
 			if ( wp_verify_nonce( $_POST['szeducate_schema_nonce'], 'save_szeducate_schema_action' ) ) {
 				$new_schema = wp_unslash( $_POST['szeducate_schema'] );
 				update_option( $this->option_name, $new_schema );
-				echo '<div class="notice notice-success is-dismissible" style="margin-top:20px;"><p><strong>✅ A Séma sikeresen elmentve a Hub-on!</strong></p></div>';
+
+				// --- ÚJ: WEBHOOK ELSÜTÉSE MINDEN KLIENSNEK ---
+				global $wpdb;
+				$table_name = $wpdb->prefix . 'szeducate_clients';
+				
+				// Biztosítjuk, hogy a tábla létezik, mielőtt lekérdezzük
+				if ( $wpdb->get_var( "SHOW TABLES LIKE '{$table_name}'" ) == $table_name ) {
+					// Lekérjük az összes klienst, akinek be van állítva URL-je
+					$clients = $wpdb->get_results( "SELECT client_url FROM {$table_name} WHERE client_url != ''" );
+					
+					foreach ( $clients as $client ) {
+						$webhook_url = rtrim( $client->client_url, '/' ) . '/wp-json/szeducate/v1/client/sync';
+						// Non-blocking kérés: nem várjuk meg a választ, hogy a Hub gyors maradjon
+						wp_remote_post( $webhook_url, array(
+							'blocking' => false,
+							'timeout'  => 5
+						) );
+					}
+				}
+
+				echo '<div class="notice notice-success is-dismissible" style="margin-top:20px;"><p><strong>A Séma sikeresen elmentve a Hub-on, és a Kliensek automatikusan szinkronizálva lettek a háttérben!</strong></p></div>';
 			} else {
 				echo '<div class="notice notice-error is-dismissible" style="margin-top:20px;"><p>Biztonsági hiba (lejárt session). Kérjük frissítse az oldalt!</p></div>';
 			}
@@ -39,7 +57,6 @@ class SZEducate_Schema {
 		// --- 2. JELENLEGI ADATOK LEKÉRÉSE ---
 		$schema = get_option( $this->option_name, '[]' );
 
-		// Alapértelmezett séma struktúra, ha teljesen üres lenne
 		if ( empty( json_decode( $schema, true ) ) ) {
 			$schema = wp_json_encode( [
 				[
@@ -68,8 +85,7 @@ class SZEducate_Schema {
 				<input type="hidden" name="szeducate_schema" id="szeducate_schema_data" value="<?php echo esc_attr( $schema ); ?>">
 				
 				<div id="schema-builder-container" style="max-width: 1000px;">
-					<!-- Dinamikus tartalom -->
-				</div>
+					</div>
 				
 				<button type="button" id="add-group-btn" class="button button-secondary" style="margin-top: 20px;">+ Új Csoport (Fül) Hozzáadása</button>
 				
@@ -262,7 +278,6 @@ class SZEducate_Schema {
 				let sfOptions = subFieldTypes.map(t => `<option value="${t.val}" ${subField.type === t.val ? 'selected' : ''}>${t.text}</option>`).join('');
 				const showOpts = subField.type === 'select' ? 'block' : 'none';
 
-				// KIVÉVE A REQUIRED!
 				sfDiv.innerHTML = `
 					<div class="drag-handle subfield-drag-handle" title="Mozgatás">::</div>
 					<input type="text" class="sz-input sf-label" placeholder="Oszlop neve" value="${subField.label || ''}" style="flex: 1.5;">
@@ -293,7 +308,6 @@ class SZEducate_Schema {
 				const showOptions = ['select', 'multiselect', 'radio', 'checkbox'].includes(field.type) ? 'block' : 'none';
 				const isReadonly = field.is_locked ? 'readonly' : '';
 
-				// KIVÉVE A REQUIRED!
 				fDiv.innerHTML = `
 					<div class="sz-field-main">
 						<div class="drag-handle field-drag-handle" title="Mozgatás" style="margin-top: 5px;">::</div>
@@ -387,7 +401,6 @@ class SZEducate_Schema {
 					</div>
 				` : '';
 
-				// KIVÉVE A REQUIRED!
 				gDiv.innerHTML = `
 					<div class="szeducate-group-header">
 						<div class="drag-handle group-drag-handle" title="Csoport mozgatása">::</div>
@@ -400,7 +413,7 @@ class SZEducate_Schema {
 							<button type="button" class="button toggle-group-btn" style="min-width: 40px; text-align: center;">v</button>
 						</div>
 					</div>
-					<div class="group-inside">
+					<div class="group-inside" style="display: none;">
 						${conditionHtml}
 						<div class="szeducate-fields-container"></div>
 						<div style="padding: 0 20px 20px 20px; background: #f0f0f1;">
@@ -420,7 +433,7 @@ class SZEducate_Schema {
 					const inside = gDiv.querySelector('.group-inside');
 					const isHidden = inside.style.display === 'none';
 					inside.style.display = isHidden ? 'block' : 'none';
-					this.innerText = isHidden ? 'v' : '<';
+					this.innerText = isHidden ? '<' : 'v';
 				});
 
 				gDiv.querySelector('.add-field-btn').addEventListener('click', () => {
@@ -456,7 +469,6 @@ class SZEducate_Schema {
 			setTimeout(checkDuplicateKeys, 500);
 
 			form.addEventListener('submit', function(e) {
-				// 1. Egyedi JS Validáció a mentés előtt
 				let hasError = false;
 				const requiredInputs = container.querySelectorAll('.g-label, .g-id, .f-label, .f-key, .sf-label, .sf-key');
 				
@@ -466,7 +478,6 @@ class SZEducate_Schema {
 						input.style.border = '1px solid #d63638';
 						input.style.boxShadow = '0 0 0 1px #d63638';
 						
-						// Kinyitjuk a fület, ha rejtve lenne
 						const groupInside = input.closest('.group-inside');
 						if (groupInside && groupInside.style.display === 'none') {
 							groupInside.style.display = 'block';
@@ -480,12 +491,11 @@ class SZEducate_Schema {
 				});
 
 				if (hasError) {
-					e.preventDefault(); // Blokkoljuk a mentést!
+					e.preventDefault();
 					alert('Kérlek töltsd ki az összes pirossal kiemelt mezőt! (A Név és az Azonosító mindenhol kötelező)');
 					return;
 				}
 
-				// 2. Ha minden jó, mentjük a JSON-t
 				const newSchema = [];
 				const groups = container.querySelectorAll('.szeducate-group');
 				
@@ -546,31 +556,5 @@ class SZEducate_Schema {
 		});
 		</script>
 		<?php
-	}
-
-	public function save_schema() {
-		if ( ! isset( $_POST['submit_schema'] ) || ! current_user_can( 'manage_options' ) ) {
-			return;
-		}
-		if ( ! isset( $_POST['szeducate_schema_nonce'] ) || ! wp_verify_nonce( $_POST['szeducate_schema_nonce'], 'save_szeducate_schema' ) ) {
-			add_settings_error( 'szeducate_schema', 'security_fail', 'Biztonsági hiba.', 'error' );
-			return;
-		}
-
-		$raw_data = stripslashes( $_POST['szeducate_schema_data'] );
-		$decoded = json_decode( $raw_data, true );
-
-		if ( json_last_error() !== JSON_ERROR_NONE || ! is_array( $decoded ) ) {
-			add_settings_error( 'szeducate_schema', 'invalid_json', 'Hibás adatstruktúra!', 'error' );
-			return;
-		}
-
-		$clean_json = wp_json_encode( $decoded, JSON_UNESCAPED_UNICODE );
-		update_option( $this->option_name, $clean_json );
-
-		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-activator.php';
-		SZEducate_Activator::update_database_schema();
-
-		add_settings_error( 'szeducate_schema', 'schema_saved', 'A séma és az adatbázis tábla szerkezete sikeresen frissítve!', 'updated' );
 	}
 }

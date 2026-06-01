@@ -282,7 +282,7 @@ class SZEducate_Import_Export {
 
 					async function processNext() {
 						if (currentIndex >= total) {
-							statusText.innerHTML = '<strong>✅ Importálás befejezve!</strong>';
+							statusText.innerHTML = '<strong>Importálás befejezve!</strong>';
 							progressBar.style.background = '#46b450';
 							return;
 						}

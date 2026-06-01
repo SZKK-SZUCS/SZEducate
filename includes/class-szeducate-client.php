@@ -16,15 +16,49 @@ class SZEducate_Client {
 
 		add_filter( 'use_block_editor_for_post_type', array( $this, 'disable_gutenberg' ), 100, 2 );
 		
-		// ÚJ: Golyóálló CSS a natív UI elrejtésére
 		add_action( 'admin_head', array( $this, 'clean_admin_ui' ) );
+		
+		add_action( 'pre_get_posts', array( $this, 'filter_courses_by_permissions' ) );
+		
+		add_action( 'admin_menu', array( $this, 'remove_add_new_menu' ), 999 );
+		add_filter( 'post_row_actions', array( $this, 'modify_list_actions' ), 10, 2 );
+	}
+
+	public function remove_add_new_menu() {
+		$perms = json_decode( get_option('szeducate_client_permissions', '{}'), true );
+		$actions = isset($perms['actions']) ? $perms['actions'] : array();
+		if ( isset($actions['create']) && !$actions['create'] ) {
+			remove_submenu_page( 'edit.php?post_type=sz_course', 'post-new.php?post_type=sz_course' );
+		}
+	}
+
+	public function modify_list_actions( $actions, $post ) {
+		if ( $post->post_type === 'sz_course' ) {
+			$perms = json_decode( get_option('szeducate_client_permissions', '{}'), true );
+			$perm_actions = isset($perms['actions']) ? $perms['actions'] : array();
+			
+			// Felesleges natív WP gombok eltüntetése
+			unset( $actions['inline hide-if-no-js'] ); // Gyorsszerkesztés
+			unset( $actions['view'] ); // Frontend megtekintés
+			
+			// Ha nincs szerkesztési jog, átírjuk a "Szerkesztés" gomb szövegét (de az URL-t békén hagyjuk!)
+			if ( isset($perm_actions['edit']) && !$perm_actions['edit'] ) {
+				if ( isset( $actions['edit'] ) ) {
+					// Biztonságos szövegcsere csak a HTML tagok között
+					$actions['edit'] = preg_replace( '/>Szerkesztés</', '>Csak olvasható<', $actions['edit'] );
+				}
+			}
+			
+			// Ha nincs törlési jog, eltüntetjük a Kuka gombot
+			if ( isset($perm_actions['delete']) && !$perm_actions['delete'] ) {
+				unset( $actions['trash'] );
+			}
+		}
+		return $actions;
 	}
 
 	public function disable_gutenberg( $current_status, $post_type ) {
-		if ( $post_type === 'sz_course' ) {
-			return false;
-		}
-		return $current_status;
+		return ( $post_type === 'sz_course' ) ? false : $current_status;
 	}
 
 	public function register_course_cpt() {
@@ -74,28 +108,100 @@ class SZEducate_Client {
 		}
 	}
 
-	// ÚJ: CSS beágyazása közvetlenül a fejlécbe
+	private function evaluate_conditions( $conditions, $course_data ) {
+		if ( empty( $conditions ) || empty( $conditions['rules'] ) ) return true;
+
+		$logical_operator = isset( $conditions['logical_operator'] ) ? $conditions['logical_operator'] : 'AND';
+		$results = array();
+
+		foreach ( $conditions['rules'] as $rule ) {
+			if ( isset( $rule['logical_operator'] ) ) {
+				$results[] = $this->evaluate_conditions( $rule, $course_data );
+			} else {
+				$field = isset( $rule['field'] ) ? $rule['field'] : '';
+				$operator = isset( $rule['operator'] ) ? $rule['operator'] : '==';
+				$target_value = isset( $rule['value'] ) ? $rule['value'] : '';
+
+				$actual_value = isset( $course_data[ $field ] ) ? $course_data[ $field ] : '';
+				$actual_string = is_array( $actual_value ) ? implode( ',', $actual_value ) : (string) $actual_value;
+
+				$rule_result = true;
+				switch ( $operator ) {
+					case '==': $rule_result = ( $actual_string === $target_value ); break;
+					case '!=': $rule_result = ( $actual_string !== $target_value ); break;
+					case 'contains': $rule_result = ( strpos( $actual_string, $target_value ) !== false ); break;
+				}
+				$results[] = $rule_result;
+			}
+		}
+
+		return $logical_operator === 'AND' ? ! in_array( false, $results, true ) : in_array( true, $results, true );
+	}
+
+	public function filter_courses_by_permissions( $query ) {
+		if ( is_admin() && $query->is_main_query() && $query->get( 'post_type' ) === 'sz_course' ) {
+			$perms = json_decode( get_option('szeducate_client_permissions', '{}'), true );
+			if ( empty( $perms['conditions'] ) || empty( $perms['conditions']['rules'] ) ) return;
+
+			global $wpdb;
+			$table_name = $wpdb->prefix . 'szeducate_courses_data';
+			
+			$all_courses = $wpdb->get_results("SELECT local_post_id, course_data FROM $table_name", ARRAY_A);
+			
+			$allowed_ids = array();
+			foreach ( $all_courses as $c ) {
+				$data = json_decode( $c['course_data'], true );
+				if ( $this->evaluate_conditions( $perms['conditions'], $data ) ) {
+					$allowed_ids[] = intval( $c['local_post_id'] );
+				}
+			}
+
+			if ( empty( $allowed_ids ) ) {
+				$query->set( 'post__in', array( 0 ) );
+			} else {
+				$query->set( 'post__in', $allowed_ids );
+			}
+		}
+	}
+
 	public function clean_admin_ui() {
-		global $typenow;
+		global $typenow, $pagenow;
 		if ( $typenow === 'sz_course' ) {
-			echo '<style>
-				/* Elrejtünk mindent, ami a régi WordPress szerkesztőhöz tartozik */
+			
+			$perms = json_decode( get_option('szeducate_client_permissions', '{}'), true );
+			$actions = isset($perms['actions']) ? $perms['actions'] : array();
+			
+			$hide_create = ( isset($actions['create']) && !$actions['create'] );
+			$hide_delete = ( isset($actions['delete']) && !$actions['delete'] );
+
+			$css = '<style>';
+			if ( $hide_create ) {
+				$css .= '.page-title-action, #wp-admin-bar-new-sz_course { display: none !important; } ';
+			}
+			if ( $hide_delete ) {
+				$css .= '.submitdelete, .row-actions .trash { display: none !important; } ';
+			}
+			// Brutálisan kigyomlálunk mindent, ami a klasszikus WP szerkesztő része
+			$css .= '
 				#titlediv, 
+				#postdivrich,
+				#submitdiv,
+				.meta-box-sortables,
 				#postbox-container-1, 
 				#postbox-container-2, 
-				.wrap h1, 
-				.wrap .page-title-action, 
+				.wrap > h1, 
 				.notice, 
 				#lost-connection-notice, 
 				#local-storage-notice {
 					display: none !important;
 				}
-				/* Formázzuk a mi React felületünket */
 				#szeducate-react-root {
 					margin-top: 20px;
 					max-width: 1000px;
+					display: block !important;
 				}
 			</style>';
+			echo $css;
 		}
 	}
 
@@ -122,7 +228,6 @@ class SZEducate_Client {
 				$existing_title = '';
 				$existing_data = new stdClass();
 
-				// Ha ez egy meglévő poszt, kiolvassuk az egyedi táblából az adatokat
 				if ( $post_id ) {
 					$table_name = $wpdb->prefix . 'szeducate_courses_data';
 					$course_db = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table_name WHERE local_post_id = %d", $post_id ), ARRAY_A );
@@ -141,6 +246,7 @@ class SZEducate_Client {
 					'nonce'         => wp_create_nonce( 'wp_rest' ), 
 					'restUrl'       => esc_url_raw( rest_url( 'szeducate/v1/client/course' ) ),
 					'schema'        => json_decode( get_option( 'szeducate_local_schema', '[]' ), true ),
+					'permissions'   => json_decode( get_option( 'szeducate_client_permissions', '{}' ), true ),
 					'existingTitle' => $existing_title,
 					'existingData'  => $existing_data
 				) );
@@ -165,10 +271,7 @@ class SZEducate_Client {
 		$hub_url = rtrim( $settings['hub_url'], '/' );
 		$api_token = $settings['api_token'];
 
-		if ( empty( $hub_url ) || empty( $api_token ) ) {
-			error_log( 'SZEducate Sync Hiba: Nincs Hub URL vagy Token megadva.' );
-			return;
-		}
+		if ( empty( $hub_url ) || empty( $api_token ) ) return;
 
 		$endpoint = $hub_url . '/wp-json/szeducate/v1/hub/courses';
 
@@ -188,10 +291,7 @@ class SZEducate_Client {
 			'data_format' => 'body',
 		) );
 
-		if ( is_wp_error( $response ) ) {
-			error_log( 'SZEducate Sync Hálózat Hiba: ' . $response->get_error_message() );
-			return; 
-		}
+		if ( is_wp_error( $response ) ) return; 
 
 		$code = wp_remote_retrieve_response_code( $response );
 		$body = wp_remote_retrieve_body( $response );
@@ -205,8 +305,6 @@ class SZEducate_Client {
 					array( 'local_post_id' => $local_post_id ) 
 				);
 			}
-		} else {
-			error_log( 'SZEducate Sync Hub Hiba (' . $code . '): ' . $body );
 		}
 	}
 }
