@@ -122,8 +122,325 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
+
+// --- SEgédFÜGGVÉNYEK ---
+const parseOptions = optionsString => {
+  if (!optionsString) return [{
+    label: "Válassz...",
+    value: ""
+  }];
+  const opts = optionsString.split(",").map(opt => ({
+    label: opt.trim(),
+    value: opt.trim()
+  }));
+  return [{
+    label: "Válassz...",
+    value: ""
+  }, ...opts];
+};
+
+// --- 1. WYSIWYG Komponens (KÍVÜLRE MOZGATVA) ---
+const WysiwygControl = ({
+  label,
+  fieldKey,
+  value,
+  isRequired,
+  onChange
+}) => {
+  const editorId = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useRef)(`wysiwyg_${fieldKey}_${Math.random().toString(36).substr(2, 9)}`).current;
+  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useEffect)(() => {
+    if (window.wp && window.wp.editor) {
+      window.wp.editor.initialize(editorId, {
+        tinymce: {
+          setup: function (editor) {
+            editor.on("Change KeyUp", function () {
+              onChange(fieldKey, editor.getContent());
+            });
+          }
+        },
+        quicktags: true,
+        mediaButtons: true
+      });
+    }
+    return () => {
+      if (window.wp && window.wp.editor) {
+        window.wp.editor.remove(editorId);
+      }
+    };
+  }, []);
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+    style: {
+      marginBottom: "24px"
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("p", {
+    style: {
+      fontWeight: 600,
+      marginBottom: "8px"
+    }
+  }, label, " ", isRequired && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+    style: {
+      color: "#d63638"
+    }
+  }, "*")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("textarea", {
+    id: editorId,
+    defaultValue: value || "",
+    style: {
+      width: "100%",
+      minHeight: "200px"
+    }
+  }));
+};
+
+// --- 2. Links Komponens (KÍVÜLRE MOZGATVA) ---
+const LinksControl = ({
+  label,
+  fieldKey,
+  value,
+  isRequired,
+  onChange
+}) => {
+  const links = Array.isArray(value) ? value : [];
+  const addLink = () => onChange(fieldKey, [...links, {
+    title: "",
+    url: ""
+  }]);
+  const removeLink = index => onChange(fieldKey, links.filter((_, i) => i !== index));
+  const updateLink = (index, key, val) => {
+    const newLinks = [...links];
+    newLinks[index][key] = val;
+    onChange(fieldKey, newLinks);
+  };
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+    style: {
+      marginBottom: "24px",
+      background: "#f9f9f9",
+      padding: "15px",
+      border: "1px solid #ddd",
+      borderRadius: "4px"
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("p", {
+    style: {
+      fontWeight: 600,
+      marginBottom: "12px"
+    }
+  }, label, " ", isRequired && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+    style: {
+      color: "#d63638"
+    }
+  }, "*")), links.map((link, index) => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+    key: index,
+    style: {
+      display: "flex",
+      gap: "10px",
+      marginBottom: "10px",
+      alignItems: "center"
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+    style: {
+      flex: 1
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.TextControl, {
+    placeholder: "Gomb sz\xF6vege",
+    value: link.title,
+    onChange: v => updateLink(index, "title", v),
+    style: {
+      marginBottom: 0
+    }
+  })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+    style: {
+      flex: 2
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.TextControl, {
+    placeholder: "URL (https://...)",
+    type: "url",
+    value: link.url,
+    onChange: v => updateLink(index, "url", v),
+    style: {
+      marginBottom: 0
+    }
+  })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
+    isDestructive: true,
+    isSmall: true,
+    onClick: () => removeLink(index)
+  }, "X"))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
+    isSecondary: true,
+    onClick: addLink,
+    style: {
+      marginTop: "10px"
+    }
+  }, "+ Link hozz\xE1ad\xE1sa"));
+};
+
+// --- 3. Repeater Komponens (KÍVÜLRE MOZGATVA) ---
+const RepeaterControl = ({
+  label,
+  field,
+  value,
+  isRequired,
+  onChange
+}) => {
+  const rows = Array.isArray(value) ? value : [];
+  const subFields = field.sub_fields || [];
+  const addRow = () => {
+    const newRow = {};
+    subFields.forEach(sf => newRow[sf.key] = "");
+    onChange(field.key, [...rows, newRow]);
+  };
+  const removeRow = index => onChange(field.key, rows.filter((_, i) => i !== index));
+  const updateRow = (index, sfKey, val) => {
+    const newRows = [...rows];
+    newRows[index][sfKey] = val;
+    onChange(field.key, newRows);
+  };
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+    style: {
+      marginBottom: "24px",
+      background: "#fff",
+      border: "1px solid #ccd0d4",
+      borderRadius: "4px"
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+    style: {
+      padding: "10px 15px",
+      background: "#f0f6fc",
+      borderBottom: "1px solid #ccd0d4",
+      fontWeight: 600
+    }
+  }, label, " ", isRequired && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+    style: {
+      color: "#d63638"
+    }
+  }, "*")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+    style: {
+      padding: "15px",
+      overflowX: "auto"
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("table", {
+    style: {
+      width: "100%",
+      borderCollapse: "collapse"
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("thead", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", null, subFields.map(sf => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+    key: sf.key,
+    style: {
+      textAlign: "left",
+      padding: "8px",
+      borderBottom: "2px solid #ddd",
+      fontSize: "13px"
+    }
+  }, sf.label)), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+    style: {
+      width: "40px"
+    }
+  }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tbody", null, rows.map((row, index) => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", {
+    key: index
+  }, subFields.map(sf => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+    key: sf.key,
+    style: {
+      padding: "8px",
+      borderBottom: "1px solid #eee"
+    }
+  }, sf.type === "boolean" ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.ToggleControl, {
+    checked: !!row[sf.key],
+    onChange: v => updateRow(index, sf.key, v)
+  }) : sf.type === "select" ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.SelectControl, {
+    value: row[sf.key] || "",
+    options: parseOptions(sf.options),
+    onChange: v => updateRow(index, sf.key, v),
+    style: {
+      marginBottom: 0
+    }
+  }) : (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.TextControl, {
+    type: sf.type === "number" ? "number" : sf.type === "url" ? "url" : "text",
+    value: row[sf.key] || "",
+    onChange: v => updateRow(index, sf.key, v),
+    style: {
+      marginBottom: 0
+    }
+  }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+    style: {
+      padding: "8px",
+      borderBottom: "1px solid #eee",
+      textAlign: "center"
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
+    isDestructive: true,
+    isSmall: true,
+    onClick: () => removeRow(index)
+  }, "X")))))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
+    isSecondary: true,
+    onClick: addRow,
+    style: {
+      marginTop: "10px"
+    }
+  }, "+ Sor hozz\xE1ad\xE1sa")));
+};
+
+// --- 4. Képfeltöltő Komponens (KÍVÜLRE MOZGATVA) ---
+const ImageUploadControl = ({
+  label,
+  fieldKey,
+  value,
+  isRequired,
+  onChange
+}) => {
+  const openMediaUploader = () => {
+    const wpMedia = window.wp.media({
+      title: "Kép kiválasztása vagy feltöltése",
+      button: {
+        text: "Kép használata"
+      },
+      multiple: false
+    });
+    wpMedia.on("select", () => {
+      const attachment = wpMedia.state().get("selection").first().toJSON();
+      onChange(fieldKey, attachment.url);
+    });
+    wpMedia.open();
+  };
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+    style: {
+      marginBottom: "24px"
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("p", {
+    style: {
+      fontWeight: 600,
+      marginBottom: "8px"
+    }
+  }, label, " ", isRequired && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+    style: {
+      color: "#d63638"
+    }
+  }, "*")), value && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+    style: {
+      marginBottom: "10px",
+      border: "1px solid #ddd",
+      padding: "5px",
+      display: "inline-block"
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("img", {
+    src: value,
+    alt: "Preview",
+    style: {
+      maxWidth: "200px",
+      maxHeight: "150px",
+      display: "block"
+    }
+  })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
+    isSecondary: true,
+    onClick: openMediaUploader
+  }, value ? "Kép cseréje" : "Kép feltöltése"), value && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
+    isDestructive: true,
+    isLink: true,
+    onClick: () => onChange(fieldKey, ""),
+    style: {
+      marginLeft: "10px"
+    }
+  }, "T\xF6rl\xE9s")));
+};
+
+// --- FŐ KOMPONENS ---
 const SZEducateEditor = () => {
-  // 1. Kinyerjük a betöltött adatokat a window objektumból
   const {
     postId,
     nonce,
@@ -132,8 +449,6 @@ const SZEducateEditor = () => {
     existingTitle,
     existingData
   } = window.szEducateData || {};
-
-  // 2. Beállítjuk a kezdőértékeket (Initial State)
   const [title, setTitle] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useState)(existingTitle || "");
   const [formData, setFormData] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useState)(existingData || {});
   const [isSaving, setIsSaving] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useState)(false);
@@ -144,46 +459,66 @@ const SZEducateEditor = () => {
       [key]: value
     }));
   };
-  const parseOptions = optionsString => {
-    if (!optionsString) return [{
-      label: "Válassz...",
-      value: ""
-    }];
-    const opts = optionsString.split(",").map(opt => ({
-      label: opt.trim(),
-      value: opt.trim()
-    }));
-    return [{
-      label: "Válassz...",
-      value: ""
-    }, ...opts];
-  };
   const renderField = field => {
     const value = formData[field.key] || "";
+    const requiredMark = field.is_required || field.is_locked ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+      style: {
+        color: "#d63638"
+      }
+    }, "*") : "";
+    const labelWithRequired = (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, field.label, " ", requiredMark);
     switch (field.type) {
       case "text":
       case "number":
       case "date":
+      case "url":
         return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.TextControl, {
           key: field.key,
-          label: field.label,
-          type: field.type === "date" ? "date" : field.type,
+          label: labelWithRequired,
+          type: field.type === "date" ? "date" : field.type === "url" ? "url" : field.type,
           value: value,
           onChange: val => handleChange(field.key, val),
-          help: field.is_filterable ? "Ez egy szűrhető mező." : ""
+          help: field.is_filterable ? "Indexelt mező." : ""
         });
       case "textarea":
         return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.TextareaControl, {
           key: field.key,
-          label: field.label,
+          label: labelWithRequired,
           value: value,
           onChange: val => handleChange(field.key, val)
+        });
+      case "wysiwyg":
+        return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(WysiwygControl, {
+          key: field.key,
+          label: field.label,
+          fieldKey: field.key,
+          value: value,
+          isRequired: field.is_required,
+          onChange: handleChange
+        });
+      case "links":
+        return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(LinksControl, {
+          key: field.key,
+          label: field.label,
+          fieldKey: field.key,
+          value: value,
+          isRequired: field.is_required,
+          onChange: handleChange
+        });
+      case "repeater":
+        return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(RepeaterControl, {
+          key: field.key,
+          label: field.label,
+          field: field,
+          value: value,
+          isRequired: field.is_required,
+          onChange: handleChange
         });
       case "select":
       case "radio":
         return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.SelectControl, {
           key: field.key,
-          label: field.label,
+          label: labelWithRequired,
           value: value,
           options: parseOptions(field.options),
           onChange: val => handleChange(field.key, val)
@@ -191,13 +526,12 @@ const SZEducateEditor = () => {
       case "boolean":
         return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.ToggleControl, {
           key: field.key,
-          label: field.label,
+          label: labelWithRequired,
           checked: !!value,
           onChange: val => handleChange(field.key, val)
         });
       case "checkbox":
         const chkOptions = field.options ? field.options.split(",").map(o => o.trim()) : [];
-        // Betöltéskor a DB-ben stringként ("Opció1, Opció2") szerepelhet, ezt vissza kell alakítani tömbbé
         const selectedValues = Array.isArray(value) ? value : typeof value === "string" && value !== "" ? value.split(",").map(v => v.trim()) : [];
         return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
           key: field.key,
@@ -209,7 +543,7 @@ const SZEducateEditor = () => {
             fontWeight: 600,
             marginBottom: "8px"
           }
-        }, field.label), chkOptions.map(opt => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.CheckboxControl, {
+        }, labelWithRequired), chkOptions.map(opt => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.CheckboxControl, {
           key: opt,
           label: opt,
           checked: selectedValues.includes(opt),
@@ -218,11 +552,89 @@ const SZEducateEditor = () => {
             handleChange(field.key, newVal);
           }
         })));
+      case "image":
+        return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(ImageUploadControl, {
+          key: field.key,
+          label: field.label,
+          fieldKey: field.key,
+          value: value,
+          isRequired: field.is_required || field.is_locked,
+          onChange: handleChange
+        });
       default:
         return null;
     }
   };
+  const validateForm = () => {
+    if (!title || title.trim() === "") return "A Képzés Címe (Szak megnevezése) kötelező!";
+    if (!formData["kepzesi_forma"]) return "A Képzési Forma kiválasztása kötelező!";
+    const activeFormat = formData["kepzesi_forma"];
+    if (schema && schema.length > 0) {
+      for (const group of schema) {
+        if (group.group_id !== "alap_adatok" && group.group_label !== activeFormat) {
+          let groupVisible = true;
+          if (group.condition && group.condition.operator) {
+            const c = group.condition;
+            const targetVal = formData[c.field];
+            const stringVal = Array.isArray(targetVal) ? targetVal.join(",") : String(targetVal || "");
+            switch (c.operator) {
+              case "==":
+                groupVisible = stringVal === c.value;
+                break;
+              case "!=":
+                groupVisible = stringVal !== c.value;
+                break;
+              case "not_empty":
+                groupVisible = stringVal.trim() !== "";
+                break;
+              case "empty":
+                groupVisible = stringVal.trim() === "";
+                break;
+              case "contains":
+                groupVisible = stringVal.includes(c.value);
+                break;
+              default:
+                groupVisible = true;
+            }
+          }
+          if (!groupVisible) continue;
+        }
+        if (!group.fields) continue;
+        for (const field of group.fields) {
+          if (field.is_required || field.is_locked) {
+            const val = formData[field.key];
+            let isEmpty = false;
+            if (val === undefined || val === null) {
+              isEmpty = true;
+            } else if (field.type === "repeater" || field.type === "links") {
+              if (!Array.isArray(val) || val.length === 0) isEmpty = true;
+            } else if (Array.isArray(val) && val.length === 0) {
+              isEmpty = true;
+            } else if (typeof val === "string" && val.trim() === "") {
+              isEmpty = true;
+            }
+            if (isEmpty) {
+              return `Kérlek töltsd ki a következő kötelező mezőt a(z) "${group.group_label}" fülön: ${field.label}`;
+            }
+          }
+        }
+      }
+    }
+    return null;
+  };
   const handleSave = () => {
+    const errorMsg = validateForm();
+    if (errorMsg) {
+      setMessage({
+        type: "error",
+        text: errorMsg
+      });
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth"
+      });
+      return;
+    }
     setIsSaving(true);
     setMessage(null);
     const processedData = {
@@ -230,7 +642,11 @@ const SZEducateEditor = () => {
     };
     for (const [key, val] of Object.entries(processedData)) {
       if (Array.isArray(val)) {
-        processedData[key] = val.join(", ");
+        if (val.length > 0 && typeof val[0] === "object") {
+          processedData[key] = val;
+        } else {
+          processedData[key] = val.join(", ");
+        }
       }
     }
     fetch(restUrl, {
@@ -257,6 +673,10 @@ const SZEducateEditor = () => {
         });
       }
       setIsSaving(false);
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth"
+      });
     }).catch(err => {
       setMessage({
         type: "error",
@@ -265,40 +685,115 @@ const SZEducateEditor = () => {
       setIsSaving(false);
     });
   };
+  const buildTabs = () => {
+    if (!schema || schema.length === 0) return [];
+    const activeFormat = formData["kepzesi_forma"] || "";
+    const fixedFormats = ["BSc", "MSc", "Osztatlan", "Felsőoktatási szakképzés", "Szakirányú továbbképzés", "Mikroképzés", "Előkészítő"];
+    return schema.filter(group => {
+      if (group.group_id === "alap_adatok") return true;
+      if (fixedFormats.includes(group.group_label)) return group.group_label === activeFormat;
+      if (group.condition && group.condition.operator) {
+        const c = group.condition;
+        const targetVal = formData[c.field];
+        const stringVal = Array.isArray(targetVal) ? targetVal.join(",") : String(targetVal || "");
+        switch (c.operator) {
+          case "==":
+            return stringVal === c.value;
+          case "!=":
+            return stringVal !== c.value;
+          case "not_empty":
+            return stringVal.trim() !== "";
+          case "empty":
+            return stringVal.trim() === "";
+          case "contains":
+            return stringVal.includes(c.value);
+          default:
+            return true;
+        }
+      }
+      return true;
+    }).map(group => ({
+      name: group.group_id,
+      title: group.group_label,
+      className: "szeducate-tab-" + group.group_id,
+      fields: group.fields
+    }));
+  };
   return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
-    className: "szeducate-react-wrapper"
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Panel, {
-    header: "SZEducate K\xE9pz\xE9s Szerkeszt\u0151"
+    className: "szeducate-react-wrapper",
+    style: {
+      maxWidth: "1000px",
+      margin: "0 auto"
+    }
   }, message && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Notice, {
     status: message.type,
-    isDismissible: false
-  }, message.text), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.PanelBody, {
-    title: "1. Alap Adatok (K\xF6telez\u0151)",
-    initialOpen: true
+    isDismissible: false,
+    style: {
+      marginBottom: "20px"
+    }
+  }, message.text), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Panel, {
+    header: "SZEducate K\xE9pz\xE9s Szerkeszt\u0151"
+  }, schema && schema.length > 0 ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+    style: {
+      background: "#fff",
+      border: "1px solid #e2e4e7"
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.TabPanel, {
+    className: "szeducate-tabs",
+    activeClass: "is-active",
+    tabs: buildTabs()
+  }, tab => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+    style: {
+      padding: "20px"
+    }
+  }, tab.name === "alap_adatok" && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+    style: {
+      marginBottom: "24px",
+      paddingBottom: "24px",
+      borderBottom: "1px solid #eee"
+    }
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.TextControl, {
-    label: "K\xE9pz\xE9s C\xEDme (Szak megnevez\xE9se)",
+    label: (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, "K\xE9pz\xE9s C\xEDme (Szak megnevez\xE9se)", " ", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+      style: {
+        color: "#d63638"
+      }
+    }, "*")),
     value: title,
-    onChange: value => setTitle(value),
-    placeholder: "pl. M\xE9rn\xF6kinformatikus BSc",
-    required: true
-  })), schema && schema.length > 0 ? schema.map((group, index) => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.PanelBody, {
-    key: group.group_id,
-    title: `2.${index + 1} ${group.group_label}`,
-    initialOpen: false
-  }, group.fields && group.fields.map(field => renderField(field)))) : (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.PanelBody, {
-    title: "Hi\xE1nyz\xF3 S\xE9ma!"
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("p", null, "A Kliens m\xE9g nem t\xF6lt\xF6tte le az adatb\xE1zis s\xE9m\xE1t. K\xE9rlek, menj a be\xE1ll\xEDt\xE1sokba \xE9s szinkroniz\xE1lj a Hub-bal!")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.PanelBody, {
-    title: "Ment\xE9s \xE9s Szinkroniz\xE1ci\xF3",
-    initialOpen: true
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
+    onChange: value => setTitle(value)
+  })), tab.fields && tab.fields.map(field => renderField(field))))) : (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Notice, {
+    status: "warning",
+    isDismissible: false,
+    style: {
+      marginTop: "20px"
+    }
+  }, "Hi\xE1nyz\xF3 s\xE9ma! K\xE9rlek szinkroniz\xE1lj a Hubbal a Be\xE1ll\xEDt\xE1sokban.")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+    style: {
+      marginTop: "20px",
+      padding: "20px",
+      background: "#fff",
+      border: "1px solid #e2e4e7",
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center"
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+    style: {
+      fontSize: "12px",
+      color: "#666"
+    }
+  }, "A ", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+    style: {
+      color: "#d63638"
+    }
+  }, "*"), "-gal jel\xF6lt mez\u0151k kit\xF6lt\xE9se k\xF6telez\u0151."), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
     isPrimary: true,
     isBusy: isSaving,
-    disabled: isSaving || title.length === 0,
     onClick: handleSave,
     style: {
-      padding: "5px 30px"
+      padding: "5px 30px",
+      backgroundColor: "#007cba"
     }
-  }, isSaving ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Spinner, null), " Szinkroniz\xE1l\xE1s a k\xF6zponttal...") : "Véglegesítés és Mentés"))));
+  }, isSaving ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Spinner, null), " Ment\xE9s...") : "Véglegesítés és Mentés")));
 };
 document.addEventListener("DOMContentLoaded", () => {
   const rootElement = document.getElementById("szeducate-react-root");

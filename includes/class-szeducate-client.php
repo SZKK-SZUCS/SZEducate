@@ -104,6 +104,9 @@ class SZEducate_Client {
 		
 		if ( ( $hook === 'post.php' || $hook === 'post-new.php' ) && $typenow === 'sz_course' ) {
 			
+			wp_enqueue_media();
+			wp_enqueue_editor();
+			
 			$asset_file = SZEDUCATE_PLUGIN_DIR . 'build/index.asset.php';
 			if ( file_exists( $asset_file ) ) {
 				$assets = require $asset_file;
