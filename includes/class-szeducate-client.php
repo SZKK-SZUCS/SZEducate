@@ -394,9 +394,9 @@ class SZEducate_Client {
 				$data['meghirdetes_allapota'] = $status_val;
 				
 				if ( $bulk_action === 'szeducate_activate' ) {
-					$data['aktiv_eddig'] = $expiry_date;
+					$data['passziv_ettol'] = $expiry_date;
 				} else {
-					$data['aktiv_eddig'] = ''; 
+					$data['passziv_ettol'] = ''; 
 				}
 
 				$wpdb->update(
@@ -676,10 +676,10 @@ class SZEducate_Client {
 			if ( ! is_array( $data ) ) continue;
 
 			if ( isset( $data['meghirdetes_allapota'] ) && $data['meghirdetes_allapota'] === 'Aktív' ) {
-				if ( ! empty( $data['aktiv_eddig'] ) && $data['aktiv_eddig'] < $today ) {
+				if ( ! empty( $data['passziv_ettol'] ) && $data['passziv_ettol'] < $today ) {
 					
 					$data['meghirdetes_allapota'] = 'Passzív';
-					$data['aktiv_eddig'] = '';
+					$data['passziv_ettol'] = '';
 
 					$wpdb->update(
 						$table_name,

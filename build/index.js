@@ -502,7 +502,8 @@ const SZEducateEditor = () => {
   }));
   const renderField = field => {
     const value = formData[field.key] || "";
-    const requiredMark = field.is_required || field.is_locked ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+    // JAVÍTÁS: Csak akkor tesz csillagot, ha a is_required be van pipálva a hubon.
+    const requiredMark = field.is_required ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
       style: {
         color: "#d63638",
         marginLeft: "4px"
@@ -517,8 +518,6 @@ const SZEducateEditor = () => {
         marginLeft: "6px"
       }
     }, "(Csak olvashat\xF3)") : "";
-
-    // Egységesített, vastagított címke
     const labelWithRequired = (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
       style: {
         fontWeight: 600,
@@ -538,14 +537,27 @@ const SZEducateEditor = () => {
       case "date":
       case "url":
       case "email":
-        control = (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.TextControl, {
+        const isEmail = field.type === "email";
+        const emailVal = value || "";
+        const showEmailWarning = isEmail && emailVal && !emailVal.toLowerCase().trim().endsWith("@sze.hu");
+        control = (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.TextControl, {
           label: labelWithRequired,
           type: field.type === "date" ? "date" : field.type === "url" ? "url" : field.type === "email" ? "email" : field.type,
           value: value,
           onChange: val => handleChange(field.key, val),
           help: combinedHelp,
           disabled: isReadonly
-        });
+        }), showEmailWarning && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+          style: {
+            color: "#856404",
+            backgroundColor: "#fff3cd",
+            padding: "8px 12px",
+            borderRadius: "4px",
+            fontSize: "12px",
+            marginTop: "10px",
+            border: "1px solid #ffeeba"
+          }
+        }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, "\u26A0\uFE0F Figyelem:"), " K\xE9rj\xFCk, lehet\u0151s\xE9g szerint hivatalos egyetemi email c\xEDmet (@sze.hu v\xE9gz\u0151d\xE9ssel) adj meg!"));
         break;
       case "textarea":
         control = (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.TextareaControl, {
@@ -655,8 +667,6 @@ const SZEducateEditor = () => {
         control = null;
     }
     if (!control) return null;
-
-    // Minden mező kap egy tágas wrapper-t
     return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
       key: field.key,
       style: {
@@ -706,12 +716,9 @@ const SZEducateEditor = () => {
         if (!group.fields) continue;
         for (const field of group.fields) {
           const val = formData[field.key];
-          if (field.type === "email" && val && typeof val === "string" && val.trim() !== "") {
-            if (!val.toLowerCase().trim().endsWith("@sze.hu")) {
-              return `Kérjük, adjon meg hivatalos egyetemi email címet (@sze.hu végződéssel) a(z) "${field.label}" mezőben!`;
-            }
-          }
-          if ((field.is_required || field.is_locked) && !field.is_readonly && !globalReadonly) {
+
+          // JAVÍTÁS: A kötelező mezők ellenőrzéséből kivettük a field.is_locked feltételt
+          if (field.is_required && !field.is_readonly && !globalReadonly) {
             let isEmpty = false;
             if (val === undefined || val === null) {
               isEmpty = true;

@@ -102,6 +102,7 @@ class SZEducate_Import_Export {
 		$col_index = 1;
 		$group_borders = array(); 
 		$keys_map = array(); 
+		$required_columns = array(); // ÚJ: Itt gyűjtjük a kötelező oszlopok indexeit
 
 		$fixed_formats = ["BSc", "MSc", "Osztatlan", "Felsőoktatási szakképzés", "Szakirányú továbbképzés", "Mikroképzés", "Előkészítő"];
 		$is_all_formats = empty($requested_formats);
@@ -110,7 +111,7 @@ class SZEducate_Import_Export {
 		$sheet->setCellValue([$col_index, 1], 'Rendszer adatok');
 		$sheet->setCellValue([$col_index, 2], 'Cím (Szak megnevezése)');
 		$sheet->setCellValue([$col_index, 3], 'title');
-		$sheet->setCellValue([$col_index, 4], '[Kötelező! Szöveges mező]');
+		$sheet->setCellValue([$col_index, 4], '[KÖTELEZŐ MEZŐ!] Szöveges mező');
 		
 		$keys_map[$col_index] = [
 			'key' => 'title',
@@ -118,6 +119,7 @@ class SZEducate_Import_Export {
 			'group_label' => 'Alap adatok'
 		];
 		$group_borders[] = $col_index; 
+		$required_columns[] = $col_index; // A cím mindig kötelező
 		$col_index++;
 
 		// 2. SÉMA OSZLOPOK ÉS VALIDÁCIÓ ÉPÍTÉSE
@@ -151,6 +153,12 @@ class SZEducate_Import_Export {
 
 					$help_text = '';
 					
+					// Ha kötelező, feljegyezzük az oszlopot a későbbi színezéshez
+					if ( !empty($field['is_required']) ) {
+						$help_text = '[KÖTELEZŐ MEZŐ!] ';
+						$required_columns[] = $col_index;
+					}
+
 					// Dinamikus lenyíló lista generálása (Adatérvényesítés)
 					if ( in_array( $field['type'], ['select', 'radio'] ) && !empty( $field['options'] ) ) {
 						$options = array_map('trim', explode(',', $field['options']));
@@ -184,19 +192,19 @@ class SZEducate_Import_Export {
 							
 							$hidden_col_index++;
 						}
-						$help_text = '[Lenyíló lista: ' . ($field['options'] ?? '') . ']';
+						$help_text .= '[Lenyíló lista: ' . ($field['options'] ?? '') . ']';
 					} 
 					else {
 						switch ( $field['type'] ) {
-							case 'boolean': $help_text = '[Kapcsoló: "true" vagy "false"]'; break;
-							case 'checkbox': case 'multiselect': $help_text = '[Több is lehet (VESSZŐVEL elválasztva): ' . ($field['options'] ?? '') . ']'; break;
-							case 'number': $help_text = '[Csak szám]'; break;
-							case 'date': $help_text = '[Dátum: ÉÉÉÉ-HH-NN]'; break;
-							case 'email': $help_text = '[Email cím @sze.hu]'; break;
-							case 'wysiwyg': $help_text = '[Formázott szöveg. Sima szöveget is fogad (később a felületen formázható).]'; break;
-							case 'repeater': $help_text = '[Táblázat. Sima szöveget beírva automatikusan az 1. oszlopba kerül, később a felületen bővíthető.]'; break;
-							case 'links': $help_text = '[Linkek. Sima URL-t megadva a felület gombbá alakítja.]'; break;
-							default: $help_text = '[Szöveges mező]'; break;
+							case 'boolean': $help_text .= '[Kapcsoló: "true" vagy "false"]'; break;
+							case 'checkbox': case 'multiselect': $help_text .= '[Több is lehet (VESSZŐVEL elválasztva): ' . ($field['options'] ?? '') . ']'; break;
+							case 'number': $help_text .= '[Csak szám]'; break;
+							case 'date': $help_text .= '[Dátum: ÉÉÉÉ-HH-NN]'; break;
+							case 'email': $help_text .= '[Email cím @sze.hu]'; break;
+							case 'wysiwyg': $help_text .= '[Formázott szöveg. Sima szöveget is fogad (később a felületen formázható).]'; break;
+							case 'repeater': $help_text .= '[Táblázat. Sima szöveget beírva automatikusan az 1. oszlopba kerül, később a felületen bővíthető.]'; break;
+							case 'links': $help_text .= '[Linkek. Sima URL-t megadva a felület gombbá alakítja.]'; break;
+							default: $help_text .= '[Szöveges mező]'; break;
 						}
 					}
 
@@ -238,12 +246,29 @@ class SZEducate_Import_Export {
 			'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => 'FFF9F9F9']],
 		]);
 
+		// MÓDOSÍTOTT: A 4. sor alapból sötétszürke betűszínű lesz
 		$sheet->getStyle("A4:{$last_col_letter}4")->applyFromArray([
-			'font' => ['color' => ['argb' => 'FFD63638'], 'size' => 10],
+			'font' => ['color' => ['argb' => 'FF646970'], 'size' => 10],
 			'alignment' => ['wrapText' => true, 'vertical' => Alignment::VERTICAL_TOP],
 		]);
 		$sheet->getRowDimension(4)->setRowHeight(-1);
 
+		// ÚJ: A kötelező oszlopok vizuális kiemelése (Piros Súgó és halványpiros háttér az adatcelláknak)
+		foreach ($required_columns as $col_num) {
+			$letter = Coordinate::stringFromColumnIndex($col_num);
+			
+			// 4. sor (Súgó) pirosra színezése
+			$sheet->getStyle("{$letter}4")->applyFromArray([
+				'font' => ['color' => ['argb' => 'FFD63638'], 'bold' => true],
+			]);
+			
+			// 5-től 1000. sorig a háttér halványpiros lesz
+			$sheet->getStyle("{$letter}5:{$letter}1000")->applyFromArray([
+				'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => 'FFFBEAEA']],
+			]);
+		}
+
+		// Keretek megrajzolása a csoportok közé
 		foreach ($group_borders as $col_num) {
 			$letter = Coordinate::stringFromColumnIndex($col_num);
 			$sheet->getStyle("{$letter}1:{$letter}1000")->applyFromArray([
@@ -331,7 +356,7 @@ class SZEducate_Import_Export {
 			$formats_str = empty($requested_formats) ? 'MINDEN' : implode('_', $requested_formats);
 			$formats_str = preg_replace( '/[^A-Za-z0-9_áéíóöőúüűÁÉÍÓÖŐÚÜŰ]/', '_', $formats_str );
 			$formats_str = preg_replace( '/_+/', '_', $formats_str );
-			$filename = 'SZAKSABLON_-_' . $formats_str . '_-_' . date('Y-m-d') . '.xlsx';
+			$filename = 'SZAKSABLON - ' . $formats_str . ' - ' . date('Y-m-d') . '.xlsx';
 		} else {
 			$filename = 'szeducate_export_' . date('Ymd_His') . '.xlsx';
 		}

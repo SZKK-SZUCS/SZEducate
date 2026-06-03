@@ -415,12 +415,12 @@ const SZEducateEditor = () => {
 
   const renderField = (field) => {
     const value = formData[field.key] || "";
-    const requiredMark =
-      field.is_required || field.is_locked ? (
-        <span style={{ color: "#d63638", marginLeft: "4px" }}>*</span>
-      ) : (
-        ""
-      );
+    // JAVÍTÁS: Csak akkor tesz csillagot, ha a is_required be van pipálva a hubon.
+    const requiredMark = field.is_required ? (
+      <span style={{ color: "#d63638", marginLeft: "4px" }}>*</span>
+    ) : (
+      ""
+    );
     const isReadonly = !!field.is_readonly || globalReadonly;
     const readonlyMark = isReadonly ? (
       <span
@@ -436,7 +436,6 @@ const SZEducateEditor = () => {
       ""
     );
 
-    // Egységesített, vastagított címke
     const labelWithRequired = (
       <span
         style={{
@@ -463,23 +462,47 @@ const SZEducateEditor = () => {
       case "date":
       case "url":
       case "email":
+        const isEmail = field.type === "email";
+        const emailVal = value || "";
+        const showEmailWarning =
+          isEmail &&
+          emailVal &&
+          !emailVal.toLowerCase().trim().endsWith("@sze.hu");
+
         control = (
-          <TextControl
-            label={labelWithRequired}
-            type={
-              field.type === "date"
-                ? "date"
-                : field.type === "url"
-                ? "url"
-                : field.type === "email"
-                ? "email"
-                : field.type
-            }
-            value={value}
-            onChange={(val) => handleChange(field.key, val)}
-            help={combinedHelp}
-            disabled={isReadonly}
-          />
+          <>
+            <TextControl
+              label={labelWithRequired}
+              type={
+                field.type === "date"
+                  ? "date"
+                  : field.type === "url"
+                  ? "url"
+                  : field.type === "email"
+                  ? "email"
+                  : field.type
+              }
+              value={value}
+              onChange={(val) => handleChange(field.key, val)}
+              help={combinedHelp}
+              disabled={isReadonly}
+            />
+            {showEmailWarning && (
+              <div
+                style={{
+                  color: "#856404",
+                  backgroundColor: "#fff3cd",
+                  padding: "8px 12px",
+                  borderRadius: "4px",
+                  fontSize: "12px",
+                  marginTop: "10px",
+                  border: "1px solid #ffeeba",
+                }}>
+                <strong>⚠️ Figyelem:</strong> Kérjük, lehetőség szerint
+                hivatalos egyetemi email címet (@sze.hu végződéssel) adj meg!
+              </div>
+            )}
+          </>
         );
         break;
       case "textarea":
@@ -614,7 +637,6 @@ const SZEducateEditor = () => {
 
     if (!control) return null;
 
-    // Minden mező kap egy tágas wrapper-t
     return (
       <div
         key={field.key}
@@ -685,22 +707,8 @@ const SZEducateEditor = () => {
         for (const field of group.fields) {
           const val = formData[field.key];
 
-          if (
-            field.type === "email" &&
-            val &&
-            typeof val === "string" &&
-            val.trim() !== ""
-          ) {
-            if (!val.toLowerCase().trim().endsWith("@sze.hu")) {
-              return `Kérjük, adjon meg hivatalos egyetemi email címet (@sze.hu végződéssel) a(z) "${field.label}" mezőben!`;
-            }
-          }
-
-          if (
-            (field.is_required || field.is_locked) &&
-            !field.is_readonly &&
-            !globalReadonly
-          ) {
+          // JAVÍTÁS: A kötelező mezők ellenőrzéséből kivettük a field.is_locked feltételt
+          if (field.is_required && !field.is_readonly && !globalReadonly) {
             let isEmpty = false;
             if (val === undefined || val === null) {
               isEmpty = true;
