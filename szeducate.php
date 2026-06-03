@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/vendor/autoload.php';
 /**
  * Plugin Name:       SZEducate
  * Description:       Hub-Spoke architektúrájú képzésmenedzsment és szinkronizációs rendszer a Széchenyi István Egyetem számára.

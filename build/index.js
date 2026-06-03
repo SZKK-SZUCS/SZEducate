@@ -136,12 +136,27 @@ const parseOptions = optionsString => {
     value: ""
   }, ...opts];
 };
+const HelpTextUi = ({
+  text
+}) => {
+  if (!text) return null;
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("p", {
+    style: {
+      fontSize: "12px",
+      color: "#646970",
+      marginTop: "4px",
+      marginBottom: "10px",
+      fontStyle: "italic",
+      lineHeight: "1.4"
+    }
+  }, text);
+};
 const WysiwygControl = ({
   label,
   fieldKey,
   value,
-  isRequired,
   isReadonly,
+  helpText,
   onChange
 }) => {
   const editorId = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useRef)(`wysiwyg_${fieldKey}_${Math.random().toString(36).substr(2, 9)}`).current;
@@ -166,25 +181,16 @@ const WysiwygControl = ({
   }, []);
   return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
     style: {
-      marginBottom: "24px",
       opacity: isReadonly ? 0.7 : 1,
       pointerEvents: isReadonly ? "none" : "auto"
     }
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("p", {
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
     style: {
-      fontWeight: 600,
-      marginBottom: "8px"
+      marginBottom: "4px"
     }
-  }, label, " ", isRequired && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
-    style: {
-      color: "#d63638"
-    }
-  }, "*"), " ", isReadonly && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
-    style: {
-      color: "#888",
-      fontSize: "12px"
-    }
-  }, "(Csak olvashat\xF3)")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("textarea", {
+  }, label), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(HelpTextUi, {
+    text: helpText
+  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("textarea", {
     id: editorId,
     defaultValue: value || "",
     style: {
@@ -198,8 +204,8 @@ const LinksControl = ({
   label,
   fieldKey,
   value,
-  isRequired,
   isReadonly,
+  helpText,
   onChange
 }) => {
   const links = Array.isArray(value) ? value : [];
@@ -215,27 +221,18 @@ const LinksControl = ({
   };
   return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
     style: {
-      marginBottom: "24px",
       background: isReadonly ? "#f0f0f0" : "#f9f9f9",
       padding: "15px",
       border: "1px solid #ddd",
       borderRadius: "4px"
     }
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("p", {
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
     style: {
-      fontWeight: 600,
-      marginBottom: "12px"
+      marginBottom: "4px"
     }
-  }, label, " ", isRequired && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
-    style: {
-      color: "#d63638"
-    }
-  }, "*"), " ", isReadonly && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
-    style: {
-      color: "#888",
-      fontSize: "12px"
-    }
-  }, "(Csak olvashat\xF3)")), links.map((link, index) => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+  }, label), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(HelpTextUi, {
+    text: helpText
+  }), links.map((link, index) => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
     key: index,
     style: {
       display: "flex",
@@ -284,8 +281,8 @@ const RepeaterControl = ({
   label,
   field,
   value,
-  isRequired,
   isReadonly,
+  helpText,
   onChange
 }) => {
   const rows = Array.isArray(value) ? value : [];
@@ -303,7 +300,6 @@ const RepeaterControl = ({
   };
   return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
     style: {
-      marginBottom: "24px",
       background: "#fff",
       border: "1px solid #ccd0d4",
       borderRadius: "4px",
@@ -313,19 +309,11 @@ const RepeaterControl = ({
     style: {
       padding: "10px 15px",
       background: "#f0f6fc",
-      borderBottom: "1px solid #ccd0d4",
-      fontWeight: 600
+      borderBottom: "1px solid #ccd0d4"
     }
-  }, label, " ", isRequired && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
-    style: {
-      color: "#d63638"
-    }
-  }, "*"), " ", isReadonly && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
-    style: {
-      color: "#888",
-      fontSize: "12px"
-    }
-  }, "(Csak olvashat\xF3)")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", null, label), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(HelpTextUi, {
+    text: helpText
+  })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
     style: {
       padding: "15px",
       overflowX: "auto"
@@ -397,8 +385,8 @@ const ImageUploadControl = ({
   label,
   fieldKey,
   value,
-  isRequired,
   isReadonly,
+  helpText,
   onChange
 }) => {
   const openMediaUploader = () => {
@@ -418,24 +406,15 @@ const ImageUploadControl = ({
   };
   return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
     style: {
-      marginBottom: "24px",
       opacity: isReadonly ? 0.7 : 1
     }
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("p", {
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
     style: {
-      fontWeight: 600,
-      marginBottom: "8px"
+      marginBottom: "4px"
     }
-  }, label, " ", isRequired && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
-    style: {
-      color: "#d63638"
-    }
-  }, "*"), " ", isReadonly && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
-    style: {
-      color: "#888",
-      fontSize: "12px"
-    }
-  }, "(Csak olvashat\xF3)")), value && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+  }, label), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(HelpTextUi, {
+    text: helpText
+  }), value && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
     style: {
       marginBottom: "10px",
       border: "1px solid #ddd",
@@ -525,104 +504,130 @@ const SZEducateEditor = () => {
     const value = formData[field.key] || "";
     const requiredMark = field.is_required || field.is_locked ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
       style: {
-        color: "#d63638"
+        color: "#d63638",
+        marginLeft: "4px"
       }
     }, "*") : "";
     const isReadonly = !!field.is_readonly || globalReadonly;
     const readonlyMark = isReadonly ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
       style: {
         color: "#888",
-        fontSize: "12px"
+        fontSize: "12px",
+        fontWeight: "normal",
+        marginLeft: "6px"
       }
-    }, " (Csak olvashat\xF3)") : "";
-    const labelWithRequired = (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, field.label, " ", requiredMark, " ", readonlyMark);
+    }, "(Csak olvashat\xF3)") : "";
+
+    // Egységesített, vastagított címke
+    const labelWithRequired = (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+      style: {
+        fontWeight: 600,
+        fontSize: "13px",
+        color: "#1d2327",
+        display: "inline-flex",
+        alignItems: "center"
+      }
+    }, field.label, " ", requiredMark, " ", readonlyMark);
+    const helpStr = field.help_text || "";
+    const isFilterableStr = field.is_filterable && !isReadonly ? "Indexelt mező." : "";
+    const combinedHelp = [helpStr, isFilterableStr].filter(Boolean).join(" ");
+    let control = null;
     switch (field.type) {
       case "text":
       case "number":
       case "date":
       case "url":
       case "email":
-        return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.TextControl, {
-          key: field.key,
+        control = (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.TextControl, {
           label: labelWithRequired,
           type: field.type === "date" ? "date" : field.type === "url" ? "url" : field.type === "email" ? "email" : field.type,
           value: value,
           onChange: val => handleChange(field.key, val),
-          help: field.is_filterable && !isReadonly ? "Indexelt mező." : "",
+          help: combinedHelp,
           disabled: isReadonly
         });
+        break;
       case "textarea":
-        return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.TextareaControl, {
-          key: field.key,
+        control = (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.TextareaControl, {
           label: labelWithRequired,
           value: value,
+          help: combinedHelp,
           onChange: val => handleChange(field.key, val),
           disabled: isReadonly
         });
+        break;
       case "wysiwyg":
-        return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(WysiwygControl, {
-          key: field.key,
-          label: field.label,
+        control = (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(WysiwygControl, {
+          label: labelWithRequired,
           fieldKey: field.key,
           value: value,
-          isRequired: field.is_required,
           isReadonly: isReadonly,
+          helpText: combinedHelp,
           onChange: handleChange
         });
+        break;
       case "links":
-        return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(LinksControl, {
-          key: field.key,
-          label: field.label,
+        control = (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(LinksControl, {
+          label: labelWithRequired,
           fieldKey: field.key,
           value: value,
-          isRequired: field.is_required,
           isReadonly: isReadonly,
+          helpText: combinedHelp,
           onChange: handleChange
         });
+        break;
       case "repeater":
-        return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(RepeaterControl, {
-          key: field.key,
-          label: field.label,
+        control = (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(RepeaterControl, {
+          label: labelWithRequired,
           field: field,
           value: value,
-          isRequired: field.is_required,
           isReadonly: isReadonly,
+          helpText: combinedHelp,
           onChange: handleChange
         });
+        break;
       case "select":
       case "radio":
-        return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.SelectControl, {
-          key: field.key,
+        control = (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.SelectControl, {
           label: labelWithRequired,
           value: value,
           options: parseOptions(field.options),
+          help: combinedHelp,
           onChange: val => handleChange(field.key, val),
           disabled: isReadonly
         });
+        break;
       case "boolean":
-        return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.ToggleControl, {
-          key: field.key,
+        control = (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.ToggleControl, {
           label: labelWithRequired,
           checked: !!value,
+          help: combinedHelp,
           onChange: val => handleChange(field.key, val),
           disabled: isReadonly
         });
+        break;
       case "checkbox":
         const chkOptions = field.options ? field.options.split(",").map(o => o.trim()) : [];
         const selectedValues = Array.isArray(value) ? value : typeof value === "string" && value !== "" ? value.split(",").map(v => v.trim()) : [];
-        return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
-          key: field.key,
+        control = (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
           style: {
-            marginBottom: "24px",
             opacity: isReadonly ? 0.7 : 1,
             pointerEvents: isReadonly ? "none" : "auto"
           }
-        }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("p", {
+        }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
           style: {
-            fontWeight: 600,
-            marginBottom: "8px"
+            marginBottom: "4px"
           }
-        }, labelWithRequired), chkOptions.map(opt => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.CheckboxControl, {
+        }, labelWithRequired), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(HelpTextUi, {
+          text: combinedHelp
+        }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+          style: {
+            marginTop: "12px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "10px"
+          }
+        }, chkOptions.map(opt => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.CheckboxControl, {
           key: opt,
           label: opt,
           checked: selectedValues.includes(opt),
@@ -630,21 +635,36 @@ const SZEducateEditor = () => {
           onChange: isChecked => {
             const newVal = isChecked ? [...selectedValues, opt] : selectedValues.filter(v => v !== opt);
             handleChange(field.key, newVal);
+          },
+          style: {
+            marginBottom: 0
           }
-        })));
+        }))));
+        break;
       case "image":
-        return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(ImageUploadControl, {
-          key: field.key,
-          label: field.label,
+        control = (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(ImageUploadControl, {
+          label: labelWithRequired,
           fieldKey: field.key,
           value: value,
-          isRequired: field.is_required || field.is_locked,
           isReadonly: isReadonly,
+          helpText: combinedHelp,
           onChange: handleChange
         });
+        break;
       default:
-        return null;
+        control = null;
     }
+    if (!control) return null;
+
+    // Minden mező kap egy tágas wrapper-t
+    return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+      key: field.key,
+      style: {
+        marginBottom: "30px",
+        paddingBottom: "25px",
+        borderBottom: "1px solid #f0f0f1"
+      }
+    }, control);
   };
   const validateForm = () => {
     if (!title || title.trim() === "") return "A Képzés Címe (Szak megnevezése) kötelező!";
@@ -653,7 +673,6 @@ const SZEducateEditor = () => {
     const fixedFormats = ["BSc", "MSc", "Osztatlan", "Felsőoktatási szakképzés", "Szakirányú továbbképzés", "Mikroképzés", "Előkészítő"];
     if (schema && schema.length > 0) {
       for (const group of schema) {
-        // CSAK AZ AKTUÁLISAN LÁTHATÓ FÜLEKET VALIDÁLJUK!
         let isVisible = true;
         if (group.group_id !== "alap_adatok") {
           if (fixedFormats.includes(group.group_label)) {
@@ -683,20 +702,15 @@ const SZEducateEditor = () => {
             }
           }
         }
-        if (!isVisible) continue; // Ha a fül rejtve van, kihagyjuk!
-
+        if (!isVisible) continue;
         if (!group.fields) continue;
         for (const field of group.fields) {
           const val = formData[field.key];
-
-          // EMAIL VALIDÁCIÓ (@sze.hu)
           if (field.type === "email" && val && typeof val === "string" && val.trim() !== "") {
             if (!val.toLowerCase().trim().endsWith("@sze.hu")) {
               return `Kérjük, adjon meg hivatalos egyetemi email címet (@sze.hu végződéssel) a(z) "${field.label}" mezőben!`;
             }
           }
-
-          // KÖTELEZŐ MEZŐ VALIDÁCIÓ
           if ((field.is_required || field.is_locked) && !field.is_readonly && !globalReadonly) {
             let isEmpty = false;
             if (val === undefined || val === null) {
@@ -840,23 +854,35 @@ const SZEducateEditor = () => {
     }
   }, tab.name === "alap_adatok" && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
     style: {
-      marginBottom: "24px",
-      paddingBottom: "24px",
-      borderBottom: "1px solid #eee"
+      marginBottom: "30px",
+      paddingBottom: "25px",
+      borderBottom: "1px solid #f0f0f1"
     }
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.TextControl, {
-    label: (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, "K\xE9pz\xE9s C\xEDme (Szak megnevez\xE9se)", " ", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+    label: (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
       style: {
-        color: "#d63638"
+        fontWeight: 600,
+        fontSize: "13px",
+        color: "#1d2327",
+        display: "inline-flex",
+        alignItems: "center"
+      }
+    }, "K\xE9pz\xE9s C\xEDme (Szak megnevez\xE9se)", " ", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+      style: {
+        color: "#d63638",
+        marginLeft: "4px"
       }
     }, "*"), " ", globalReadonly && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
       style: {
         color: "#888",
-        fontSize: "12px"
+        fontSize: "12px",
+        fontWeight: "normal",
+        marginLeft: "6px"
       }
-    }, " ", "(Csak olvashat\xF3)")),
+    }, "(Csak olvashat\xF3)")),
     value: title,
     onChange: value => setTitle(value),
+    help: "Add meg a k\xE9pz\xE9s pontos, hivatalos megnevez\xE9s\xE9t.",
     disabled: globalReadonly
   })), tab.fields && tab.fields.map(field => renderField(field))))) : (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Notice, {
     status: "warning",

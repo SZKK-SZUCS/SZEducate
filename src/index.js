@@ -21,12 +21,29 @@ const parseOptions = (optionsString) => {
   return [{ label: "Válassz...", value: "" }, ...opts];
 };
 
+const HelpTextUi = ({ text }) => {
+  if (!text) return null;
+  return (
+    <p
+      style={{
+        fontSize: "12px",
+        color: "#646970",
+        marginTop: "4px",
+        marginBottom: "10px",
+        fontStyle: "italic",
+        lineHeight: "1.4",
+      }}>
+      {text}
+    </p>
+  );
+};
+
 const WysiwygControl = ({
   label,
   fieldKey,
   value,
-  isRequired,
   isReadonly,
+  helpText,
   onChange,
 }) => {
   const editorId = useRef(
@@ -54,18 +71,11 @@ const WysiwygControl = ({
   return (
     <div
       style={{
-        marginBottom: "24px",
         opacity: isReadonly ? 0.7 : 1,
         pointerEvents: isReadonly ? "none" : "auto",
       }}>
-      <p style={{ fontWeight: 600, marginBottom: "8px" }}>
-        {label} {isRequired && <span style={{ color: "#d63638" }}>*</span>}{" "}
-        {isReadonly && (
-          <span style={{ color: "#888", fontSize: "12px" }}>
-            (Csak olvasható)
-          </span>
-        )}
-      </p>
+      <div style={{ marginBottom: "4px" }}>{label}</div>
+      <HelpTextUi text={helpText} />
       <textarea
         id={editorId}
         defaultValue={value || ""}
@@ -79,8 +89,8 @@ const LinksControl = ({
   label,
   fieldKey,
   value,
-  isRequired,
   isReadonly,
+  helpText,
   onChange,
 }) => {
   const links = Array.isArray(value) ? value : [];
@@ -98,20 +108,13 @@ const LinksControl = ({
   return (
     <div
       style={{
-        marginBottom: "24px",
         background: isReadonly ? "#f0f0f0" : "#f9f9f9",
         padding: "15px",
         border: "1px solid #ddd",
         borderRadius: "4px",
       }}>
-      <p style={{ fontWeight: 600, marginBottom: "12px" }}>
-        {label} {isRequired && <span style={{ color: "#d63638" }}>*</span>}{" "}
-        {isReadonly && (
-          <span style={{ color: "#888", fontSize: "12px" }}>
-            (Csak olvasható)
-          </span>
-        )}
-      </p>
+      <div style={{ marginBottom: "4px" }}>{label}</div>
+      <HelpTextUi text={helpText} />
       {links.map((link, index) => (
         <div
           key={index}
@@ -160,8 +163,8 @@ const RepeaterControl = ({
   label,
   field,
   value,
-  isRequired,
   isReadonly,
+  helpText,
   onChange,
 }) => {
   const rows = Array.isArray(value) ? value : [];
@@ -185,7 +188,6 @@ const RepeaterControl = ({
   return (
     <div
       style={{
-        marginBottom: "24px",
         background: "#fff",
         border: "1px solid #ccd0d4",
         borderRadius: "4px",
@@ -196,14 +198,9 @@ const RepeaterControl = ({
           padding: "10px 15px",
           background: "#f0f6fc",
           borderBottom: "1px solid #ccd0d4",
-          fontWeight: 600,
         }}>
-        {label} {isRequired && <span style={{ color: "#d63638" }}>*</span>}{" "}
-        {isReadonly && (
-          <span style={{ color: "#888", fontSize: "12px" }}>
-            (Csak olvasható)
-          </span>
-        )}
+        <div>{label}</div>
+        <HelpTextUi text={helpText} />
       </div>
       <div style={{ padding: "15px", overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -295,8 +292,8 @@ const ImageUploadControl = ({
   label,
   fieldKey,
   value,
-  isRequired,
   isReadonly,
+  helpText,
   onChange,
 }) => {
   const openMediaUploader = () => {
@@ -313,15 +310,9 @@ const ImageUploadControl = ({
     wpMedia.open();
   };
   return (
-    <div style={{ marginBottom: "24px", opacity: isReadonly ? 0.7 : 1 }}>
-      <p style={{ fontWeight: 600, marginBottom: "8px" }}>
-        {label} {isRequired && <span style={{ color: "#d63638" }}>*</span>}{" "}
-        {isReadonly && (
-          <span style={{ color: "#888", fontSize: "12px" }}>
-            (Csak olvasható)
-          </span>
-        )}
-      </p>
+    <div style={{ opacity: isReadonly ? 0.7 : 1 }}>
+      <div style={{ marginBottom: "4px" }}>{label}</div>
+      <HelpTextUi text={helpText} />
       {value && (
         <div
           style={{
@@ -426,21 +417,45 @@ const SZEducateEditor = () => {
     const value = formData[field.key] || "";
     const requiredMark =
       field.is_required || field.is_locked ? (
-        <span style={{ color: "#d63638" }}>*</span>
+        <span style={{ color: "#d63638", marginLeft: "4px" }}>*</span>
       ) : (
         ""
       );
     const isReadonly = !!field.is_readonly || globalReadonly;
     const readonlyMark = isReadonly ? (
-      <span style={{ color: "#888", fontSize: "12px" }}> (Csak olvasható)</span>
+      <span
+        style={{
+          color: "#888",
+          fontSize: "12px",
+          fontWeight: "normal",
+          marginLeft: "6px",
+        }}>
+        (Csak olvasható)
+      </span>
     ) : (
       ""
     );
+
+    // Egységesített, vastagított címke
     const labelWithRequired = (
-      <>
+      <span
+        style={{
+          fontWeight: 600,
+          fontSize: "13px",
+          color: "#1d2327",
+          display: "inline-flex",
+          alignItems: "center",
+        }}>
         {field.label} {requiredMark} {readonlyMark}
-      </>
+      </span>
     );
+
+    const helpStr = field.help_text || "";
+    const isFilterableStr =
+      field.is_filterable && !isReadonly ? "Indexelt mező." : "";
+    const combinedHelp = [helpStr, isFilterableStr].filter(Boolean).join(" ");
+
+    let control = null;
 
     switch (field.type) {
       case "text":
@@ -448,9 +463,8 @@ const SZEducateEditor = () => {
       case "date":
       case "url":
       case "email":
-        return (
+        control = (
           <TextControl
-            key={field.key}
             label={labelWithRequired}
             type={
               field.type === "date"
@@ -463,78 +477,82 @@ const SZEducateEditor = () => {
             }
             value={value}
             onChange={(val) => handleChange(field.key, val)}
-            help={field.is_filterable && !isReadonly ? "Indexelt mező." : ""}
+            help={combinedHelp}
             disabled={isReadonly}
           />
         );
+        break;
       case "textarea":
-        return (
+        control = (
           <TextareaControl
-            key={field.key}
             label={labelWithRequired}
             value={value}
+            help={combinedHelp}
             onChange={(val) => handleChange(field.key, val)}
             disabled={isReadonly}
           />
         );
+        break;
       case "wysiwyg":
-        return (
+        control = (
           <WysiwygControl
-            key={field.key}
-            label={field.label}
+            label={labelWithRequired}
             fieldKey={field.key}
             value={value}
-            isRequired={field.is_required}
             isReadonly={isReadonly}
+            helpText={combinedHelp}
             onChange={handleChange}
           />
         );
+        break;
       case "links":
-        return (
+        control = (
           <LinksControl
-            key={field.key}
-            label={field.label}
+            label={labelWithRequired}
             fieldKey={field.key}
             value={value}
-            isRequired={field.is_required}
             isReadonly={isReadonly}
+            helpText={combinedHelp}
             onChange={handleChange}
           />
         );
+        break;
       case "repeater":
-        return (
+        control = (
           <RepeaterControl
-            key={field.key}
-            label={field.label}
+            label={labelWithRequired}
             field={field}
             value={value}
-            isRequired={field.is_required}
             isReadonly={isReadonly}
+            helpText={combinedHelp}
             onChange={handleChange}
           />
         );
+        break;
       case "select":
       case "radio":
-        return (
+        control = (
           <SelectControl
-            key={field.key}
             label={labelWithRequired}
             value={value}
             options={parseOptions(field.options)}
+            help={combinedHelp}
             onChange={(val) => handleChange(field.key, val)}
             disabled={isReadonly}
           />
         );
+        break;
       case "boolean":
-        return (
+        control = (
           <ToggleControl
-            key={field.key}
             label={labelWithRequired}
             checked={!!value}
+            help={combinedHelp}
             onChange={(val) => handleChange(field.key, val)}
             disabled={isReadonly}
           />
         );
+        break;
       case "checkbox":
         const chkOptions = field.options
           ? field.options.split(",").map((o) => o.trim())
@@ -544,48 +562,70 @@ const SZEducateEditor = () => {
           : typeof value === "string" && value !== ""
           ? value.split(",").map((v) => v.trim())
           : [];
-        return (
+        control = (
           <div
-            key={field.key}
             style={{
-              marginBottom: "24px",
               opacity: isReadonly ? 0.7 : 1,
               pointerEvents: isReadonly ? "none" : "auto",
             }}>
-            <p style={{ fontWeight: 600, marginBottom: "8px" }}>
-              {labelWithRequired}
-            </p>
-            {chkOptions.map((opt) => (
-              <CheckboxControl
-                key={opt}
-                label={opt}
-                checked={selectedValues.includes(opt)}
-                disabled={isReadonly}
-                onChange={(isChecked) => {
-                  const newVal = isChecked
-                    ? [...selectedValues, opt]
-                    : selectedValues.filter((v) => v !== opt);
-                  handleChange(field.key, newVal);
-                }}
-              />
-            ))}
+            <div style={{ marginBottom: "4px" }}>{labelWithRequired}</div>
+            <HelpTextUi text={combinedHelp} />
+            <div
+              style={{
+                marginTop: "12px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "10px",
+              }}>
+              {chkOptions.map((opt) => (
+                <CheckboxControl
+                  key={opt}
+                  label={opt}
+                  checked={selectedValues.includes(opt)}
+                  disabled={isReadonly}
+                  onChange={(isChecked) => {
+                    const newVal = isChecked
+                      ? [...selectedValues, opt]
+                      : selectedValues.filter((v) => v !== opt);
+                    handleChange(field.key, newVal);
+                  }}
+                  style={{ marginBottom: 0 }}
+                />
+              ))}
+            </div>
           </div>
         );
+        break;
       case "image":
-        return (
+        control = (
           <ImageUploadControl
-            key={field.key}
-            label={field.label}
+            label={labelWithRequired}
             fieldKey={field.key}
             value={value}
-            isRequired={field.is_required || field.is_locked}
             isReadonly={isReadonly}
+            helpText={combinedHelp}
             onChange={handleChange}
           />
         );
+        break;
       default:
-        return null;
+        control = null;
     }
+
+    if (!control) return null;
+
+    // Minden mező kap egy tágas wrapper-t
+    return (
+      <div
+        key={field.key}
+        style={{
+          marginBottom: "30px",
+          paddingBottom: "25px",
+          borderBottom: "1px solid #f0f0f1",
+        }}>
+        {control}
+      </div>
+    );
   };
 
   const validateForm = () => {
@@ -607,7 +647,6 @@ const SZEducateEditor = () => {
 
     if (schema && schema.length > 0) {
       for (const group of schema) {
-        // CSAK AZ AKTUÁLISAN LÁTHATÓ FÜLEKET VALIDÁLJUK!
         let isVisible = true;
         if (group.group_id !== "alap_adatok") {
           if (fixedFormats.includes(group.group_label)) {
@@ -640,13 +679,12 @@ const SZEducateEditor = () => {
           }
         }
 
-        if (!isVisible) continue; // Ha a fül rejtve van, kihagyjuk!
+        if (!isVisible) continue;
 
         if (!group.fields) continue;
         for (const field of group.fields) {
           const val = formData[field.key];
 
-          // EMAIL VALIDÁCIÓ (@sze.hu)
           if (
             field.type === "email" &&
             val &&
@@ -658,7 +696,6 @@ const SZEducateEditor = () => {
             }
           }
 
-          // KÖTELEZŐ MEZŐ VALIDÁCIÓ
           if (
             (field.is_required || field.is_locked) &&
             !field.is_readonly &&
@@ -807,25 +844,41 @@ const SZEducateEditor = () => {
                   {tab.name === "alap_adatok" && (
                     <div
                       style={{
-                        marginBottom: "24px",
-                        paddingBottom: "24px",
-                        borderBottom: "1px solid #eee",
+                        marginBottom: "30px",
+                        paddingBottom: "25px",
+                        borderBottom: "1px solid #f0f0f1",
                       }}>
                       <TextControl
                         label={
-                          <>
+                          <span
+                            style={{
+                              fontWeight: 600,
+                              fontSize: "13px",
+                              color: "#1d2327",
+                              display: "inline-flex",
+                              alignItems: "center",
+                            }}>
                             Képzés Címe (Szak megnevezése){" "}
-                            <span style={{ color: "#d63638" }}>*</span>{" "}
+                            <span
+                              style={{ color: "#d63638", marginLeft: "4px" }}>
+                              *
+                            </span>{" "}
                             {globalReadonly && (
-                              <span style={{ color: "#888", fontSize: "12px" }}>
-                                {" "}
+                              <span
+                                style={{
+                                  color: "#888",
+                                  fontSize: "12px",
+                                  fontWeight: "normal",
+                                  marginLeft: "6px",
+                                }}>
                                 (Csak olvasható)
                               </span>
                             )}
-                          </>
+                          </span>
                         }
                         value={title}
                         onChange={(value) => setTitle(value)}
+                        help="Add meg a képzés pontos, hivatalos megnevezését."
                         disabled={globalReadonly}
                       />
                     </div>

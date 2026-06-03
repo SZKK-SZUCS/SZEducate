@@ -70,7 +70,7 @@ class SZEducate_Settings {
 				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 					<input type="hidden" name="action" value="szeducate_sync_schema">
 					<?php wp_nonce_field( 'szeducate_sync_schema_nonce', '_sync_nonce' ); ?>
-					<button type="submit" class="button button-primary" style="background: #007cba;">⬇️ Séma Letöltése a Hub-ról</button>
+					<button type="submit" class="button button-primary" style="background: #007cba;">Séma Letöltése a Hub-ról</button>
 				</form>
 			<?php endif; ?>
 		</div>
