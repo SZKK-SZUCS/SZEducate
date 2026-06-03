@@ -23,40 +23,31 @@ class SZEducate_Schema {
 	}
 
 	public function render_page() {
-		// --- 1. TISZTA PHP MENTÉSI LOGIKA ---
 		if ( isset( $_POST['szeducate_schema'] ) && isset( $_POST['szeducate_schema_nonce'] ) ) {
 			if ( wp_verify_nonce( $_POST['szeducate_schema_nonce'], 'save_szeducate_schema_action' ) ) {
 				$new_schema = wp_unslash( $_POST['szeducate_schema'] );
 				update_option( $this->option_name, $new_schema );
 
-				// --- ÚJ: WEBHOOK ELSÜTÉSE MINDEN KLIENSNEK ---
 				global $wpdb;
 				$table_name = $wpdb->prefix . 'szeducate_clients';
 				
-				// Biztosítjuk, hogy a tábla létezik, mielőtt lekérdezzük
 				if ( $wpdb->get_var( "SHOW TABLES LIKE '{$table_name}'" ) == $table_name ) {
-					// Lekérjük az összes klienst, akinek be van állítva URL-je
 					$clients = $wpdb->get_results( "SELECT client_url FROM {$table_name} WHERE client_url != ''" );
-					
 					foreach ( $clients as $client ) {
 						$webhook_url = rtrim( $client->client_url, '/' ) . '/wp-json/szeducate/v1/client/sync';
-						// Non-blocking kérés: nem várjuk meg a választ, hogy a Hub gyors maradjon
 						wp_remote_post( $webhook_url, array(
 							'blocking' => false,
 							'timeout'  => 5
 						) );
 					}
 				}
-
-				echo '<div class="notice notice-success is-dismissible" style="margin-top:20px;"><p><strong>A Séma sikeresen elmentve a Hub-on, és a Kliensek automatikusan szinkronizálva lettek a háttérben!</strong></p></div>';
+				echo '<div class="notice notice-success is-dismissible" style="margin-top:20px;"><p><strong>✅ A Séma sikeresen elmentve a Hub-on, és a Kliensek automatikusan szinkronizálva lettek a háttérben!</strong></p></div>';
 			} else {
 				echo '<div class="notice notice-error is-dismissible" style="margin-top:20px;"><p>Biztonsági hiba (lejárt session). Kérjük frissítse az oldalt!</p></div>';
 			}
 		}
 
-		// --- 2. JELENLEGI ADATOK LEKÉRÉSE ---
 		$schema = get_option( $this->option_name, '[]' );
-
 		if ( empty( json_decode( $schema, true ) ) ) {
 			$schema = wp_json_encode( [
 				[
@@ -81,14 +72,9 @@ class SZEducate_Schema {
 			
 			<form method="post" id="szeducate-schema-form">
 				<?php wp_nonce_field( 'save_szeducate_schema_action', 'szeducate_schema_nonce' ); ?>
-				
 				<input type="hidden" name="szeducate_schema" id="szeducate_schema_data" value="<?php echo esc_attr( $schema ); ?>">
-				
-				<div id="schema-builder-container" style="max-width: 1000px;">
-					</div>
-				
+				<div id="schema-builder-container" style="max-width: 1000px;"></div>
 				<button type="button" id="add-group-btn" class="button button-secondary" style="margin-top: 20px;">+ Új Csoport (Fül) Hozzáadása</button>
-				
 				<div style="margin-top: 30px;">
 					<?php submit_button( 'Séma Mentése és Véglegesítése', 'primary', 'submit', false, array('id' => 'save-schema-btn') ); ?>
 				</div>
@@ -115,9 +101,10 @@ class SZEducate_Schema {
 			.group-conditions label { font-weight: 600; color: #50575e; margin-right: 10px; display: flex; align-items: center; gap: 5px; }
 
 			.szeducate-fields-container { padding: 20px; background: #f0f0f1; min-height: 20px; }
-			.szeducate-field { background: #fff; border: 1px solid #dcdde1; border-radius: 4px; padding: 15px; margin-bottom: 12px; transition: border-color 0.2s; }
+			.szeducate-field { background: #fff; border: 1px solid #dcdde1; border-radius: 4px; padding: 15px; margin-bottom: 12px; transition: all 0.2s; }
 			.szeducate-field:hover { border-color: #a7aaad; }
 			.szeducate-field.locked { background: #f9f9f9; border-color: #e2e4e7; }
+			.szeducate-field.archived-field { opacity: 0.6; background: #e5e5e5; filter: grayscale(100%); }
 			
 			.sz-field-main { display: flex; gap: 15px; align-items: flex-start; }
 			.sz-field-settings { display: flex; gap: 20px; align-items: center; margin-top: 12px; padding-left: 45px; font-size: 13px; color: #646970; }
@@ -143,21 +130,27 @@ class SZEducate_Schema {
 			let schemaData = [];
 			try { schemaData = JSON.parse(dataInput.value); } catch(e) {}
 
+			// Eredeti típusok elmentése a figyelmeztetéshez
+			const originalTypes = {};
+			schemaData.forEach(g => {
+				if(g.fields) g.fields.forEach(f => originalTypes[f.key] = f.type);
+			});
+
 			const fieldTypes = [
 				{ val: 'text', text: 'Rövidszöveg' },
 				{ val: 'textarea', text: 'Hosszúszöveg' },
-				{ val: 'wysiwyg', text: 'Formázott szöveg (WYSIWYG HTML)' },
+				{ val: 'wysiwyg', text: 'Formázott szöveg (WYSIWYG)' },
+				{ val: 'email', text: 'Email cím' },
 				{ val: 'checkbox', text: 'Jelölőnégyzet (Több opció)' },
 				{ val: 'radio', text: 'Rádiógomb' },
 				{ val: 'select', text: 'Dropdown' },
-				{ val: 'multiselect', text: 'Többszörös választó' },
 				{ val: 'boolean', text: 'Kapcsoló (Igen/Nem)' },
 				{ val: 'number', text: 'Szám' },
 				{ val: 'date', text: 'Dátum' },
 				{ val: 'url', text: 'Link (1 db URL)' },
 				{ val: 'links', text: 'Többszörös Link (URL+Szöveg)' },
-				{ val: 'image', text: 'Kép (WP Médiatár)' },
-				{ val: 'repeater', text: 'Táblázatos Ismétlődő (Repeater)' }
+				{ val: 'image', text: 'Kép (Médiatár)' },
+				{ val: 'repeater', text: 'Táblázatos Ismétlődő' }
 			];
 
 			const subFieldTypes = [
@@ -168,113 +161,44 @@ class SZEducate_Schema {
 				{ val: 'url', text: 'Link' }
 			];
 
-			const lockedGroups = [
-				{ id: 'alap_adatok', label: 'Alap adatok' },
-				{ id: 'bsc', label: 'BSc' },
-				{ id: 'msc', label: 'MSc' },
-				{ id: 'osztatlan', label: 'Osztatlan' },
-				{ id: 'fsz', label: 'Felsőoktatási szakképzés' },
-				{ id: 'sztk', label: 'Szakirányú továbbképzés' },
-				{ id: 'mikro', label: 'Mikroképzés' },
-				{ id: 'elokeszito', label: 'Előkészítő' }
-			];
-
-			lockedGroups.forEach(locked => {
-				if (!schemaData.find(g => g.group_id === locked.id)) {
-					schemaData.push({ group_id: locked.id, group_label: locked.label, fields: [], is_locked: true });
-				} else {
-					schemaData.find(g => g.group_id === locked.id).is_locked = true;
-				}
-			});
-
-			const alapCsoport = schemaData.find(g => g.group_id === 'alap_adatok');
-			if (!alapCsoport.fields) alapCsoport.fields = [];
-			if (!alapCsoport.fields.find(f => f.key === 'kepzesi_forma')) {
-				alapCsoport.fields.unshift({
-					key: 'kepzesi_forma', label: 'Képzési Forma', type: 'select',
-					options: 'BSc, MSc, Osztatlan, Felsőoktatási szakképzés, Szakirányú továbbképzés, Mikroképzés, Előkészítő',
-					is_required: true, is_filterable: true, is_locked: true 
-				});
-			} else {
-				alapCsoport.fields.find(f => f.key === 'kepzesi_forma').is_locked = true;
-			}
-
 			function generateId() { return Math.random().toString(36).substr(2, 9); }
-
-			function initSortable(el, options) {
-				if (typeof Sortable !== 'undefined' && el) {
-					new Sortable(el, options);
-				}
-			}
-
+			function initSortable(el, options) { if (typeof Sortable !== 'undefined' && el) new Sortable(el, options); }
 			function slugify(text) {
 				const a = 'àáäâãåăæąçćčđďèéěėëêęğǵḧìíïîįłḿǹńňñòóöôœøṕŕřßşśšșťțùúüûǘůűūųẃẍÿýźžż·/_,:;';
 				const b = 'aaaaaaaaacccddeeeeeeegghiiiiilmnnnnooooooprrsssssttuuuuuuuuuwxyyzzz------';
 				const p = new RegExp(a.split('').join('|'), 'g');
-				return text.toString().toLowerCase()
-					.replace(/\s+/g, '_')
-					.replace(p, c => b.charAt(a.indexOf(c)))
-					.replace(/&/g, '_and_')
-					.replace(/[^\w\-]+/g, '')
-					.replace(/\-\-+/g, '_')
-					.replace(/^-+/, '')
-					.replace(/-+$/, '');
+				return text.toString().toLowerCase().replace(/\s+/g, '_').replace(p, c => b.charAt(a.indexOf(c))).replace(/&/g, '_and_').replace(/[^\w\-]+/g, '').replace(/\-\-+/g, '_').replace(/^-+/, '').replace(/-+$/, '');
 			}
 
 			function generateUniqueKey(baseKey, currentInput) {
 				let key = baseKey;
 				let counter = 1;
 				let isUnique = false;
-				
 				while (!isUnique) {
 					isUnique = true;
 					document.querySelectorAll('.f-key, .sf-key').forEach(input => {
-						if (input !== currentInput && input.value === key) {
-							isUnique = false;
-						}
+						if (input !== currentInput && input.value === key) isUnique = false;
 					});
-					if (!isUnique) {
-						counter++;
-						key = baseKey + '_' + counter;
-					}
+					if (!isUnique) { counter++; key = baseKey + '_' + counter; }
 				}
 				return key;
 			}
 
-			function attachAutoSlugEvent(labelInput, keyInput) {
-				labelInput.addEventListener('blur', function() {
-					if (!keyInput.value && this.value) {
-						let baseKey = slugify(this.value);
-						keyInput.value = generateUniqueKey(baseKey, keyInput);
-						checkDuplicateKeys();
-					}
-				});
-			}
-
 			function checkDuplicateKeys() {
 				const inputs = document.querySelectorAll('.f-key');
-				const keys = Array.from(inputs).map(input => input.value.trim()).filter(v => v !== '');
+				const keys = Array.from(inputs).map(i => i.value.trim()).filter(v => v !== '');
 				const counts = {};
 				keys.forEach(k => counts[k] = (counts[k] || 0) + 1);
-
 				document.querySelectorAll('.szeducate-field').forEach(field => {
 					const keyInput = field.querySelector('.f-key');
 					const badge = field.querySelector('.badge-duplicate');
-					if (keyInput && badge) {
-						const val = keyInput.value.trim();
-						if (val && counts[val] > 1) {
-							badge.style.display = 'inline-block';
-						} else {
-							badge.style.display = 'none';
-						}
-					}
+					if (keyInput && badge) badge.style.display = (keyInput.value.trim() && counts[keyInput.value.trim()] > 1) ? 'inline-block' : 'none';
 				});
 			}
 
 			function createSubFieldRow(subField) {
 				const sfDiv = document.createElement('div');
 				sfDiv.className = 'szeducate-subfield';
-				
 				let sfOptions = subFieldTypes.map(t => `<option value="${t.val}" ${subField.type === t.val ? 'selected' : ''}>${t.text}</option>`).join('');
 				const showOpts = subField.type === 'select' ? 'block' : 'none';
 
@@ -286,62 +210,52 @@ class SZEducate_Schema {
 					<input type="text" class="sz-input sf-options" placeholder="Opciók (vesszővel)" value="${subField.options || ''}" style="display: ${showOpts}; flex: 1.5;">
 					<button type="button" class="btn-icon delete-sf-btn" title="Oszlop törlése">X</button>
 				`;
-
-				attachAutoSlugEvent(sfDiv.querySelector('.sf-label'), sfDiv.querySelector('.sf-key'));
-
-				sfDiv.querySelector('.sf-type').addEventListener('change', e => {
-					sfDiv.querySelector('.sf-options').style.display = e.target.value === 'select' ? 'block' : 'none';
+				sfDiv.querySelector('.sf-label').addEventListener('blur', function() {
+					const ki = sfDiv.querySelector('.sf-key');
+					if (!ki.value && this.value) { ki.value = generateUniqueKey(slugify(this.value), ki); checkDuplicateKeys(); }
 				});
-				sfDiv.querySelector('.delete-sf-btn').addEventListener('click', () => {
-					sfDiv.remove();
-					checkDuplicateKeys();
-				});
+				sfDiv.querySelector('.sf-type').addEventListener('change', e => sfDiv.querySelector('.sf-options').style.display = e.target.value === 'select' ? 'block' : 'none');
+				sfDiv.querySelector('.delete-sf-btn').addEventListener('click', () => { sfDiv.remove(); checkDuplicateKeys(); });
 				return sfDiv;
 			}
 
 			function createFieldRow(field) {
+				const isArchived = field.is_archived || false;
 				const fDiv = document.createElement('div');
-				fDiv.className = `szeducate-field ${field.is_locked ? 'locked' : ''}`;
+				fDiv.className = `szeducate-field ${field.is_locked ? 'locked' : ''} ${isArchived ? 'archived-field' : ''}`;
 				fDiv.dataset.type = 'field';
 
 				let typeOptions = fieldTypes.map(t => `<option value="${t.val}" ${field.type === t.val ? 'selected' : ''}>${t.text}</option>`).join('');
-				const showOptions = ['select', 'multiselect', 'radio', 'checkbox'].includes(field.type) ? 'block' : 'none';
+				const showOptions = ['select', 'radio', 'checkbox'].includes(field.type) ? 'block' : 'none';
 				const isReadonly = field.is_locked ? 'readonly' : '';
 
 				fDiv.innerHTML = `
+					<input type="hidden" class="f-archived" value="${isArchived ? 'true' : ''}">
 					<div class="sz-field-main">
 						<div class="drag-handle field-drag-handle" title="Mozgatás" style="margin-top: 5px;">::</div>
-						
 						<div style="flex: 2; display: flex; flex-direction: column; gap: 5px;">
 							<input type="text" class="sz-input f-label" placeholder="Mező neve (pl. Város)" value="${field.label || ''}" ${isReadonly}>
 						</div>
-						
 						<div style="flex: 1; display: flex; flex-direction: column; gap: 5px;">
 							<input type="text" class="sz-input f-key" placeholder="Azonosító (pl. varos)" value="${field.key || ''}" ${isReadonly}>
-							<span class="badge-duplicate" style="display:none;" title="Ez a mező azonosító több csoportban is szerepel. Az értékek automatikusan szinkronban lesznek!">Közös mező</span>
+							<span class="badge-duplicate" style="display:none;" title="Közös mező!">Közös mező</span>
 						</div>
-
 						<select class="sz-select f-type" style="flex: 1.5; margin-top: 2px;" ${field.is_locked ? 'disabled' : ''}>${typeOptions}</select>
 						${field.is_locked ? `<input type="hidden" class="f-type-hidden" value="${field.type}">` : ''}
-						
 						<div style="flex: 2; display: flex; flex-direction: column; gap: 5px;">
 							<input type="text" class="sz-input f-options" placeholder="Opciók (vesszővel elválasztva)" value="${field.options || ''}" style="display: ${showOptions};" ${isReadonly}>
 						</div>
-						
-						<div style="margin-top: 2px;">
-							${!field.is_locked ? `<button type="button" class="button button-link-delete delete-field-btn" style="color:#d63638; text-decoration:none;">Törlés</button>` : `<span class="badge-locked">Rendszer</span>`}
+						<div style="margin-top: 2px; display: flex; gap: 10px;">
+							${!field.is_locked ? `
+								<button type="button" class="button button-small toggle-archive-btn">${isArchived ? 'Visszaállítás' : 'Archiválás'}</button>
+								<button type="button" class="button button-link-delete delete-field-btn" style="color:#d63638; text-decoration:none;" title="Végleges törlés a felületről">Törlés</button>
+							` : `<span class="badge-locked">Rendszer</span>`}
 						</div>
 					</div>
 					<div class="sz-field-settings">
 						<label><input type="checkbox" class="f-required" ${field.is_required ? 'checked' : ''} ${field.is_locked ? 'disabled' : ''}> Kötelező mező</label>
-						
-						<label title="Kiemeli az adatot a JSON-ből és saját oszlopot kap az adatbázisban. Ez feltétlenül szükséges ahhoz, hogy a weboldalon gyorsan lehessen szűrni/keresni erre a mezőre. Ne pipáld be mindenhol, csak a szűrőknél, hogy ne lassítsd az adatbázist!">
-							<input type="checkbox" class="f-filter" ${field.is_filterable ? 'checked' : ''} ${field.is_locked ? 'disabled' : ''}> Kiemelt szűrő / Indexelt [?]
-						</label>
-						
-						<label title="Ebből az adatból a WordPress natív URL-t (taxonómiát) generál, ami segít a SEO-ban (pl. /kepzes-tipus/nappali). Csak legördülő vagy rádiógomb típusoknál ajánlott.">
-							<input type="checkbox" class="f-taxonomy" ${field.is_taxonomy ? 'checked' : ''} ${field.is_locked ? 'disabled' : ''}> SEO URL [?]
-						</label>
+						<label><input type="checkbox" class="f-filter" ${field.is_filterable ? 'checked' : ''} ${field.is_locked ? 'disabled' : ''}> Kiemelt szűrő / Indexelt</label>
+						<label><input type="checkbox" class="f-taxonomy" ${field.is_taxonomy ? 'checked' : ''} ${field.is_locked ? 'disabled' : ''}> SEO URL</label>
 					</div>
 					<div class="subfields-container" style="display: ${field.type === 'repeater' ? 'block' : 'none'};">
 						<div style="font-weight: 600; font-size: 13px; margin-bottom: 12px; color: #1d2327;">[Lista] Táblázat Oszlopai (Al-mezők)</div>
@@ -351,27 +265,35 @@ class SZEducate_Schema {
 				`;
 
 				if (!field.is_locked) {
-					attachAutoSlugEvent(fDiv.querySelector('.f-label'), fDiv.querySelector('.f-key'));
+					fDiv.querySelector('.f-label').addEventListener('blur', function() {
+						const ki = fDiv.querySelector('.f-key');
+						if (!ki.value && this.value) { ki.value = generateUniqueKey(slugify(this.value), ki); checkDuplicateKeys(); }
+					});
 					fDiv.querySelector('.f-key').addEventListener('input', checkDuplicateKeys);
 				}
 
 				const sfList = fDiv.querySelector('.sf-list');
-				if (field.type === 'repeater' && field.sub_fields) {
-					field.sub_fields.forEach(sf => sfList.appendChild(createSubFieldRow(sf)));
-				}
+				if (field.type === 'repeater' && field.sub_fields) field.sub_fields.forEach(sf => sfList.appendChild(createSubFieldRow(sf)));
 				initSortable(sfList, { handle: '.subfield-drag-handle', animation: 150 });
 				fDiv.querySelector('.add-sf-btn').addEventListener('click', () => sfList.appendChild(createSubFieldRow({ type: 'text' })));
 
 				if (!field.is_locked) {
+					fDiv.querySelector('.toggle-archive-btn').addEventListener('click', function() {
+						const archInput = fDiv.querySelector('.f-archived');
+						const willBeArchived = archInput.value !== 'true';
+						archInput.value = willBeArchived ? 'true' : '';
+						fDiv.classList.toggle('archived-field', willBeArchived);
+						this.innerText = willBeArchived ? 'Visszaállítás' : 'Archiválás';
+					});
+
 					fDiv.querySelector('.f-type').addEventListener('change', function(e) {
-						const optInput = fDiv.querySelector('.f-options');
-						const sfContainer = fDiv.querySelector('.subfields-container');
-						optInput.style.display = ['select', 'multiselect', 'radio', 'checkbox'].includes(e.target.value) ? 'block' : 'none';
-						sfContainer.style.display = e.target.value === 'repeater' ? 'block' : 'none';
+						fDiv.querySelector('.f-options').style.display = ['select', 'radio', 'checkbox'].includes(e.target.value) ? 'block' : 'none';
+						fDiv.querySelector('.subfields-container').style.display = e.target.value === 'repeater' ? 'block' : 'none';
 					});
 					fDiv.querySelector('.delete-field-btn').addEventListener('click', () => {
-						fDiv.remove();
-						checkDuplicateKeys();
+						if(confirm('A törléssel a mező eltűnik a felületről. Biztonságosabb az Archiválás használata. Biztosan véglegesen törlöd?')) {
+							fDiv.remove(); checkDuplicateKeys();
+						}
 					});
 				}
 				return fDiv;
@@ -384,33 +306,31 @@ class SZEducate_Schema {
 
 				const isReadonly = group.is_locked ? 'readonly' : '';
 				const cond = group.condition || {};
-
 				const conditionHtml = !group.is_locked ? `
 					<div class="group-conditions">
 						<label>[Láthatóság] Megjelenés feltétele:</label>
-						<input type="text" class="sz-input c-field" placeholder="Mező azonosító (pl. kepzesi_forma)" value="${cond.field || ''}" style="flex: 1;">
+						<input type="text" class="sz-input c-field" placeholder="Mező azonosító" value="${cond.field || ''}" style="flex: 1;">
 						<select class="sz-select c-operator" style="flex: 1;">
-							<option value="">Mindig látszik (Nincs feltétel)</option>
-							<option value="==" ${cond.operator === '==' ? 'selected' : ''}>Egyenlő az értékkel</option>
+							<option value="">Mindig látszik</option>
+							<option value="==" ${cond.operator === '==' ? 'selected' : ''}>Egyenlő</option>
 							<option value="!=" ${cond.operator === '!=' ? 'selected' : ''}>Nem egyenlő</option>
 							<option value="not_empty" ${cond.operator === 'not_empty' ? 'selected' : ''}>Nincs üresen</option>
 							<option value="empty" ${cond.operator === 'empty' ? 'selected' : ''}>Üres</option>
 							<option value="contains" ${cond.operator === 'contains' ? 'selected' : ''}>Tartalmazza</option>
 						</select>
-						<input type="text" class="sz-input c-value" placeholder="Érték (pl. BSc)" value="${cond.value || ''}" style="flex: 1;">
-					</div>
-				` : '';
+						<input type="text" class="sz-input c-value" placeholder="Érték" value="${cond.value || ''}" style="flex: 1;">
+					</div>` : '';
 
 				gDiv.innerHTML = `
 					<div class="szeducate-group-header">
-						<div class="drag-handle group-drag-handle" title="Csoport mozgatása">::</div>
+						<div class="drag-handle group-drag-handle" title="Mozgatás">::</div>
 						<div class="g-inputs">
 							<input type="text" class="sz-input g-label" placeholder="Csoport neve" value="${group.group_label || ''}" style="font-weight: 600; width: 300px;" ${isReadonly}>
 							<input type="text" class="sz-input g-id" placeholder="csoport_azonosito" value="${group.group_id || generateId()}" style="width: 200px;" ${isReadonly}>
 						</div>
 						<div style="display: flex; align-items: center; gap: 15px;">
-							${!group.is_locked ? `<button type="button" class="button button-link-delete delete-group-btn" style="color:#d63638; text-decoration:none;">Csoport Törlése</button>` : `<span class="badge-locked">Rendszer Csoport</span>`}
-							<button type="button" class="button toggle-group-btn" style="min-width: 40px; text-align: center;">v</button>
+							${!group.is_locked ? `<button type="button" class="button button-link-delete delete-group-btn" style="color:#d63638; text-decoration:none;">Csoport Törlése</button>` : `<span class="badge-locked">Rendszer</span>`}
+							<button type="button" class="button toggle-group-btn" style="min-width: 40px;">&lt;</button>
 						</div>
 					</div>
 					<div class="group-inside" style="display: none;">
@@ -423,80 +343,29 @@ class SZEducate_Schema {
 				`;
 
 				const fieldsContainer = gDiv.querySelector('.szeducate-fields-container');
-				if(group.fields && group.fields.length > 0) {
-					group.fields.forEach(f => fieldsContainer.appendChild(createFieldRow(f)));
-				}
-
+				if(group.fields && group.fields.length > 0) group.fields.forEach(f => fieldsContainer.appendChild(createFieldRow(f)));
 				initSortable(fieldsContainer, { handle: '.field-drag-handle', animation: 150 });
 
 				gDiv.querySelector('.toggle-group-btn').addEventListener('click', function() {
 					const inside = gDiv.querySelector('.group-inside');
 					const isHidden = inside.style.display === 'none';
 					inside.style.display = isHidden ? 'block' : 'none';
-					this.innerText = isHidden ? '<' : 'v';
+					this.innerText = isHidden ? 'v' : '<';
 				});
 
-				gDiv.querySelector('.add-field-btn').addEventListener('click', () => {
-					fieldsContainer.appendChild(createFieldRow({ type: 'text' }));
-					checkDuplicateKeys();
-				});
-				
-				if (!group.is_locked) {
-					gDiv.querySelector('.delete-group-btn').addEventListener('click', () => { 
-						if(confirm('Biztosan törlöd a csoportot?')) {
-							gDiv.remove();
-							checkDuplicateKeys();
-						}
-					});
-				}
-
+				gDiv.querySelector('.add-field-btn').addEventListener('click', () => { fieldsContainer.appendChild(createFieldRow({ type: 'text' })); checkDuplicateKeys(); });
+				if (!group.is_locked) gDiv.querySelector('.delete-group-btn').addEventListener('click', () => { if(confirm('Biztosan törlöd?')) { gDiv.remove(); checkDuplicateKeys(); } });
 				return gDiv;
 			}
 
 			initSortable(container, { handle: '.group-drag-handle', animation: 150 });
-
-			schemaData.sort((a, b) => {
-				if (a.group_id === 'alap_adatok') return -1;
-				if (b.group_id === 'alap_adatok') return 1;
-				if (a.is_locked && !b.is_locked) return -1;
-				if (!a.is_locked && b.is_locked) return 1;
-				return 0;
-			});
-
 			schemaData.forEach(group => container.appendChild(createGroupBlock(group)));
 			addGroupBtn.addEventListener('click', () => container.appendChild(createGroupBlock({})));
-
 			setTimeout(checkDuplicateKeys, 500);
 
 			form.addEventListener('submit', function(e) {
-				let hasError = false;
-				const requiredInputs = container.querySelectorAll('.g-label, .g-id, .f-label, .f-key, .sf-label, .sf-key');
-				
-				requiredInputs.forEach(input => {
-					if (!input.value.trim() && !input.readOnly) {
-						hasError = true;
-						input.style.border = '1px solid #d63638';
-						input.style.boxShadow = '0 0 0 1px #d63638';
-						
-						const groupInside = input.closest('.group-inside');
-						if (groupInside && groupInside.style.display === 'none') {
-							groupInside.style.display = 'block';
-							const toggleBtn = groupInside.parentElement.querySelector('.toggle-group-btn');
-							if (toggleBtn) toggleBtn.innerText = 'v';
-						}
-					} else {
-						input.style.border = '1px solid #8c8f94';
-						input.style.boxShadow = 'none';
-					}
-				});
-
-				if (hasError) {
-					e.preventDefault();
-					alert('Kérlek töltsd ki az összes pirossal kiemelt mezőt! (A Név és az Azonosító mindenhol kötelező)');
-					return;
-				}
-
 				const newSchema = [];
+				let typeWarnings = [];
 				const groups = container.querySelectorAll('.szeducate-group');
 				
 				groups.forEach(g => {
@@ -506,50 +375,54 @@ class SZEducate_Schema {
 						is_locked: g.querySelector('.g-id').readOnly,
 						fields: []
 					};
-
 					const opSelect = g.querySelector('.c-operator');
-					if (opSelect && opSelect.value !== '') {
-						gData.condition = {
-							field: g.querySelector('.c-field').value.trim(),
-							operator: opSelect.value,
-							value: g.querySelector('.c-value').value.trim()
-						};
-					}
+					if (opSelect && opSelect.value !== '') gData.condition = { field: g.querySelector('.c-field').value.trim(), operator: opSelect.value, value: g.querySelector('.c-value').value.trim() };
 
 					const fields = g.querySelectorAll('.szeducate-field');
 					fields.forEach(f => {
+						const key = f.querySelector('.f-key').value.trim();
 						const typeEl = f.querySelector('.f-type');
 						const typeHiddenEl = f.querySelector('.f-type-hidden');
 						const fieldType = typeHiddenEl ? typeHiddenEl.value : typeEl.value;
-						
+						const isArchived = f.querySelector('.f-archived').value === 'true';
+
+						// Figyelmeztetés generálása ha megváltozott a típus
+						if (originalTypes[key] && originalTypes[key] !== fieldType && !isArchived) {
+							typeWarnings.push(`- ${f.querySelector('.f-label').value.trim()} (${key}): ${originalTypes[key]} -> ${fieldType}`);
+						}
+
 						let fieldData = {
-							key: f.querySelector('.f-key').value.trim(),
+							key: key,
 							label: f.querySelector('.f-label').value.trim(),
 							type: fieldType,
 							options: f.querySelector('.f-options').value.trim(),
 							is_filterable: f.querySelector('.f-filter').checked,
 							is_taxonomy: f.querySelector('.f-taxonomy').checked,
 							is_required: f.querySelector('.f-required').checked,
-							is_locked: f.querySelector('.f-key').readOnly
+							is_locked: f.querySelector('.f-key').readOnly,
+							is_archived: isArchived
 						};
 
 						if (fieldType === 'repeater') {
 							fieldData.sub_fields = [];
 							const subfields = f.querySelectorAll('.szeducate-subfield');
-							subfields.forEach(sf => {
-								fieldData.sub_fields.push({
-									key: sf.querySelector('.sf-key').value.trim(),
-									label: sf.querySelector('.sf-label').value.trim(),
-									type: sf.querySelector('.sf-type').value,
-									options: sf.querySelector('.sf-options').value.trim()
-								});
-							});
+							subfields.forEach(sf => fieldData.sub_fields.push({
+								key: sf.querySelector('.sf-key').value.trim(), label: sf.querySelector('.sf-label').value.trim(),
+								type: sf.querySelector('.sf-type').value, options: sf.querySelector('.sf-options').value.trim()
+							}));
 						}
-
 						gData.fields.push(fieldData);
 					});
 					newSchema.push(gData);
 				});
+
+				if (typeWarnings.length > 0) {
+					const msg = "⚠️ FIGYELEM! Az alábbi mezők típusa megváltozott:\n\n" + typeWarnings.join("\n") + "\n\nAdatbázis szinten az adatok nem vesznek el, a Kliens rendszer (React) pedig futásidőben megpróbálja automatikusan konvertálni az inkompatibilis típusokat (pl. szövegből lista). Biztosan véglegesíted?";
+					if (!confirm(msg)) {
+						e.preventDefault();
+						return;
+					}
+				}
 
 				dataInput.value = JSON.stringify(newSchema);
 			});

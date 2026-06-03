@@ -53,22 +53,32 @@ class SZEducate_Hub_API {
 		$client = $this->current_client;
 		$permissions = array();
 
-		if ( $client && is_array( $schema ) ) {
-			$permissions = json_decode( $client['permissions'], true );
+		if ( is_array( $schema ) ) {
+			$permissions = $client ? json_decode( $client['permissions'], true ) : array();
 			$fields_perms = isset( $permissions['fields'] ) ? $permissions['fields'] : array();
 
 			foreach ( $schema as &$group ) {
 				if ( ! empty( $group['fields'] ) && is_array( $group['fields'] ) ) {
+					$active_fields = array();
+					
 					foreach ( $group['fields'] as &$field ) {
+						// Ha a mező archiválva lett a Hubon, egyáltalán nem küldjük át a Kliensnek!
+						if ( ! empty( $field['is_archived'] ) && $field['is_archived'] === true ) {
+							continue;
+						}
+						
 						if ( isset( $fields_perms[ $field['key'] ] ) && $fields_perms[ $field['key'] ] === 'readonly' ) {
 							$field['is_readonly'] = true;
 						}
+						
+						$active_fields[] = $field;
 					}
+					// Felülírjuk a csoport mezőit a megtisztított (aktív) listával
+					$group['fields'] = $active_fields;
 				}
 			}
 		}
 
-		// ÚJ: A Séma mellé csomagoljuk a Kliens jogosultságait is!
 		return new WP_REST_Response( array(
 			'schema'      => $schema,
 			'permissions' => $permissions

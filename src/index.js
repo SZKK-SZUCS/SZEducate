@@ -15,10 +15,9 @@ import {
 
 const parseOptions = (optionsString) => {
   if (!optionsString) return [{ label: "Válassz...", value: "" }];
-  const opts = optionsString.split(",").map((opt) => ({
-    label: opt.trim(),
-    value: opt.trim(),
-  }));
+  const opts = optionsString
+    .split(",")
+    .map((opt) => ({ label: opt.trim(), value: opt.trim() }));
   return [{ label: "Válassz...", value: "" }, ...opts];
 };
 
@@ -33,7 +32,6 @@ const WysiwygControl = ({
   const editorId = useRef(
     `wysiwyg_${fieldKey}_${Math.random().toString(36).substr(2, 9)}`,
   ).current;
-
   useEffect(() => {
     if (window.wp && window.wp.editor) {
       window.wp.editor.initialize(editorId, {
@@ -50,12 +48,9 @@ const WysiwygControl = ({
       });
     }
     return () => {
-      if (window.wp && window.wp.editor) {
-        window.wp.editor.remove(editorId);
-      }
+      if (window.wp && window.wp.editor) window.wp.editor.remove(editorId);
     };
   }, []);
-
   return (
     <div
       style={{
@@ -89,7 +84,6 @@ const LinksControl = ({
   onChange,
 }) => {
   const links = Array.isArray(value) ? value : [];
-
   const addLink = () => onChange(fieldKey, [...links, { title: "", url: "" }]);
   const removeLink = (index) =>
     onChange(
@@ -101,7 +95,6 @@ const LinksControl = ({
     newLinks[index][key] = val;
     onChange(fieldKey, newLinks);
   };
-
   return (
     <div
       style={{
@@ -173,7 +166,6 @@ const RepeaterControl = ({
 }) => {
   const rows = Array.isArray(value) ? value : [];
   const subFields = field.sub_fields || [];
-
   const addRow = () => {
     const newRow = {};
     subFields.forEach((sf) => (newRow[sf.key] = ""));
@@ -320,7 +312,6 @@ const ImageUploadControl = ({
     });
     wpMedia.open();
   };
-
   return (
     <div style={{ marginBottom: "24px", opacity: isReadonly ? 0.7 : 1 }}>
       <p style={{ fontWeight: 600, marginBottom: "8px" }}>
@@ -382,21 +373,54 @@ const SZEducateEditor = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState(null);
 
-  // Jogosultságok feldolgozása
   const actions = permissions?.actions || {
     create: true,
     edit: true,
     delete: false,
   };
   const isNewPost = !existingTitle;
-
-  // Ha nem új poszt és nincs szerkesztési jog, MINDEN readonly lesz.
   const globalReadonly = !isNewPost && !actions.edit;
   const canSave = isNewPost ? actions.create : actions.edit;
 
-  const handleChange = (key, value) => {
+  useEffect(() => {
+    if (!schema || !existingData) return;
+    let needsMigration = false;
+    const migratedData = { ...existingData };
+
+    schema.forEach((group) => {
+      if (group.fields) {
+        group.fields.forEach((field) => {
+          const val = migratedData[field.key];
+          if (val !== undefined && val !== null && val !== "") {
+            if (field.type === "repeater" && typeof val === "string") {
+              const firstCol =
+                field.sub_fields && field.sub_fields.length > 0
+                  ? field.sub_fields[0].key
+                  : "col1";
+              migratedData[field.key] = [{ [firstCol]: val }];
+              needsMigration = true;
+            } else if (field.type === "checkbox" && typeof val === "string") {
+              migratedData[field.key] = val.split(",").map((v) => v.trim());
+              needsMigration = true;
+            } else if (field.type === "links" && typeof val === "string") {
+              migratedData[field.key] = [
+                {
+                  title: "Kattints ide",
+                  url: val.startsWith("http") ? val : "https://" + val,
+                },
+              ];
+              needsMigration = true;
+            }
+          }
+        });
+      }
+    });
+
+    if (needsMigration) setFormData(migratedData);
+  }, [schema]);
+
+  const handleChange = (key, value) =>
     setFormData((prev) => ({ ...prev, [key]: value }));
-  };
 
   const renderField = (field) => {
     const value = formData[field.key] || "";
@@ -406,15 +430,12 @@ const SZEducateEditor = () => {
       ) : (
         ""
       );
-
-    // Mezőszintű vagy globális readonly
     const isReadonly = !!field.is_readonly || globalReadonly;
     const readonlyMark = isReadonly ? (
       <span style={{ color: "#888", fontSize: "12px" }}> (Csak olvasható)</span>
     ) : (
       ""
     );
-
     const labelWithRequired = (
       <>
         {field.label} {requiredMark} {readonlyMark}
@@ -426,6 +447,7 @@ const SZEducateEditor = () => {
       case "number":
       case "date":
       case "url":
+      case "email":
         return (
           <TextControl
             key={field.key}
@@ -435,6 +457,8 @@ const SZEducateEditor = () => {
                 ? "date"
                 : field.type === "url"
                 ? "url"
+                : field.type === "email"
+                ? "email"
                 : field.type
             }
             value={value}
@@ -571,14 +595,24 @@ const SZEducateEditor = () => {
       return "A Képzési Forma kiválasztása kötelező!";
 
     const activeFormat = formData["kepzesi_forma"];
+    const fixedFormats = [
+      "BSc",
+      "MSc",
+      "Osztatlan",
+      "Felsőoktatási szakképzés",
+      "Szakirányú továbbképzés",
+      "Mikroképzés",
+      "Előkészítő",
+    ];
+
     if (schema && schema.length > 0) {
       for (const group of schema) {
-        if (
-          group.group_id !== "alap_adatok" &&
-          group.group_label !== activeFormat
-        ) {
-          let groupVisible = true;
-          if (group.condition && group.condition.operator) {
+        // CSAK AZ AKTUÁLISAN LÁTHATÓ FÜLEKET VALIDÁLJUK!
+        let isVisible = true;
+        if (group.group_id !== "alap_adatok") {
+          if (fixedFormats.includes(group.group_label)) {
+            isVisible = group.group_label === activeFormat;
+          } else if (group.condition && group.condition.operator) {
             const c = group.condition;
             const targetVal = formData[c.field];
             const stringVal = Array.isArray(targetVal)
@@ -586,35 +620,50 @@ const SZEducateEditor = () => {
               : String(targetVal || "");
             switch (c.operator) {
               case "==":
-                groupVisible = stringVal === c.value;
+                isVisible = stringVal === c.value;
                 break;
               case "!=":
-                groupVisible = stringVal !== c.value;
+                isVisible = stringVal !== c.value;
                 break;
               case "not_empty":
-                groupVisible = stringVal.trim() !== "";
+                isVisible = stringVal.trim() !== "";
                 break;
               case "empty":
-                groupVisible = stringVal.trim() === "";
+                isVisible = stringVal.trim() === "";
                 break;
               case "contains":
-                groupVisible = stringVal.includes(c.value);
+                isVisible = stringVal.includes(c.value);
                 break;
               default:
-                groupVisible = true;
+                isVisible = true;
             }
           }
-          if (!groupVisible) continue;
         }
+
+        if (!isVisible) continue; // Ha a fül rejtve van, kihagyjuk!
 
         if (!group.fields) continue;
         for (const field of group.fields) {
+          const val = formData[field.key];
+
+          // EMAIL VALIDÁCIÓ (@sze.hu)
+          if (
+            field.type === "email" &&
+            val &&
+            typeof val === "string" &&
+            val.trim() !== ""
+          ) {
+            if (!val.toLowerCase().trim().endsWith("@sze.hu")) {
+              return `Kérjük, adjon meg hivatalos egyetemi email címet (@sze.hu végződéssel) a(z) "${field.label}" mezőben!`;
+            }
+          }
+
+          // KÖTELEZŐ MEZŐ VALIDÁCIÓ
           if (
             (field.is_required || field.is_locked) &&
             !field.is_readonly &&
             !globalReadonly
           ) {
-            const val = formData[field.key];
             let isEmpty = false;
             if (val === undefined || val === null) {
               isEmpty = true;

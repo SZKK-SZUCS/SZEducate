@@ -161,9 +161,7 @@ const WysiwygControl = ({
       });
     }
     return () => {
-      if (window.wp && window.wp.editor) {
-        window.wp.editor.remove(editorId);
-      }
+      if (window.wp && window.wp.editor) window.wp.editor.remove(editorId);
     };
   }, []);
   return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
@@ -478,24 +476,51 @@ const SZEducateEditor = () => {
   const [formData, setFormData] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useState)(existingData || {});
   const [isSaving, setIsSaving] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useState)(false);
   const [message, setMessage] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useState)(null);
-
-  // Jogosultságok feldolgozása
   const actions = permissions?.actions || {
     create: true,
     edit: true,
     delete: false
   };
   const isNewPost = !existingTitle;
-
-  // Ha nem új poszt és nincs szerkesztési jog, MINDEN readonly lesz.
   const globalReadonly = !isNewPost && !actions.edit;
   const canSave = isNewPost ? actions.create : actions.edit;
-  const handleChange = (key, value) => {
-    setFormData(prev => ({
-      ...prev,
-      [key]: value
-    }));
-  };
+  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useEffect)(() => {
+    if (!schema || !existingData) return;
+    let needsMigration = false;
+    const migratedData = {
+      ...existingData
+    };
+    schema.forEach(group => {
+      if (group.fields) {
+        group.fields.forEach(field => {
+          const val = migratedData[field.key];
+          if (val !== undefined && val !== null && val !== "") {
+            if (field.type === "repeater" && typeof val === "string") {
+              const firstCol = field.sub_fields && field.sub_fields.length > 0 ? field.sub_fields[0].key : "col1";
+              migratedData[field.key] = [{
+                [firstCol]: val
+              }];
+              needsMigration = true;
+            } else if (field.type === "checkbox" && typeof val === "string") {
+              migratedData[field.key] = val.split(",").map(v => v.trim());
+              needsMigration = true;
+            } else if (field.type === "links" && typeof val === "string") {
+              migratedData[field.key] = [{
+                title: "Kattints ide",
+                url: val.startsWith("http") ? val : "https://" + val
+              }];
+              needsMigration = true;
+            }
+          }
+        });
+      }
+    });
+    if (needsMigration) setFormData(migratedData);
+  }, [schema]);
+  const handleChange = (key, value) => setFormData(prev => ({
+    ...prev,
+    [key]: value
+  }));
   const renderField = field => {
     const value = formData[field.key] || "";
     const requiredMark = field.is_required || field.is_locked ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
@@ -503,8 +528,6 @@ const SZEducateEditor = () => {
         color: "#d63638"
       }
     }, "*") : "";
-
-    // Mezőszintű vagy globális readonly
     const isReadonly = !!field.is_readonly || globalReadonly;
     const readonlyMark = isReadonly ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
       style: {
@@ -518,10 +541,11 @@ const SZEducateEditor = () => {
       case "number":
       case "date":
       case "url":
+      case "email":
         return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.TextControl, {
           key: field.key,
           label: labelWithRequired,
-          type: field.type === "date" ? "date" : field.type === "url" ? "url" : field.type,
+          type: field.type === "date" ? "date" : field.type === "url" ? "url" : field.type === "email" ? "email" : field.type,
           value: value,
           onChange: val => handleChange(field.key, val),
           help: field.is_filterable && !isReadonly ? "Indexelt mező." : "",
@@ -626,40 +650,54 @@ const SZEducateEditor = () => {
     if (!title || title.trim() === "") return "A Képzés Címe (Szak megnevezése) kötelező!";
     if (!formData["kepzesi_forma"]) return "A Képzési Forma kiválasztása kötelező!";
     const activeFormat = formData["kepzesi_forma"];
+    const fixedFormats = ["BSc", "MSc", "Osztatlan", "Felsőoktatási szakképzés", "Szakirányú továbbképzés", "Mikroképzés", "Előkészítő"];
     if (schema && schema.length > 0) {
       for (const group of schema) {
-        if (group.group_id !== "alap_adatok" && group.group_label !== activeFormat) {
-          let groupVisible = true;
-          if (group.condition && group.condition.operator) {
+        // CSAK AZ AKTUÁLISAN LÁTHATÓ FÜLEKET VALIDÁLJUK!
+        let isVisible = true;
+        if (group.group_id !== "alap_adatok") {
+          if (fixedFormats.includes(group.group_label)) {
+            isVisible = group.group_label === activeFormat;
+          } else if (group.condition && group.condition.operator) {
             const c = group.condition;
             const targetVal = formData[c.field];
             const stringVal = Array.isArray(targetVal) ? targetVal.join(",") : String(targetVal || "");
             switch (c.operator) {
               case "==":
-                groupVisible = stringVal === c.value;
+                isVisible = stringVal === c.value;
                 break;
               case "!=":
-                groupVisible = stringVal !== c.value;
+                isVisible = stringVal !== c.value;
                 break;
               case "not_empty":
-                groupVisible = stringVal.trim() !== "";
+                isVisible = stringVal.trim() !== "";
                 break;
               case "empty":
-                groupVisible = stringVal.trim() === "";
+                isVisible = stringVal.trim() === "";
                 break;
               case "contains":
-                groupVisible = stringVal.includes(c.value);
+                isVisible = stringVal.includes(c.value);
                 break;
               default:
-                groupVisible = true;
+                isVisible = true;
             }
           }
-          if (!groupVisible) continue;
         }
+        if (!isVisible) continue; // Ha a fül rejtve van, kihagyjuk!
+
         if (!group.fields) continue;
         for (const field of group.fields) {
+          const val = formData[field.key];
+
+          // EMAIL VALIDÁCIÓ (@sze.hu)
+          if (field.type === "email" && val && typeof val === "string" && val.trim() !== "") {
+            if (!val.toLowerCase().trim().endsWith("@sze.hu")) {
+              return `Kérjük, adjon meg hivatalos egyetemi email címet (@sze.hu végződéssel) a(z) "${field.label}" mezőben!`;
+            }
+          }
+
+          // KÖTELEZŐ MEZŐ VALIDÁCIÓ
           if ((field.is_required || field.is_locked) && !field.is_readonly && !globalReadonly) {
-            const val = formData[field.key];
             let isEmpty = false;
             if (val === undefined || val === null) {
               isEmpty = true;
