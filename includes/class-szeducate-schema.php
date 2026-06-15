@@ -28,6 +28,9 @@ class SZEducate_Schema {
 				$new_schema = wp_unslash( $_POST['szeducate_schema'] );
 				update_option( $this->option_name, $new_schema );
 
+				require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-activator.php';
+				SZEducate_Activator::update_database_schema();
+
 				global $wpdb;
 				$table_name = $wpdb->prefix . 'szeducate_clients';
 				
@@ -41,7 +44,7 @@ class SZEducate_Schema {
 						) );
 					}
 				}
-				echo '<div class="notice notice-success is-dismissible" style="margin-top:20px;"><p><strong>A Séma sikeresen elmentve a Hub-on, és a Kliensek automatikusan szinkronizálva lettek a háttérben!</strong></p></div>';
+				echo '<div class="notice notice-success is-dismissible" style="margin-top:20px;"><p><strong>✅ A Séma sikeresen elmentve a Hub-on, és a Kliensek automatikusan szinkronizálva lettek a háttérben!</strong></p></div>';
 			} else {
 				echo '<div class="notice notice-error is-dismissible" style="margin-top:20px;"><p>Biztonsági hiba (lejárt session). Kérjük frissítse az oldalt!</p></div>';
 			}
@@ -65,9 +68,16 @@ class SZEducate_Schema {
 			<h1>SZEducate Séma Tervező</h1>
 			<p>Tervezd meg a képzések adatszerkezetét! Az itt létrehozott mezőket a Kliensek (karok) tölthetik ki.</p>
 			
-			<div class="notice notice-info" style="margin: 15px 0 25px 0; padding: 15px; border-left-color: #007cba; background: #fff; box-shadow: 0 1px 1px rgba(0,0,0,.04);">
-				<p style="margin-top: 0;"><strong>Tipp: Közös mezők több csoportban</strong></p>
-				<p style="margin-bottom: 0;">Ha egy mezőt több különböző fülön (csoportban) is meg szeretnél jeleníteni, hozd létre a mezőt mindkét csoportban, és <strong>állítsd be nekik pontosan ugyanazt az "Azonosítót"</strong>! A rendszer ekkor kék "Közös mező" jelvénnyel jelöli őket, és tudni fogja, hogy az értéküket szinkronban kell tartani.</p>
+			<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+				<div class="notice notice-info" style="margin: 0; padding: 15px; border-left-color: #007cba; background: #fff; box-shadow: 0 1px 1px rgba(0,0,0,.04); flex: 1; margin-right: 20px;">
+					<p style="margin-top: 0;"><strong>Tipp: Közös mezők szinkronja</strong></p>
+					<p style="margin-bottom: 0;">Ha egy mezőt több különböző fülön (csoportban) is meg szeretnél jeleníteni, állítsd be nekik pontosan ugyanazt az "Azonosítót"! A rendszer automatikusan kék "Közös mező" jelvénnyel látja el őket. <strong>Ha az egyiket módosítod, a rendszer valós időben frissíti a többi ugyanilyen azonosítójú mezőt is!</strong></p>
+				</div>
+				<div style="display: flex; gap: 10px;">
+					<input type="file" id="import-schema-file" accept=".json" style="display: none;">
+					<button type="button" id="import-schema-btn" class="button button-secondary">Séma Importálása (.json)</button>
+					<button type="button" id="export-schema-btn" class="button button-secondary">Séma Exportálása (.json)</button>
+				</div>
 			</div>
 			
 			<form method="post" id="szeducate-schema-form">
@@ -148,6 +158,51 @@ class SZEducate_Schema {
 			const form = document.getElementById('szeducate-schema-form');
 			const dataInput = document.getElementById('szeducate_schema_data');
 			
+			// --- EXPORT / IMPORT LOGIKA ---
+			document.getElementById('export-schema-btn').addEventListener('click', () => {
+				const data = dataInput.value;
+				if (!data || data === '[]') { alert('Üres a séma, nincs mit exportálni.'); return; }
+				
+				const blob = new Blob([data], { type: 'application/json' });
+				const url = URL.createObjectURL(blob);
+				const a = document.createElement('a');
+				a.href = url;
+				a.download = 'szeducate_schema_export_' + new Date().toISOString().slice(0,10) + '.json';
+				document.body.appendChild(a);
+				a.click();
+				document.body.removeChild(a);
+				URL.revokeObjectURL(url);
+			});
+
+			document.getElementById('import-schema-btn').addEventListener('click', () => {
+				document.getElementById('import-schema-file').click();
+			});
+
+			document.getElementById('import-schema-file').addEventListener('change', (e) => {
+				const file = e.target.files[0];
+				if (!file) return;
+				
+				const reader = new FileReader();
+				reader.onload = (ev) => {
+					try {
+						const json = JSON.parse(ev.target.result);
+						if (!Array.isArray(json)) throw new Error("A JSON struktúra nem megfelelő (nem tömb).");
+						
+						dataInput.value = JSON.stringify(json);
+						if (confirm("Az importált fájl betöltése azonnal felülírja a jelenlegi sémát. Véglegesítjük a mentést?")) {
+							form.submit();
+						} else {
+							// Ha nem akarja menteni, ürítjük az inputot, hogy újra megpróbálhassa
+							e.target.value = '';
+						}
+					} catch (err) {
+						alert('Hiba történt az importálás során! Ellenőrizze, hogy a fájl érvényes SZEducate JSON séma-e. Részletek: ' + err.message);
+					}
+				};
+				reader.readAsText(file);
+			});
+			// --- EXPORT / IMPORT LOGIKA VÉGE ---
+
 			let schemaData = [];
 			try { schemaData = JSON.parse(dataInput.value); } catch(e) {}
 
@@ -215,6 +270,53 @@ class SZEducate_Schema {
 					if (keyInput && badge) badge.style.display = (keyInput.value.trim() && counts[keyInput.value.trim()] > 1) ? 'inline-block' : 'none';
 				});
 			}
+
+			// --- KÖZÖS MEZŐK SZINKRONIZÁCIÓJA ---
+			let isSyncing = false;
+			function syncCommonFields(sourceField) {
+				if (isSyncing) return; // Végtelen ciklus elkerülése
+				
+				const sourceKey = sourceField.querySelector('.f-key').value.trim();
+				if (!sourceKey) return;
+
+				const badge = sourceField.querySelector('.badge-duplicate');
+				if (!badge || badge.style.display === 'none') return; // Csak akkor szinkronizálunk, ha van párja
+
+				isSyncing = true;
+				
+				const sourceLabel = sourceField.querySelector('.f-label').value;
+				const sourceType = sourceField.querySelector('.f-type').value;
+				const sourceOptions = sourceField.querySelector('.f-options').value;
+				const sourceHelp = sourceField.querySelector('.f-help').value;
+				const sourceReq = sourceField.querySelector('.f-required').checked;
+				const sourceFilter = sourceField.querySelector('.f-filter').checked;
+				const sourceTax = sourceField.querySelector('.f-taxonomy').checked;
+
+				const allFields = document.querySelectorAll('.szeducate-field');
+				allFields.forEach(fDiv => {
+					if (fDiv === sourceField || fDiv.classList.contains('locked')) return;
+					
+					const currentKey = fDiv.querySelector('.f-key').value.trim();
+					if (currentKey === sourceKey) {
+						fDiv.querySelector('.f-label').value = sourceLabel;
+						
+						const typeEl = fDiv.querySelector('.f-type');
+						if (typeEl.value !== sourceType) {
+							typeEl.value = sourceType;
+							typeEl.dispatchEvent(new Event('change')); // Hogy megjelenítse/elrejtse az opciókat a UI-on
+						}
+						
+						fDiv.querySelector('.f-options').value = sourceOptions;
+						fDiv.querySelector('.f-help').value = sourceHelp;
+						fDiv.querySelector('.f-required').checked = sourceReq;
+						fDiv.querySelector('.f-filter').checked = sourceFilter;
+						fDiv.querySelector('.f-taxonomy').checked = sourceTax;
+					}
+				});
+				
+				isSyncing = false;
+			}
+			// --- KÖZÖS MEZŐK SZINKRONIZÁCIÓJA VÉGE ---
 
 			function createSubFieldRow(subField) {
 				const sfDiv = document.createElement('div');
@@ -315,6 +417,23 @@ class SZEducate_Schema {
 				`;
 
 				if (!field.is_locked) {
+					// Eseménykezelők a Közös Mezők Szinkronizációjához
+					const triggerSync = () => syncCommonFields(fDiv);
+					
+					fDiv.querySelector('.f-label').addEventListener('input', triggerSync);
+					fDiv.querySelector('.f-options').addEventListener('input', triggerSync);
+					fDiv.querySelector('.f-help').addEventListener('input', triggerSync);
+					fDiv.querySelector('.f-required').addEventListener('change', triggerSync);
+					fDiv.querySelector('.f-filter').addEventListener('change', triggerSync);
+					fDiv.querySelector('.f-taxonomy').addEventListener('change', triggerSync);
+
+					fDiv.querySelector('.f-type').addEventListener('change', function(e) {
+						fDiv.querySelector('.f-options-wrapper').style.display = ['select', 'radio', 'checkbox'].includes(e.target.value) ? 'flex' : 'none';
+						fDiv.querySelector('.subfields-container').style.display = e.target.value === 'repeater' ? 'block' : 'none';
+						triggerSync();
+					});
+					
+					// Azonosító kezelés
 					fDiv.querySelector('.f-label').addEventListener('blur', function() {
 						const ki = fDiv.querySelector('.f-key');
 						if (!ki.value && this.value) { ki.value = generateUniqueKey(slugify(this.value), ki); checkDuplicateKeys(); }
@@ -336,10 +455,6 @@ class SZEducate_Schema {
 						this.innerText = willBeArchived ? 'Visszaállítás' : 'Archiválás';
 					});
 
-					fDiv.querySelector('.f-type').addEventListener('change', function(e) {
-						fDiv.querySelector('.f-options-wrapper').style.display = ['select', 'radio', 'checkbox'].includes(e.target.value) ? 'flex' : 'none';
-						fDiv.querySelector('.subfields-container').style.display = e.target.value === 'repeater' ? 'block' : 'none';
-					});
 					fDiv.querySelector('.delete-field-btn').addEventListener('click', () => {
 						if(confirm('A törléssel a mező eltűnik a felületről. Biztonságosabb az Archiválás használata. Biztosan véglegesen törlöd?')) {
 							fDiv.remove(); checkDuplicateKeys();
@@ -387,11 +502,11 @@ class SZEducate_Schema {
 					<div class="szeducate-group-header">
 						<div class="drag-handle group-drag-handle" title="Mozgatás">::</div>
 						<div class="g-inputs" style="max-width: 600px;">
-							<div class="sz-field-col" style="flex: 2;">
+							<div class="sz-field-col" style="flex: 3;">
 								<label>Csoport (Fül) Megnevezése</label>
 								<input type="text" class="sz-input g-label" placeholder="pl. Szakirányú Továbbképzés" value="${group.group_label || ''}" style="font-weight: 600;" ${isReadonly}>
 							</div>
-							<div class="sz-field-col" style="flex: 1;">
+							<div class="sz-field-col" style="flex: 2;">
 								<label>Rendszer Azonosító</label>
 								<input type="text" class="sz-input g-id" placeholder="pl. sztk_ful" value="${group.group_id || generateId()}" ${isReadonly}>
 							</div>
@@ -485,7 +600,7 @@ class SZEducate_Schema {
 				});
 
 				if (typeWarnings.length > 0) {
-					const msg = "⚠️ FIGYELEM! Az alábbi mezők típusa megváltozott:\n\n" + typeWarnings.join("\n") + "\n\nAdatbázis szinten az adatok nem vesznek el, a Kliens rendszer (React) pedig futásidőben megpróbálja automatikusan konvertálni az inkompatibilis típusokat (pl. szövegből lista). Biztosan véglegesíted?";
+					const msg = "FIGYELEM! Az alábbi mezők típusa megváltozott:\n\n" + typeWarnings.join("\n") + "\n\nAdatbázis szinten az adatok nem vesznek el, a Kliens rendszer (React) pedig futásidőben megpróbálja automatikusan konvertálni az inkompatibilis típusokat (pl. szövegből lista). Biztosan véglegesíted?";
 					if (!confirm(msg)) {
 						e.preventDefault();
 						return;

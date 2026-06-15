@@ -7,6 +7,7 @@ class SZEducate_Elementor {
 
 	public function init() {
 		add_action( 'elementor/dynamic_tags/register', array( $this, 'register_dynamic_tags' ) );
+		add_action( 'elementor/widgets/register', array( $this, 'register_widgets' ) );
 
 		add_action( 'elementor/element/common/_section_style/after_section_end', array( $this, 'add_visibility_controls' ), 10, 2 );
 		add_action( 'elementor/element/section/section_advanced/after_section_end', array( $this, 'add_visibility_controls' ), 10, 2 );
@@ -25,12 +26,21 @@ class SZEducate_Elementor {
 		$dynamic_tags_manager->register( new SZEducate_Dynamic_Tag() );
 	}
 
+	public function register_widgets( $widgets_manager ) {
+		require_once SZEDUCATE_PLUGIN_DIR . 'includes/widgets/class-szeducate-links-widget.php';
+		require_once SZEDUCATE_PLUGIN_DIR . 'includes/widgets/class-szeducate-status-widget.php';
+		require_once SZEDUCATE_PLUGIN_DIR . 'includes/widgets/class-szeducate-listing-widget.php';
+		
+		$widgets_manager->register( new SZEducate_Links_Widget() );
+		$widgets_manager->register( new SZEducate_Status_Widget() );
+		$widgets_manager->register( new SZEducate_Listing_Widget() );
+	}
+
 	public function add_visibility_controls( $element, $args ) {
 		$schema_json = get_option( 'szeducate_local_schema', '[]' );
 		$schema = json_decode( $schema_json, true );
 		
 		$options = array();
-
 		if ( is_array( $schema ) ) {
 			foreach ( $schema as $group ) {
 				if ( ! empty( $group['fields'] ) ) {
@@ -44,17 +54,15 @@ class SZEducate_Elementor {
 		$element->start_controls_section(
 			'szeducate_visibility_section',
 			array(
-				'label' => '👁️ SZEducate Láthatóság',
+				'label' => 'SZEducate Láthatóság',
 				'tab'   => \Elementor\Controls_Manager::TAB_ADVANCED,
 			)
 		);
 
-		// Átalakítva többszörös választóvá (SELECT2)
 		$element->add_control(
 			'szeducate_hide_if_empty_keys',
 			array(
 				'label'       => 'Vizsgált mezők:',
-				'description' => 'Válassz ki egy vagy több mezőt.',
 				'type'        => \Elementor\Controls_Manager::SELECT2,
 				'multiple'    => true,
 				'options'     => $options,
@@ -62,17 +70,47 @@ class SZEducate_Elementor {
 			)
 		);
 
-		// ÚJ: Logikai operátor
+		$element->add_control(
+			'szeducate_hide_rule',
+			array(
+				'label'     => 'Feltétel (Akkor rejti el, ha...)',
+				'type'      => \Elementor\Controls_Manager::SELECT,
+				'options'   => array(
+					'empty'      => 'A mező ÜRES',
+					'not_empty'  => 'A mező NEM ÜRES',
+					'equals'     => 'EGYENLŐ a megadott értékkel',
+					'not_equals' => 'NEM EGYENLŐ a megadott értékkel',
+					'contains'   => 'TARTALMAZZA a megadott értéket',
+				),
+				'default'   => 'empty',
+				'condition' => array(
+					'szeducate_hide_if_empty_keys!' => '',
+				),
+			)
+		);
+
+		$element->add_control(
+			'szeducate_hide_value',
+			array(
+				'label'     => 'Vizsgált érték (Szöveg)',
+				'type'      => \Elementor\Controls_Manager::TEXT,
+				'condition' => array(
+					'szeducate_hide_rule' => array( 'equals', 'not_equals', 'contains' ),
+					'szeducate_hide_if_empty_keys!' => '',
+				),
+			)
+		);
+
 		$element->add_control(
 			'szeducate_hide_logic',
 			array(
-				'label'     => 'Elrejtés feltétele:',
+				'label'     => 'Több mező esetén a logika:',
 				'type'      => \Elementor\Controls_Manager::SELECT,
 				'options'   => array(
-					'all_empty' => 'Ha MINDEGYIK kiválasztott üres',
-					'any_empty' => 'Ha BÁRMELYIK kiválasztott üres',
+					'all_match' => 'Ha MINDEGYIK kiválasztott megfelel a feltételnek',
+					'any_match' => 'Ha BÁRMELYIK kiválasztott megfelel a feltételnek',
 				),
-				'default'   => 'all_empty',
+				'default'   => 'all_match',
 				'condition' => array(
 					'szeducate_hide_if_empty_keys!' => '',
 				),
@@ -87,19 +125,16 @@ class SZEducate_Elementor {
 
 		$settings = $element->get_settings_for_display();
 		
-		// Ha nincsenek beállítva vizsgálandó kulcsok
 		if ( empty( $settings['szeducate_hide_if_empty_keys'] ) || ! is_array( $settings['szeducate_hide_if_empty_keys'] ) ) {
 			return $should_render;
 		}
 
 		if ( \Elementor\Plugin::$instance->editor->is_edit_mode() ) {
-			return $should_render;
+			return $should_render; // Szerkesztőben mindig látjuk
 		}
 
 		$post_id = get_the_ID();
-		if ( ! $post_id || get_post_type( $post_id ) !== 'sz_course' ) {
-			return false; 
-		}
+		if ( ! $post_id || get_post_type( $post_id ) !== 'sz_course' ) return false; 
 
 		global $wpdb;
 		$table_name = $wpdb->prefix . 'szeducate_courses_data';
@@ -109,40 +144,34 @@ class SZEducate_Elementor {
 
 		$data = json_decode( $course['course_data'], true );
 		$keys_to_check = $settings['szeducate_hide_if_empty_keys'];
-		$logic = isset( $settings['szeducate_hide_logic'] ) ? $settings['szeducate_hide_logic'] : 'all_empty';
+		$rule = isset( $settings['szeducate_hide_rule'] ) ? $settings['szeducate_hide_rule'] : 'empty';
+		$target_val = isset( $settings['szeducate_hide_value'] ) ? $settings['szeducate_hide_value'] : '';
+		$logic = isset( $settings['szeducate_hide_logic'] ) ? $settings['szeducate_hide_logic'] : 'all_match';
 		
-		$empty_count = 0;
+		$match_count = 0;
 		$total_keys = count( $keys_to_check );
 
-		// Végigmegyünk az összes kiválasztott kulcson
 		foreach ( $keys_to_check as $key ) {
-			$is_empty = true;
-			
-			if ( isset( $data[ $key ] ) ) {
-				$val = $data[ $key ];
-				if ( is_array( $val ) && ! empty( $val ) ) {
-					$is_empty = false;
-				} elseif ( trim( (string) $val ) !== '' ) {
-					$is_empty = false;
-				}
+			$actual_val = isset( $data[ $key ] ) ? $data[ $key ] : '';
+			$actual_str = is_array( $actual_val ) ? implode( ',', $actual_val ) : (string) $actual_val;
+			$is_empty = trim($actual_str) === '';
+
+			$is_match = false;
+			switch ( $rule ) {
+				case 'empty':      $is_match = $is_empty; break;
+				case 'not_empty':  $is_match = !$is_empty; break;
+				case 'equals':     $is_match = ($actual_str === $target_val); break;
+				case 'not_equals': $is_match = ($actual_str !== $target_val); break;
+				case 'contains':   $is_match = (strpos($actual_str, $target_val) !== false); break;
 			}
 			
-			if ( $is_empty ) {
-				$empty_count++;
-			}
+			if ( $is_match ) $match_count++;
 		}
 
-		// Kiértékeljük a logikát
-		if ( $logic === 'all_empty' ) {
-			// Csak akkor rejtjük el (return false), ha az összes vizsgált mező üres
-			if ( $empty_count === $total_keys ) {
-				return false;
-			}
-		} else { // 'any_empty'
-			// Ha legalább 1 üres a listából, már rejtjük is
-			if ( $empty_count > 0 ) {
-				return false;
-			}
+		if ( $logic === 'all_match' ) {
+			if ( $match_count === $total_keys ) return false; // Elrejtjük
+		} else { // any_match
+			if ( $match_count > 0 ) return false; // Elrejtjük
 		}
 
 		return $should_render;
