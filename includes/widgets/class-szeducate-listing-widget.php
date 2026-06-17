@@ -25,7 +25,7 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 					$group_options[ $field['key'] ] = $field['label'];
 
 					if ( in_array( $field['type'], ['select', 'radio', 'checkbox'] ) && ! empty( $field['options'] ) ) {
-						$opts = array_map( 'trim', explode( ',', $field['options'] ) );
+						$opts = array_map( 'trim', explode( ';', $field['options'] ) );
 						$choices = array( '' => '-- Mindegy --' );
 						foreach ( $opts as $opt ) {
 							if ( $opt !== '' ) {

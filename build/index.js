@@ -619,8 +619,8 @@ const SZEducateEditor = () => {
         });
         break;
       case "checkbox":
-        const chkOptions = field.options ? field.options.split(",").map(o => o.trim()) : [];
-        const selectedValues = Array.isArray(value) ? value : typeof value === "string" && value !== "" ? value.split(",").map(v => v.trim()) : [];
+        const chkOptions = field.options ? field.options.split(";").map(o => o.trim()) : [];
+        const selectedValues = Array.isArray(value) ? value : typeof value === "string" && value !== "" ? value.split(";").map(v => v.trim()) : [];
         control = (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
           style: {
             opacity: isReadonly ? 0.7 : 1,

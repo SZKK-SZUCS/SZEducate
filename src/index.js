@@ -578,12 +578,12 @@ const SZEducateEditor = () => {
         break;
       case "checkbox":
         const chkOptions = field.options
-          ? field.options.split(",").map((o) => o.trim())
+          ? field.options.split(";").map((o) => o.trim())
           : [];
         const selectedValues = Array.isArray(value)
           ? value
           : typeof value === "string" && value !== ""
-          ? value.split(",").map((v) => v.trim())
+          ? value.split(";").map((v) => v.trim())
           : [];
         control = (
           <div

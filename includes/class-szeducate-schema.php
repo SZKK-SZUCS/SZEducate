@@ -336,7 +336,7 @@ class SZEducate_Schema {
 						<select class="sz-select sf-type">${sfOptions}</select>
 					</div>
 					<div class="sz-field-col sf-options-wrapper" style="flex: 2; display: ${showOpts};">
-						<input type="text" class="sz-input sf-options" placeholder="Opciók (vesszővel)" value="${subField.options || ''}">
+						<input type="text" class="sz-input sf-options" placeholder="Opciók (pontosvesszővel)" value="${subField.options || ''}">
 					</div>
 					<button type="button" class="btn-icon delete-sf-btn" title="Oszlop törlése">X</button>
 				`;
@@ -383,7 +383,7 @@ class SZEducate_Schema {
 						</div>
 						
 						<div class="sz-field-col f-options-wrapper" style="flex: 3; display: ${showOptions};">
-							<label>Opciók (Vesszővel elválasztva)</label>
+							<label>Opciók (Pontosvesszővel elválasztva)</label>
 							<input type="text" class="sz-input f-options" placeholder="pl. Nappali, Levelező" value="${field.options || ''}" ${isReadonly}>
 						</div>
 						

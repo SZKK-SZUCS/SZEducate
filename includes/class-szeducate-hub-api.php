@@ -29,10 +29,11 @@ class SZEducate_Hub_API {
 			'callback'            => array( $this, 'get_single_course' ),
 			'permission_callback' => array( $this, 'verify_bearer_token' ),
 		) );
+
 		register_rest_route( 'szeducate/v1/hub', '/backup', array(
 			'methods'             => WP_REST_Server::READABLE,
 			'callback'            => array( $this, 'generate_backup' ),
-			'permission_callback' => '__return_true', 
+			'permission_callback' => '__return_true',
 		) );
 	}
 
@@ -111,7 +112,8 @@ class SZEducate_Hub_API {
 				$target_value = isset( $rule['value'] ) ? $rule['value'] : '';
 
 				$actual_value = isset( $course_data[ $field ] ) ? $course_data[ $field ] : '';
-				$actual_string = is_array( $actual_value ) ? implode( ',', $actual_value ) : (string) $actual_value;
+				// JAVÍTÁS: PONTOSVESSZŐ (;) használata
+				$actual_string = is_array( $actual_value ) ? implode( ';', $actual_value ) : (string) $actual_value;
 
 				$rule_result = true;
 				switch ( $operator ) {
@@ -239,7 +241,6 @@ class SZEducate_Hub_API {
 							} elseif ( $field['type'] === 'boolean' ) {
 								$db_data[$key] = $val ? 1 : 0;
 							} elseif ( $field['type'] === 'date' ) {
-								// JAVÍTÁS: A MySQL Strict mode miatt a dátummezőt biztonságosan kell kezelni!
 								if ( $val !== '' ) {
 									$parsed_date = strtotime( $val );
 									$db_data[$key] = $parsed_date !== false ? date( 'Y-m-d H:i:s', $parsed_date ) : null;
@@ -248,7 +249,8 @@ class SZEducate_Hub_API {
 								}
 							} else {
 								if ( is_array( $val ) ) {
-									$val = implode( ', ', $val );
+									// JAVÍTÁS: PONTOSVESSZŐ (;) használata
+									$val = implode( '; ', $val );
 								}
 								$db_data[$key] = sanitize_text_field( $val );
 							}
