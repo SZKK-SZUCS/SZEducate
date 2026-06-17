@@ -82,7 +82,7 @@ class SZEducate_Import_Export {
 
 	private function generate_excel( $post_ids = array(), $is_template_only = false, $requested_formats = array() ) {
 		if ( ! class_exists( '\PhpOffice\PhpSpreadsheet\Spreadsheet' ) ) {
-			wp_die('A PhpSpreadsheet könyvtár hiányzik! Kérlek, futtasd a "composer require phpoffice/phpspreadsheet" parancsot a plugin mappájában.');
+			wp_die('A PhpSpreadsheet könyvtár hiányzik!');
 		}
 
 		global $wpdb;
@@ -93,16 +93,74 @@ class SZEducate_Import_Export {
 		$sheet = $spreadsheet->getActiveSheet();
 		$sheet->setTitle('Képzések');
 
-		// Rejtett segédlap a lenyíló opciókhoz
+		// Rejtett lap a szigorú legördülőkhöz (Egyválasztós)
 		$hidden_sheet = $spreadsheet->createSheet();
 		$hidden_sheet->setTitle('_opciok');
 		$hidden_sheet->setSheetState(\PhpOffice\PhpSpreadsheet\Worksheet\Worksheet::SHEETSTATE_HIDDEN);
 		$hidden_col_index = 1;
 
+		// Látható Puska Lap a többválasztósokhoz
+		$reference_sheet = $spreadsheet->createSheet();
+		$reference_sheet->setTitle('Eddigi kifejezések (Puska)');
+		$ref_col_index = 1;
+		$has_refs = false;
+
+		// Határozzuk meg a többválasztós mezőket a sémából
+		$multi_select_keys = array();
+		if ( is_array( $schema ) ) {
+			foreach ( $schema as $group ) {
+				if ( empty( $group['fields'] ) ) continue;
+				foreach ( $group['fields'] as $field ) {
+					if ( in_array( $field['type'], ['checkbox', 'multiselect'] ) || strpos($field['key'], 'kulcssz') !== false || strpos($field['key'], 'terulet') !== false ) {
+						$multi_select_keys[] = $field['key'];
+					}
+				}
+			}
+		}
+
+		// Referencia szótár kinyerése CSAK a többválasztós mezőkre
+		$all_courses = $wpdb->get_results( "SELECT course_data FROM {$wpdb->prefix}szeducate_courses_data", ARRAY_A );
+		$unique_values = array();
+		
+		if ( $all_courses ) {
+			foreach ( $all_courses as $c ) {
+				$data = json_decode( $c['course_data'], true );
+				if ( ! is_array( $data ) ) continue;
+				foreach ( $data as $k => $v ) {
+					if ( empty( $v ) ) continue;
+					if ( ! in_array( $k, $multi_select_keys ) ) continue; // Csak a Puska lapra szánt mezőket gyűjtjük
+					
+					if ( ! isset( $unique_values[$k] ) ) $unique_values[$k] = array();
+					
+					if ( is_string( $v ) ) {
+						$parts = preg_split('/[,;]+/', $v);
+						foreach ( $parts as $p ) {
+							$p = trim($p);
+							if ( $p !== '' && ! in_array( $p, $unique_values[$k] ) ) {
+								$unique_values[$k][] = $p;
+							}
+						}
+					} elseif ( is_array( $v ) ) {
+						foreach ( $v as $p ) {
+							if ( is_string($p) ) {
+							    $p = trim($p);
+							    if ( $p !== '' && ! in_array( $p, $unique_values[$k] ) ) {
+								    $unique_values[$k][] = $p;
+							    }
+							}
+						}
+					}
+				}
+			}
+		}
+
+		foreach ($unique_values as $k => $arr) {
+            sort($unique_values[$k]);
+        }
+
 		$col_index = 1;
 		$group_borders = array(); 
 		$keys_map = array(); 
-		$required_columns = array(); // ÚJ: Itt gyűjtjük a kötelező oszlopok indexeit
 
 		$fixed_formats = ["BSc", "MSc", "Osztatlan", "Felsőoktatási szakképzés", "Szakirányú továbbképzés", "Mikroképzés", "Előkészítő"];
 		$is_all_formats = empty($requested_formats);
@@ -119,10 +177,9 @@ class SZEducate_Import_Export {
 			'group_label' => 'Alap adatok'
 		];
 		$group_borders[] = $col_index; 
-		$required_columns[] = $col_index; // A cím mindig kötelező
 		$col_index++;
 
-		// 2. SÉMA OSZLOPOK ÉS VALIDÁCIÓ ÉPÍTÉSE
+		// 2. SÉMA OSZLOPOK ÉPÍTÉSE ÉS VALIDÁCIÓ
 		if ( is_array( $schema ) ) {
 			foreach ( $schema as $group ) {
 				if ( empty( $group['fields'] ) || !is_array( $group['fields'] ) ) continue;
@@ -151,78 +208,107 @@ class SZEducate_Import_Export {
 					$sheet->setCellValue([$col_index, 2], $field['label']);
 					$sheet->setCellValue([$col_index, 3], $field['key']);
 
+					$is_single_select = in_array( $field['type'], ['select', 'radio'] );
+					$is_multi_select  = in_array( $field['key'], $multi_select_keys );
+
 					$help_text = '';
-					
-					// Ha kötelező, feljegyezzük az oszlopot a későbbi színezéshez
 					if ( !empty($field['is_required']) ) {
 						$help_text = '[KÖTELEZŐ MEZŐ!] ';
-						$required_columns[] = $col_index;
 					}
 
-					// Dinamikus lenyíló lista generálása (Adatérvényesítés)
-					if ( in_array( $field['type'], ['select', 'radio'] ) && !empty( $field['options'] ) ) {
-						$options = array_map('trim', explode(',', $field['options']));
-						$opt_row = 1;
-						$hidden_col_letter = Coordinate::stringFromColumnIndex($hidden_col_index);
-						
-						foreach ($options as $opt) {
-							if ($opt !== '') {
-								$hidden_sheet->setCellValue([$hidden_col_index, $opt_row], $opt);
-								$opt_row++;
-							}
-						}
-						
-						if ($opt_row > 1) {
-							$max_opt_row = $opt_row - 1;
-							$main_col_letter = Coordinate::stringFromColumnIndex($col_index);
-							
-							$validation = new DataValidation();
-							$validation->setType( DataValidation::TYPE_LIST );
-							$validation->setErrorStyle( DataValidation::STYLE_STOP );
-							$validation->setAllowBlank(true);
-							$validation->setShowDropDown(true);
-							$validation->setShowErrorMessage(true);
-							$validation->setErrorTitle('Érvénytelen választás');
-							$validation->setError('Ezt az értéket a rendszer nem ismeri. Kérlek, válassz a lenyíló listából!');
-							$validation->setFormula1('=\'_opciok\'!$' . $hidden_col_letter . '$1:$' . $hidden_col_letter . '$' . $max_opt_row);
-
-							for ($r = 5; $r <= 1000; $r++) {
-								$sheet->getCell($main_col_letter . $r)->setDataValidation(clone $validation);
-							}
-							
-							$hidden_col_index++;
-						}
-						$help_text .= '[Lenyíló lista: ' . ($field['options'] ?? '') . ']';
-					} 
-					else {
+					if ( $is_single_select ) {
+						$help_text .= '[Csak egy választható]';
+					} elseif ( in_array( $field['type'], ['checkbox', 'multiselect'] ) ) {
+						$help_text .= '[Több érték esetén PONTOSVESSZŐVEL (;) válaszd el]';
+					} else {
 						switch ( $field['type'] ) {
 							case 'boolean': $help_text .= '[Kapcsoló: "true" vagy "false"]'; break;
-							case 'checkbox': case 'multiselect': $help_text .= '[Több is lehet (VESSZŐVEL elválasztva): ' . ($field['options'] ?? '') . ']'; break;
 							case 'number': $help_text .= '[Csak szám]'; break;
 							case 'date': $help_text .= '[Dátum: ÉÉÉÉ-HH-NN]'; break;
 							case 'email': $help_text .= '[Email cím @sze.hu]'; break;
-							case 'wysiwyg': $help_text .= '[Formázott szöveg. Sima szöveget is fogad (később a felületen formázható).]'; break;
-							case 'repeater': $help_text .= '[Táblázat. Sima szöveget beírva automatikusan az 1. oszlopba kerül, később a felületen bővíthető.]'; break;
+							case 'wysiwyg': $help_text .= '[Formázott szöveg. Sima szöveget is fogad.]'; break;
+							case 'repeater': $help_text .= '[Táblázat. Sima szöveget beírva automatikusan az 1. oszlopba kerül.]'; break;
 							case 'links': $help_text .= '[Linkek. Sima URL-t megadva a felület gombbá alakítja.]'; break;
-							default: $help_text .= '[Szöveges mező]'; break;
+							default: 
+								if ( $is_multi_select ) {
+									$help_text .= '[Több érték esetén PONTOSVESSZŐVEL (;) válaszd el]';
+								} else {
+									$help_text .= '[Szöveges mező]'; 
+								}
+								break;
 						}
 					}
 
 					if ( !empty($field['help_text']) ) {
 						$help_text .= "\n\n Súgó: " . $field['help_text'];
 					}
-
 					$sheet->setCellValue([$col_index, 4], $help_text);
+
+					// A) EGYVÁLASZTÓS: Rejtett lapra mentés és Szigorú Validáció beállítása
+					if ( $is_single_select && !empty($field['options']) ) {
+						$opts = array_map('trim', explode(',', $field['options']));
+						$hidden_row = 1;
+						foreach($opts as $opt) {
+							if ($opt !== '') {
+								$hidden_sheet->setCellValue([$hidden_col_index, $hidden_row], $opt);
+								$hidden_row++;
+							}
+						}
+						
+						if ($hidden_row > 1) {
+							$col_letter = Coordinate::stringFromColumnIndex($col_index);
+							$hidden_col_letter = Coordinate::stringFromColumnIndex($hidden_col_index);
+
+							$validation = $sheet->getCell("{$col_letter}5")->getDataValidation();
+							$validation->setType( DataValidation::TYPE_LIST );
+							$validation->setErrorStyle( DataValidation::STYLE_STOP ); // Szigorú megállítás
+							$validation->setAllowBlank(true);
+							$validation->setShowInputMessage(true);
+							$validation->setShowErrorMessage(true);
+							$validation->setShowDropDown(true);
+							$validation->setErrorTitle('Érvénytelen érték');
+							$validation->setError('Kérlek, kizárólag a legördülő listából válassz!');
+							$validation->setFormula1("'_opciok'!\${$hidden_col_letter}\$1:\${$hidden_col_letter}\$" . ($hidden_row - 1));
+							
+							$sheet->setDataValidation("{$col_letter}5:{$col_letter}1000", $validation);
+							$hidden_col_index++;
+						}
+					}
+
+					// B) TÖBBVÁLASZTÓS: Szabad szöveg, de kigyűjtjük a Puska lapra
+					if ( $is_multi_select ) {
+						$k = $field['key'];
+						if ( isset($unique_values[$k]) && count($unique_values[$k]) > 0 ) {
+							$has_refs = true;
+							$reference_sheet->setCellValue([$ref_col_index, 1], $field['label'] . ' (' . $k . ')');
+							$reference_sheet->getStyle([$ref_col_index, 1])->getFont()->setBold(true);
+							$ref_row = 2;
+							foreach ( $unique_values[$k] as $val ) {
+								$reference_sheet->setCellValue([$ref_col_index, $ref_row], $val);
+								$ref_row++;
+							}
+							$reference_sheet->getColumnDimensionByColumn($ref_col_index)->setAutoSize(true);
+							$ref_col_index++;
+						}
+					}
+
 					$col_index++;
 				}
 
 				$end_col = $col_index - 1;
-				
 				if ( $end_col > $start_col ) {
 					$sheet->mergeCells([$start_col, 1, $end_col, 1]);
 				}
 				$group_borders[] = $end_col;
 			}
+		}
+
+		if ( ! $has_refs ) {
+			$reference_sheet->setCellValue([1, 1], 'Még nincs egyetlen kitöltött többválasztós adat sem az adatbázisban, amiből referenciát lehetne építeni.');
+		} else {
+			$reference_sheet->getStyle('A1:' . Coordinate::stringFromColumnIndex($ref_col_index - 1) . '1')->applyFromArray([
+				'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => 'FFE0E0E0']],
+			]);
 		}
 
 		// 3. EXCEL STÍLUSOZÁSA
@@ -246,29 +332,12 @@ class SZEducate_Import_Export {
 			'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => 'FFF9F9F9']],
 		]);
 
-		// MÓDOSÍTOTT: A 4. sor alapból sötétszürke betűszínű lesz
 		$sheet->getStyle("A4:{$last_col_letter}4")->applyFromArray([
 			'font' => ['color' => ['argb' => 'FF646970'], 'size' => 10],
 			'alignment' => ['wrapText' => true, 'vertical' => Alignment::VERTICAL_TOP],
 		]);
 		$sheet->getRowDimension(4)->setRowHeight(-1);
 
-		// ÚJ: A kötelező oszlopok vizuális kiemelése (Piros Súgó és halványpiros háttér az adatcelláknak)
-		foreach ($required_columns as $col_num) {
-			$letter = Coordinate::stringFromColumnIndex($col_num);
-			
-			// 4. sor (Súgó) pirosra színezése
-			$sheet->getStyle("{$letter}4")->applyFromArray([
-				'font' => ['color' => ['argb' => 'FFD63638'], 'bold' => true],
-			]);
-			
-			// 5-től 1000. sorig a háttér halványpiros lesz
-			$sheet->getStyle("{$letter}5:{$letter}1000")->applyFromArray([
-				'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => 'FFFBEAEA']],
-			]);
-		}
-
-		// Keretek megrajzolása a csoportok közé
 		foreach ($group_borders as $col_num) {
 			$letter = Coordinate::stringFromColumnIndex($col_num);
 			$sheet->getStyle("{$letter}1:{$letter}1000")->applyFromArray([
@@ -283,7 +352,7 @@ class SZEducate_Import_Export {
 		}
 		$sheet->freezePane('B5');
 
-		// 4. ADATOK BETÖLTÉSE (Közös mező szűréssel)
+		// 4. ADATOK BETÖLTÉSE
 		if ( ! $is_template_only ) {
 			$table_name = $wpdb->prefix . 'szeducate_courses_data';
 			
@@ -315,7 +384,6 @@ class SZEducate_Import_Export {
 							continue;
 						} 
 
-						// Relevancia vizsgálat: Csak a saját formátumába és az Alap adatokba exportáljuk a mezőt
 						$is_relevant = false;
 						if ( $group_id === 'alap_adatok' ) {
 							$is_relevant = true;
@@ -324,20 +392,18 @@ class SZEducate_Import_Export {
 								$is_relevant = true;
 							}
 						} else {
-							// Szakmérnök, szakember stb. -> Szakirányú továbbképzés esetén él
 							if ( $actual_format === 'Szakirányú továbbképzés' ) {
 								$is_relevant = true;
 							}
 						}
 
-						// Ha releváns az oszlop ennek a képzésnek, beírjuk. Ha nem, üresen hagyjuk!
 						if ( $is_relevant ) {
 							$val = isset( $course_data[$key] ) ? $course_data[$key] : '';
 							
 							if ( is_bool( $val ) ) {
 								$sheet->setCellValue([$col_idx, $current_row], $val ? 'true' : 'false');
 							} elseif ( is_array( $val ) ) {
-								$sheet->setCellValueExplicit([$col_idx, $current_row], implode( ', ', $val ), \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+								$sheet->setCellValueExplicit([$col_idx, $current_row], implode( '; ', $val ), \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
 							} else {
 								$sheet->setCellValue([$col_idx, $current_row], $val);
 							}
@@ -348,7 +414,6 @@ class SZEducate_Import_Export {
 			}
 		}
 
-		// Aktív lap visszaállítása a fő munkalapra
 		$spreadsheet->setActiveSheetIndex(0);
 
 		// 5. FÁJLNÉV GENERÁLÁSA
@@ -356,7 +421,7 @@ class SZEducate_Import_Export {
 			$formats_str = empty($requested_formats) ? 'MINDEN' : implode('_', $requested_formats);
 			$formats_str = preg_replace( '/[^A-Za-z0-9_áéíóöőúüűÁÉÍÓÖŐÚÜŰ]/', '_', $formats_str );
 			$formats_str = preg_replace( '/_+/', '_', $formats_str );
-			$filename = 'SZAKSABLON - ' . $formats_str . ' - ' . date('Y-m-d') . '.xlsx';
+			$filename = 'SZAKSABLON_-_' . $formats_str . '_-_' . date('Y-m-d') . '.xlsx';
 		} else {
 			$filename = 'szeducate_export_' . date('Ymd_His') . '.xlsx';
 		}
@@ -385,7 +450,6 @@ class SZEducate_Import_Export {
 				} else {
 					try {
 						$spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($file_tmp);
-						// Mindig a "Képzések" fület olvassuk
 						$sheet = $spreadsheet->getSheetByName('Képzések');
 						if ( ! $sheet ) {
 							$sheet = $spreadsheet->getActiveSheet(); 
@@ -393,7 +457,6 @@ class SZEducate_Import_Export {
 
 						$rows = $sheet->toArray(); 
 						
-						// --- SZIGORÚ VALIDÁCIÓ ---
 						$is_valid_format = (isset($rows[0][0]) && $rows[0][0] === 'Rendszer adatok');
 						$keys = isset($rows[2]) ? $rows[2] : array();
 						
@@ -419,7 +482,6 @@ class SZEducate_Import_Export {
 											$val_to_set = false;
 										} 
 										
-										// --- KÖZÖS MEZŐK VÉDELME ---
 										if ( isset($course['course_data'][$key]) && $course['course_data'][$key] !== '' && $val_to_set === '' ) {
 											continue;
 										}
@@ -457,10 +519,11 @@ class SZEducate_Import_Export {
 
 			<div class="card" style="max-width: 1000px; padding: 20px; margin-top: 20px; display: flex; gap: 30px;">
 				
+				<!-- SABLON LETÖLTÉS ŰRLAP -->
 				<div style="flex: 1;">
 					<form method="POST" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 						<input type="hidden" name="action" value="szeducate_download_csv_template">
-						<h3>Üres Sablon Generálása</h3>
+						<h3>📥 Üres Sablon Generálása</h3>
 						<p style="color: #646970; font-size: 13px;">Válaszd ki, melyik képzési formákhoz szeretnél sablont letölteni. Az Excel csak a releváns oszlopokat fogja tartalmazni. <strong>Ha nem jelölsz ki egyet sem, az összes oszlopot letölti.</strong></p>
 						
 						<div style="margin: 15px 0; display: flex; flex-direction: column; gap: 8px;">
@@ -476,10 +539,11 @@ class SZEducate_Import_Export {
 					</form>
 				</div>
 
+				<!-- EXPORTÁLÁS ŰRLAP -->
 				<div style="border-left: 1px solid #dcdde1; padding-left: 30px; flex: 1;">
 					<form method="POST" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 						<input type="hidden" name="action" value="szeducate_export_all_csv">
-						<h3>Adatok Exportálása</h3>
+						<h3>📦 Adatok Exportálása</h3>
 						<p style="color: #646970; font-size: 13px;">Válaszd ki, mely képzési formákat szeretnéd kiexportálni. A rendszer leszűri a sorokat ÉS a felesleges oszlopokat is. <strong>Ha nem jelölsz ki egyet sem, a teljes adatbázist kiexportálja.</strong></p>
 						
 						<div style="margin: 15px 0; display: flex; flex-direction: column; gap: 8px;">
@@ -526,8 +590,6 @@ class SZEducate_Import_Export {
 
 		<script>
 		document.addEventListener('DOMContentLoaded', function() {
-			// Ez a rész mindig lefut (függetlenül attól, hogy volt-e import vagy sem),
-			// így a "Mind kijelölése" gombok mindig működnek.
 			const toggleAlls = document.querySelectorAll('.sz-toggle-all');
 			toggleAlls.forEach(toggle => {
 				toggle.addEventListener('change', function() {
@@ -537,7 +599,6 @@ class SZEducate_Import_Export {
 			});
 
 			<?php if ( $parsed_data !== null ) : ?>
-			// Ez a rész csak akkor fut le, ha egy feltöltött Excelt dolgozunk fel.
 			const courses = <?php echo wp_json_encode( $parsed_data ); ?>;
 			const restUrl = '<?php echo esc_url_raw( rest_url( 'szeducate/v1/client/course' ) ); ?>';
 			const nonce = '<?php echo wp_create_nonce( 'wp_rest' ); ?>';

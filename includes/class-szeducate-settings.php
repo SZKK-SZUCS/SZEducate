@@ -12,7 +12,6 @@ class SZEducate_Settings {
 		add_action( 'admin_menu', array( $this, 'add_plugin_page' ) );
 		add_action( 'admin_init', array( $this, 'page_init' ) );
 		
-		// ÚJ: A szinkronizáló gomb form-kezelője
 		add_action( 'admin_post_szeducate_sync_schema', array( $this, 'sync_schema_from_hub' ) );
 	}
 
@@ -44,7 +43,6 @@ class SZEducate_Settings {
 			<h1>SZEducate Architektúra Beállítások</h1>
 			
 			<?php 
-			// ÚJ: Golyóálló visszajelzés URL paraméter alapján
 			if ( isset( $_GET['sync'] ) ) {
 				if ( $_GET['sync'] === 'success' ) {
 					echo '<div class="notice notice-success is-dismissible"><p><strong>Siker:</strong> A séma sikeresen letöltve és a taxonómiák frissítve a Hub-ról!</p></div>';
@@ -72,6 +70,28 @@ class SZEducate_Settings {
 					<?php wp_nonce_field( 'szeducate_sync_schema_nonce', '_sync_nonce' ); ?>
 					<button type="submit" class="button button-primary" style="background: #007cba;">Séma Letöltése a Hub-ról</button>
 				</form>
+			<?php elseif ( isset($this->options['mode']) && $this->options['mode'] === 'hub' ) : ?>
+				<hr>
+				<h2>SZEducate Automatikus Biztonsági Mentés (Backup API)</h2>
+				<p>A rendszerben van előkészítve egy rejtett, token-védett végpontot a külső szerverek (pl. NAS, Docker) számára a teljes adatbázis kimentésére.</p>
+				<?php 
+				$backup_token = get_option( 'szeducate_hub_backup_token' );
+				if ( empty( $backup_token ) ) {
+					$backup_token = wp_generate_password( 32, false );
+					update_option( 'szeducate_hub_backup_token', $backup_token );
+				}
+				$backup_url = site_url( '/wp-json/szeducate/v1/hub/backup' );
+				?>
+				<div style="background: #f0f0f1; padding: 15px; border-left: 4px solid #007cba; margin-top: 15px;">
+					<p><strong>API Végpont URL:</strong> <code style="user-select: all;"><?php echo esc_url( $backup_url ); ?></code></p>
+					<p><strong>Titkos X-Backup-Token:</strong> <code style="user-select: all;"><?php echo esc_html( $backup_token ); ?></code></p>
+					
+					<p style="margin-top: 15px;"><strong>Példa cURL parancs (IT részleg számára cron jobhoz):</strong></p>
+					<pre style="background: #23282d; color: #fff; padding: 15px; overflow-x: auto; user-select: all;">curl -X GET <?php echo esc_url( $backup_url ); ?> \
+  -H "X-Backup-Token: <?php echo esc_html( $backup_token ); ?>" \
+  -o szeducate_backup_$(date +%F).json</pre>
+					<p style="font-size: 13px; color: #666;"><em>Ez a parancs lekéri a teljes sémát, a kliensek listáját és az összes képzés JSON adatát, majd elmenti egy dátumozott JSON fájlba.</em></p>
+				</div>
 			<?php endif; ?>
 		</div>
 		<?php
@@ -116,7 +136,6 @@ class SZEducate_Settings {
 		printf( '<input type="password" id="api_token" name="szeducate_settings[api_token]" value="%s" class="regular-text" />', esc_attr( $api_token ) );
 	}
 
-	// ÚJ: A tényleges API hívás a Hub felé a sémáért
 	public function sync_schema_from_hub() {
 		if ( ! current_user_can( 'manage_options' ) || ! isset( $_POST['_sync_nonce'] ) || ! wp_verify_nonce( $_POST['_sync_nonce'], 'szeducate_sync_schema_nonce' ) ) {
 			wp_die( 'Biztonsági hiba.' );
@@ -138,7 +157,6 @@ class SZEducate_Settings {
 				$body = wp_remote_retrieve_body( $response );
 				$data = json_decode( $body, true );
 				
-				// ÚJ: Külön mentjük a Sémát és a Jogosultságokat
 				if ( isset( $data['schema'] ) ) {
 					update_option( 'szeducate_local_schema', wp_json_encode( $data['schema'], JSON_UNESCAPED_UNICODE ) );
 				}

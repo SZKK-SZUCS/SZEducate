@@ -29,6 +29,11 @@ class SZEducate_Hub_API {
 			'callback'            => array( $this, 'get_single_course' ),
 			'permission_callback' => array( $this, 'verify_bearer_token' ),
 		) );
+		register_rest_route( 'szeducate/v1/hub', '/backup', array(
+			'methods'             => WP_REST_Server::READABLE,
+			'callback'            => array( $this, 'generate_backup' ),
+			'permission_callback' => '__return_true', 
+		) );
 	}
 
 	public function verify_bearer_token( WP_REST_Request $request ) {
@@ -289,5 +294,40 @@ class SZEducate_Hub_API {
 			'message' => $message,
 			'hub_id'  => $hub_id
 		), 200 );
+	}
+
+	public function generate_backup( WP_REST_Request $request ) {
+		$incoming_token = $request->get_header( 'x-backup-token' );
+		$saved_token    = get_option( 'szeducate_hub_backup_token' );
+
+		if ( empty( $saved_token ) ) {
+			$saved_token = wp_generate_password( 32, false );
+			update_option( 'szeducate_hub_backup_token', $saved_token );
+		}
+
+		if ( empty( $incoming_token ) || $incoming_token !== $saved_token ) {
+			return new WP_Error( 'unauthorized_backup', 'Érvénytelen vagy hiányzó X-Backup-Token fejléc.', array( 'status' => 401 ) );
+		}
+
+		global $wpdb;
+		$courses_table = $wpdb->prefix . 'szeducate_courses_data';
+		$clients_table = $wpdb->prefix . 'szeducate_clients';
+
+		$courses = $wpdb->get_results( "SELECT * FROM $courses_table", ARRAY_A );
+		$clients = array();
+		if ( $wpdb->get_var( "SHOW TABLES LIKE '$clients_table'" ) == $clients_table ) {
+			$clients = $wpdb->get_results( "SELECT id, client_url, permissions FROM $clients_table", ARRAY_A );
+		}
+
+		$schema = json_decode( get_option( 'szeducate_schema', '[]' ), true );
+
+		$backup_data = array(
+			'timestamp' => current_time( 'mysql' ),
+			'schema'    => $schema,
+			'clients'   => $clients,
+			'courses'   => $courses
+		);
+
+		return new WP_REST_Response( $backup_data, 200 );
 	}
 }
