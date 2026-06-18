@@ -12,6 +12,16 @@ module.exports = window["React"];
 
 /***/ },
 
+/***/ "@wordpress/api-fetch"
+/*!**********************************!*\
+  !*** external ["wp","apiFetch"] ***!
+  \**********************************/
+(module) {
+
+module.exports = window["wp"]["apiFetch"];
+
+/***/ },
+
 /***/ "@wordpress/components"
 /*!************************************!*\
   !*** external ["wp","components"] ***!
@@ -119,6 +129,9 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(_wordpress_element__WEBPACK_IMPORTED_MODULE_1__);
 /* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @wordpress/components */ "@wordpress/components");
 /* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__);
+/* harmony import */ var _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! @wordpress/api-fetch */ "@wordpress/api-fetch");
+/* harmony import */ var _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_3___default = /*#__PURE__*/__webpack_require__.n(_wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_3__);
+
 
 
 
@@ -150,6 +163,48 @@ const HelpTextUi = ({
       lineHeight: "1.4"
     }
   }, text);
+};
+
+// ÚJ: Okos kulcsszó beviteli mező (Auto-suggest)
+const KeywordControl = ({
+  label,
+  fieldKey,
+  value,
+  isReadonly,
+  helpText,
+  onChange
+}) => {
+  const [suggestions, setSuggestions] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useState)([]);
+  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useEffect)(() => {
+    _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_3___default()({
+      path: `/szeducate/v1/client/field-options?key=${fieldKey}`
+    }).then(res => {
+      setSuggestions(res);
+    }).catch(() => {});
+  }, [fieldKey]);
+
+  // Biztosítjuk, hogy a meglévő értéket a FormTokenField értse (ami tömböt vár)
+  const tokens = typeof value === "string" && value !== "" ? value.split(";").map(v => v.trim()).filter(Boolean) : Array.isArray(value) ? value : [];
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+    style: {
+      opacity: isReadonly ? 0.7 : 1,
+      pointerEvents: isReadonly ? "none" : "auto"
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+    style: {
+      marginBottom: "4px"
+    }
+  }, label), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(HelpTextUi, {
+    text: helpText
+  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.FormTokenField, {
+    value: tokens,
+    suggestions: suggestions,
+    onChange: newTokens => {
+      // Ha változik, pontosvesszővel elválasztott stringgé alakítjuk a mentéshez
+      onChange(fieldKey, newTokens.join("; "));
+    },
+    disabled: isReadonly
+  }));
 };
 const WysiwygControl = ({
   label,
@@ -502,7 +557,6 @@ const SZEducateEditor = () => {
   }));
   const renderField = field => {
     const value = formData[field.key] || "";
-    // JAVÍTÁS: Csak akkor tesz csillagot, ha a is_required be van pipálva a hubon.
     const requiredMark = field.is_required ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
       style: {
         color: "#d63638",
@@ -560,13 +614,25 @@ const SZEducateEditor = () => {
         }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, "\u26A0\uFE0F Figyelem:"), " K\xE9rj\xFCk, lehet\u0151s\xE9g szerint hivatalos egyetemi email c\xEDmet (@sze.hu v\xE9gz\u0151d\xE9ssel) adj meg!"));
         break;
       case "textarea":
-        control = (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.TextareaControl, {
-          label: labelWithRequired,
-          value: value,
-          help: combinedHelp,
-          onChange: val => handleChange(field.key, val),
-          disabled: isReadonly
-        });
+        // JAVÍTÁS: Ha a kulcsszavak mezőről van szó, betöltjük a Smart Komponenst
+        if (field.key === "kulcsszavak") {
+          control = (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(KeywordControl, {
+            label: labelWithRequired,
+            fieldKey: field.key,
+            value: value,
+            isReadonly: isReadonly,
+            helpText: combinedHelp,
+            onChange: handleChange
+          });
+        } else {
+          control = (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.TextareaControl, {
+            label: labelWithRequired,
+            value: value,
+            help: combinedHelp,
+            onChange: val => handleChange(field.key, val),
+            disabled: isReadonly
+          });
+        }
         break;
       case "wysiwyg":
         control = (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(WysiwygControl, {
@@ -716,8 +782,6 @@ const SZEducateEditor = () => {
         if (!group.fields) continue;
         for (const field of group.fields) {
           const val = formData[field.key];
-
-          // JAVÍTÁS: A kötelező mezők ellenőrzéséből kivettük a field.is_locked feltételt
           if (field.is_required && !field.is_readonly && !globalReadonly) {
             let isEmpty = false;
             if (val === undefined || val === null) {
@@ -762,7 +826,7 @@ const SZEducateEditor = () => {
         if (val.length > 0 && typeof val[0] === "object") {
           processedData[key] = val;
         } else {
-          processedData[key] = val.join(", ");
+          processedData[key] = val.join("; ");
         }
       }
     }

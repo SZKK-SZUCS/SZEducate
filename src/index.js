@@ -11,7 +11,9 @@ import {
   Spinner,
   Notice,
   TabPanel,
+  FormTokenField,
 } from "@wordpress/components";
+import apiFetch from "@wordpress/api-fetch";
 
 const parseOptions = (optionsString) => {
   if (!optionsString) return [{ label: "Válassz...", value: "" }];
@@ -35,6 +37,57 @@ const HelpTextUi = ({ text }) => {
       }}>
       {text}
     </p>
+  );
+};
+
+// ÚJ: Okos kulcsszó beviteli mező (Auto-suggest)
+const KeywordControl = ({
+  label,
+  fieldKey,
+  value,
+  isReadonly,
+  helpText,
+  onChange,
+}) => {
+  const [suggestions, setSuggestions] = useState([]);
+
+  useEffect(() => {
+    apiFetch({ path: `/szeducate/v1/client/field-options?key=${fieldKey}` })
+      .then((res) => {
+        setSuggestions(res);
+      })
+      .catch(() => {});
+  }, [fieldKey]);
+
+  // Biztosítjuk, hogy a meglévő értéket a FormTokenField értse (ami tömböt vár)
+  const tokens =
+    typeof value === "string" && value !== ""
+      ? value
+          .split(";")
+          .map((v) => v.trim())
+          .filter(Boolean)
+      : Array.isArray(value)
+      ? value
+      : [];
+
+  return (
+    <div
+      style={{
+        opacity: isReadonly ? 0.7 : 1,
+        pointerEvents: isReadonly ? "none" : "auto",
+      }}>
+      <div style={{ marginBottom: "4px" }}>{label}</div>
+      <HelpTextUi text={helpText} />
+      <FormTokenField
+        value={tokens}
+        suggestions={suggestions}
+        onChange={(newTokens) => {
+          // Ha változik, pontosvesszővel elválasztott stringgé alakítjuk a mentéshez
+          onChange(fieldKey, newTokens.join("; "));
+        }}
+        disabled={isReadonly}
+      />
+    </div>
   );
 };
 
@@ -415,7 +468,6 @@ const SZEducateEditor = () => {
 
   const renderField = (field) => {
     const value = formData[field.key] || "";
-    // JAVÍTÁS: Csak akkor tesz csillagot, ha a is_required be van pipálva a hubon.
     const requiredMark = field.is_required ? (
       <span style={{ color: "#d63638", marginLeft: "4px" }}>*</span>
     ) : (
@@ -506,15 +558,29 @@ const SZEducateEditor = () => {
         );
         break;
       case "textarea":
-        control = (
-          <TextareaControl
-            label={labelWithRequired}
-            value={value}
-            help={combinedHelp}
-            onChange={(val) => handleChange(field.key, val)}
-            disabled={isReadonly}
-          />
-        );
+        // JAVÍTÁS: Ha a kulcsszavak mezőről van szó, betöltjük a Smart Komponenst
+        if (field.key === "kulcsszavak") {
+          control = (
+            <KeywordControl
+              label={labelWithRequired}
+              fieldKey={field.key}
+              value={value}
+              isReadonly={isReadonly}
+              helpText={combinedHelp}
+              onChange={handleChange}
+            />
+          );
+        } else {
+          control = (
+            <TextareaControl
+              label={labelWithRequired}
+              value={value}
+              help={combinedHelp}
+              onChange={(val) => handleChange(field.key, val)}
+              disabled={isReadonly}
+            />
+          );
+        }
         break;
       case "wysiwyg":
         control = (
@@ -707,7 +773,6 @@ const SZEducateEditor = () => {
         for (const field of group.fields) {
           const val = formData[field.key];
 
-          // JAVÍTÁS: A kötelező mezők ellenőrzéséből kivettük a field.is_locked feltételt
           if (field.is_required && !field.is_readonly && !globalReadonly) {
             let isEmpty = false;
             if (val === undefined || val === null) {
@@ -748,7 +813,7 @@ const SZEducateEditor = () => {
         if (val.length > 0 && typeof val[0] === "object") {
           processedData[key] = val;
         } else {
-          processedData[key] = val.join(", ");
+          processedData[key] = val.join("; ");
         }
       }
     }

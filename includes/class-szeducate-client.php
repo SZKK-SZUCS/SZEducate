@@ -8,6 +8,7 @@ class SZEducate_Client {
 	public function init() {
 		add_action( 'init', array( $this, 'register_course_cpt' ) );
 		add_action( 'init', array( $this, 'register_dynamic_taxonomies' ) );
+		add_action( 'rest_api_init', array( $this, 'register_editor_endpoints' ) );
 		
 		add_action( 'szeducate_background_sync', array( $this, 'sync_course_to_hub' ) );
 
@@ -708,5 +709,55 @@ class SZEducate_Client {
 				}
 			}
 		}
+	}
+
+	public function register_editor_endpoints() {
+		// Egy publikus, de csak bejelentkezett szerkesztők által hívható végpont az auto-suggesthez
+		register_rest_route( 'szeducate/v1/client', '/field-options', array(
+			'methods'             => \WP_REST_Server::READABLE,
+			'callback'            => array( $this, 'get_field_options_for_editor' ),
+			'permission_callback' => function() {
+				return current_user_can( 'edit_posts' );
+			}
+		) );
+	}
+
+	public function get_field_options_for_editor( \WP_REST_Request $request ) {
+		global $wpdb;
+		$key = sanitize_text_field( $request->get_param( 'key' ) );
+		
+		if ( empty( $key ) ) {
+			return rest_ensure_response( array() );
+		}
+
+		$table_name = $wpdb->prefix . 'szeducate_courses_data';
+		
+		// Ha nincs még tábla (pl. friss telepítés), üres tömbbel térünk vissza
+		if ( $wpdb->get_var( "SHOW TABLES LIKE '$table_name'" ) != $table_name ) {
+			return rest_ensure_response( array() );
+		}
+
+		$results = $wpdb->get_col( "SELECT course_data FROM $table_name" );
+		
+		$options = array();
+		if ( $results ) {
+			foreach ( $results as $json ) {
+				$data = json_decode( $json, true );
+				if ( isset( $data[$key] ) && ! empty( $data[$key] ) ) {
+					$val = $data[$key];
+					// Felkészítjük arra, ha tömbként, vagy pontosvesszős stringként lenne tárolva
+					$parts = is_array( $val ) ? $val : explode( ';', (string)$val );
+					foreach ( $parts as $p ) {
+						$p = trim( $p );
+						if ( $p !== '' && ! in_array( $p, $options ) ) {
+							$options[] = $p;
+						}
+					}
+				}
+			}
+		}
+		
+		sort( $options );
+		return rest_ensure_response( $options );
 	}
 }
