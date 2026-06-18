@@ -190,7 +190,7 @@ class SZEducate_Schema {
 						
 						dataInput.value = JSON.stringify(json);
 						if (confirm("Az importált fájl betöltése azonnal felülírja a jelenlegi sémát. Véglegesítjük a mentést?")) {
-							form.submit();
+							HTMLFormElement.prototype.submit.call(form);
 						} else {
 							// Ha nem akarja menteni, ürítjük az inputot, hogy újra megpróbálhassa
 							e.target.value = '';

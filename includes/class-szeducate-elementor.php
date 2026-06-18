@@ -30,10 +30,12 @@ class SZEducate_Elementor {
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/widgets/class-szeducate-links-widget.php';
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/widgets/class-szeducate-status-widget.php';
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/widgets/class-szeducate-listing-widget.php';
+		require_once SZEDUCATE_PLUGIN_DIR . 'includes/widgets/class-szeducate-keywords-widget.php';
 		
 		$widgets_manager->register( new SZEducate_Links_Widget() );
 		$widgets_manager->register( new SZEducate_Status_Widget() );
 		$widgets_manager->register( new SZEducate_Listing_Widget() );
+		$widgets_manager->register( new SZEducate_Keywords_Widget() );
 	}
 
 	public function add_visibility_controls( $element, $args ) {

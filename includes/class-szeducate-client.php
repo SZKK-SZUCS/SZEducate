@@ -25,6 +25,9 @@ class SZEducate_Client {
 		add_action( 'admin_menu', array( $this, 'remove_add_new_menu' ), 999 );
 		add_filter( 'post_row_actions', array( $this, 'modify_list_actions' ), 10, 2 );
 
+		add_filter( 'query_vars', array( $this, 'register_query_vars' ) );
+		add_action( 'init', array( $this, 'add_seo_rewrite_rules' ) );
+
 		add_filter( 'bulk_actions-edit-sz_course', array( $this, 'add_custom_bulk_actions' ) );
 		add_action( 'admin_footer-edit.php', array( $this, 'bulk_admin_footer_js' ) );
 		add_action( 'wp_ajax_szeducate_process_bulk_status', array( $this, 'ajax_process_bulk_status' ) );
@@ -35,6 +38,20 @@ class SZEducate_Client {
 		add_action( 'szeducate_daily_expiration_check', array( $this, 'process_daily_expirations' ) );
 
 		add_action( 'in_admin_header', array( $this, 'render_advanced_filter_panel' ) );
+	}
+
+	public function register_query_vars( $vars ) {
+		$vars[] = 'sz_seo_keyword';
+		$vars[] = 'sz_seo_field';
+		return $vars;
+	}
+
+	public function add_seo_rewrite_rules() {
+		add_rewrite_rule(
+			'^([^/]+)/([^/]+)/([^/]+)/?$',
+			'index.php?pagename=$matches[1]&sz_seo_field=$matches[2]&sz_seo_keyword=$matches[3]',
+			'top'
+		);
 	}
 
 	public function enqueue_list_assets( $hook ) {

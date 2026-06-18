@@ -127,7 +127,7 @@ const parseOptions = optionsString => {
     label: "Válassz...",
     value: ""
   }];
-  const opts = optionsString.split(",").map(opt => ({
+  const opts = optionsString.split(";").map(opt => ({
     label: opt.trim(),
     value: opt.trim()
   }));
@@ -481,7 +481,7 @@ const SZEducateEditor = () => {
               }];
               needsMigration = true;
             } else if (field.type === "checkbox" && typeof val === "string") {
-              migratedData[field.key] = val.split(",").map(v => v.trim());
+              migratedData[field.key] = val.split(";").map(v => v.trim());
               needsMigration = true;
             } else if (field.type === "links" && typeof val === "string") {
               migratedData[field.key] = [{

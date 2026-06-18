@@ -16,7 +16,7 @@ import {
 const parseOptions = (optionsString) => {
   if (!optionsString) return [{ label: "Válassz...", value: "" }];
   const opts = optionsString
-    .split(",")
+    .split(";")
     .map((opt) => ({ label: opt.trim(), value: opt.trim() }));
   return [{ label: "Válassz...", value: "" }, ...opts];
 };
@@ -391,7 +391,7 @@ const SZEducateEditor = () => {
               migratedData[field.key] = [{ [firstCol]: val }];
               needsMigration = true;
             } else if (field.type === "checkbox" && typeof val === "string") {
-              migratedData[field.key] = val.split(",").map((v) => v.trim());
+              migratedData[field.key] = val.split(";").map((v) => v.trim());
               needsMigration = true;
             } else if (field.type === "links" && typeof val === "string") {
               migratedData[field.key] = [
