@@ -31,7 +31,9 @@ class SZEducate_Elementor {
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/widgets/class-szeducate-status-widget.php';
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/widgets/class-szeducate-listing-widget.php';
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/widgets/class-szeducate-keywords-widget.php';
+		require_once SZEDUCATE_PLUGIN_DIR . 'includes/widgets/class-szeducate-search-widget.php';
 		
+		$widgets_manager->register( new SZEducate_Search_Widget() );
 		$widgets_manager->register( new SZEducate_Links_Widget() );
 		$widgets_manager->register( new SZEducate_Status_Widget() );
 		$widgets_manager->register( new SZEducate_Listing_Widget() );

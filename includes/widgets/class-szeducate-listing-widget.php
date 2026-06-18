@@ -680,6 +680,7 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 		// SEO URL-ből érkező külső szűrés észlelése
 		$seo_field   = get_query_var('sz_seo_field');
 		$seo_keyword = get_query_var('sz_seo_keyword');
+		$free_text_search = isset($_GET['sz_search']) ? mb_strtolower(sanitize_text_field($_GET['sz_search']), 'UTF-8') : '';
 		
 		if ( ! empty($seo_field) && ! empty($seo_keyword) ) {
 			$active_filters = array( sanitize_text_field($seo_field) => sanitize_title($seo_keyword) );
@@ -740,6 +741,24 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 				if ( $v === 0 || $v === '0' || $v === false || $v === 'false' || $v === '' ) {
 					continue; 
 				}
+			}
+
+			if ( ! empty( $free_text_search ) ) {
+				$match = false;
+				$t_lower = mb_strtolower( $course['title'], 'UTF-8' );
+				if ( mb_strpos( $t_lower, $free_text_search ) !== false ) {
+					$match = true;
+				} else {
+					foreach ( $data as $k => $v ) {
+						if ( is_bool($v) || strpos($k, 'url') !== false ) continue;
+						$s_text = is_array($v) ? implode(' ', $v) : (string)$v;
+						if ( mb_strpos( mb_strtolower( $s_text, 'UTF-8' ), $free_text_search ) !== false ) {
+							$match = true;
+							break;
+						}
+					}
+				}
+				if ( ! $match ) continue; // Ha a keresőszóra nem egyezik, eldobjuk, nem is nézzük a többi szűrőt
 			}
 
 			// Szűrők alkalmazása (Ékezet és kis/nagybetű független SEO SLUG egyezés)

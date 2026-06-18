@@ -711,8 +711,8 @@ class SZEducate_Client {
 		}
 	}
 
-	public function register_editor_endpoints() {
-		// Egy publikus, de csak bejelentkezett szerkesztők által hívható végpont az auto-suggesthez
+	public function register_client_endpoints() {
+		// 1. Auto-suggest végpont az adminba (Csak szerkesztőknek)
 		register_rest_route( 'szeducate/v1/client', '/field-options', array(
 			'methods'             => \WP_REST_Server::READABLE,
 			'callback'            => array( $this, 'get_field_options_for_editor' ),
@@ -720,19 +720,22 @@ class SZEducate_Client {
 				return current_user_can( 'edit_posts' );
 			}
 		) );
+
+		// 2. Okos Kereső végpont a látogatóknak (Bárkinek)
+		register_rest_route( 'szeducate/v1/client', '/search', array(
+			'methods'             => \WP_REST_Server::READABLE,
+			'callback'            => array( $this, 'ajax_search_courses' ),
+			'permission_callback' => '__return_true', 
+		) );
 	}
 
 	public function get_field_options_for_editor( \WP_REST_Request $request ) {
 		global $wpdb;
 		$key = sanitize_text_field( $request->get_param( 'key' ) );
 		
-		if ( empty( $key ) ) {
-			return rest_ensure_response( array() );
-		}
+		if ( empty( $key ) ) return rest_ensure_response( array() );
 
 		$table_name = $wpdb->prefix . 'szeducate_courses_data';
-		
-		// Ha nincs még tábla (pl. friss telepítés), üres tömbbel térünk vissza
 		if ( $wpdb->get_var( "SHOW TABLES LIKE '$table_name'" ) != $table_name ) {
 			return rest_ensure_response( array() );
 		}
@@ -745,7 +748,6 @@ class SZEducate_Client {
 				$data = json_decode( $json, true );
 				if ( isset( $data[$key] ) && ! empty( $data[$key] ) ) {
 					$val = $data[$key];
-					// Felkészítjük arra, ha tömbként, vagy pontosvesszős stringként lenne tárolva
 					$parts = is_array( $val ) ? $val : explode( ';', (string)$val );
 					foreach ( $parts as $p ) {
 						$p = trim( $p );
@@ -759,5 +761,71 @@ class SZEducate_Client {
 		
 		sort( $options );
 		return rest_ensure_response( $options );
+	}
+
+	public function ajax_search_courses( \WP_REST_Request $request ) {
+		global $wpdb;
+		$query = mb_strtolower( sanitize_text_field( $request->get_param('q') ), 'UTF-8' );
+		
+		if ( empty( $query ) || mb_strlen( $query, 'UTF-8' ) < 2 ) {
+			return rest_ensure_response( array() );
+		}
+
+		$table_name = $wpdb->prefix . 'szeducate_courses_data';
+		if ( $wpdb->get_var( "SHOW TABLES LIKE '$table_name'" ) != $table_name ) {
+			return rest_ensure_response( array() );
+		}
+
+		$courses = $wpdb->get_results( "SELECT local_post_id, title, course_data FROM $table_name", ARRAY_A );
+		$results = array();
+
+		foreach ( $courses as $course ) {
+			$post_id = $course['local_post_id'];
+			if ( ! $post_id || get_post_status( $post_id ) !== 'publish' ) continue;
+
+			$data = json_decode( $course['course_data'], true );
+			if ( ! is_array( $data ) ) continue;
+
+			if ( isset( $data['public'] ) && ( $data['public'] === 0 || $data['public'] === '0' || $data['public'] === false || $data['public'] === 'false' ) ) {
+				continue;
+			}
+
+			$match = false;
+			$title_lower = mb_strtolower( $course['title'], 'UTF-8' );
+			
+			if ( mb_strpos( $title_lower, $query ) !== false ) {
+				$match = true;
+			} else {
+				foreach ( $data as $key => $val ) {
+					if ( is_bool($val) || strpos($key, 'url') !== false ) continue;
+					
+					$search_text = is_array($val) ? implode(' ', $val) : (string)$val;
+					$search_text = mb_strtolower( $search_text, 'UTF-8' );
+					
+					if ( mb_strpos( $search_text, $query ) !== false ) {
+						$match = true;
+						break;
+					}
+				}
+			}
+
+			if ( $match ) {
+				$status = isset( $data['meghirdetes_allapota'] ) ? mb_strtolower(trim((string)$data['meghirdetes_allapota']), 'UTF-8') : '';
+				$is_active = ( $status === 'aktív' || $status === 'aktiv' );
+
+				$results[] = array(
+					'id'        => $post_id,
+					'title'     => $course['title'],
+					'url'       => get_permalink( $post_id ),
+					'is_active' => $is_active
+				);
+			}
+		}
+
+		usort( $results, function($a, $b) {
+			return strcmp( $a['title'], $b['title'] );
+		});
+
+		return rest_ensure_response( array_slice( $results, 0, 10 ) );
 	}
 }
