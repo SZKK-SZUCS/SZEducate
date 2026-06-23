@@ -44,7 +44,7 @@ class SZEducate_Schema {
 						) );
 					}
 				}
-				echo '<div class="notice notice-success is-dismissible" style="margin-top:20px;"><p><strong>✅ A Séma sikeresen elmentve a Hub-on, és a Kliensek automatikusan szinkronizálva lettek a háttérben!</strong></p></div>';
+				echo '<div class="notice notice-success is-dismissible" style="margin-top:20px;"><p><strong>A Séma sikeresen elmentve a Hub-on, és a Kliensek automatikusan szinkronizálva lettek a háttérben!</strong></p></div>';
 			} else {
 				echo '<div class="notice notice-error is-dismissible" style="margin-top:20px;"><p>Biztonsági hiba (lejárt session). Kérjük frissítse az oldalt!</p></div>';
 			}

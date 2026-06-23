@@ -16,22 +16,12 @@ class SZEducate_Settings {
 	}
 
 	public function add_plugin_page() {
-		add_menu_page(
-			'SZEducate Beállítások',
-			'SZEducate',
-			'manage_options',
-			'szeducate-settings',
-			array( $this, 'create_admin_page' ),
-			'dashicons-networking',
-			80
-		);
-
-		add_submenu_page(
-			'szeducate-settings',
-			'Beállítások',
-			'Beállítások',
-			'manage_options',
-			'szeducate-settings',
+		// EZ A VÁLTOZÁS: Beilleszti a WP natív "Beállítások" menüje alá!
+		add_options_page(
+			'SZEducate Architektúra', 
+			'SZEducate', 
+			'manage_options', 
+			'szeducate-settings', 
 			array( $this, 'create_admin_page' )
 		);
 	}
@@ -150,7 +140,7 @@ class SZEducate_Settings {
 		) );
 
 		if ( is_wp_error( $response ) ) {
-			$redirect = add_query_arg( array( 'page' => 'szeducate-settings', 'sync' => 'error', 'msg' => urlencode($response->get_error_message()) ), admin_url( 'admin.php' ) );
+			$redirect = add_query_arg( array( 'page' => 'szeducate-settings', 'sync' => 'error', 'msg' => urlencode($response->get_error_message()) ), admin_url( 'options-general.php' ) );
 		} else {
 			$code = wp_remote_retrieve_response_code( $response );
 			if ( $code === 200 ) {
@@ -168,9 +158,9 @@ class SZEducate_Settings {
 				$client = new SZEducate_Client();
 				$client->register_dynamic_taxonomies();
 
-				$redirect = add_query_arg( array( 'page' => 'szeducate-settings', 'sync' => 'success' ), admin_url( 'admin.php' ) );
+				$redirect = add_query_arg( array( 'page' => 'szeducate-settings', 'sync' => 'success' ), admin_url( 'options-general.php' ) );
 			} else {
-				$redirect = add_query_arg( array( 'page' => 'szeducate-settings', 'sync' => 'error', 'msg' => urlencode("Hub hiba (Kód: $code)") ), admin_url( 'admin.php' ) );
+				$redirect = add_query_arg( array( 'page' => 'szeducate-settings', 'sync' => 'error', 'msg' => urlencode("Hub hiba (Kód: $code)") ), admin_url( 'options-general.php' ) );
 			}
 		}
 

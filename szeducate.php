@@ -2,9 +2,11 @@
 require_once __DIR__ . '/vendor/autoload.php';
 /**
  * Plugin Name:       SZEducate
+ * Plugin URI:        https://github.com/SZKK-SZUCS/SZEducate
  * Description:       Hub-Spoke architektúrájú képzésmenedzsment és szinkronizációs rendszer a Széchenyi István Egyetem számára.
- * Version:           0.0.1
- * Author:            SZE
+ * Version: 		  0.9.0
+ * Author:            Szurofka Márton, MFÜI
+ * Author URI:        https://www.uni.sze.hu/
  * Text Domain:       szeducate
  */
 
@@ -12,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Közvetlen hozzáférés tiltása
 }
 
-define( 'SZEDUCATE_VERSION', '0.0.1' );
+define( 'SZEDUCATE_VERSION', '0.9.0' );
 define( 'SZEDUCATE_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'SZEDUCATE_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
@@ -30,3 +32,16 @@ function run_szeducate() {
 	$plugin->init();
 }
 run_szeducate();
+
+// --- AUTOUAPDATE (PUC) INTEGRÁCIÓ ---
+require_once plugin_dir_path( __FILE__ ) . 'plugin-update-checker/plugin-update-checker.php';
+use YahnisElsts\PluginUpdateChecker\v5\PucFactory;
+
+$szeducate_update_checker = PucFactory::buildUpdateChecker(
+	'https://github.com/SZKK-SZUCS/SZEducate',
+	__FILE__,
+	'szeducate'
+);
+
+// Figyeli a 'main' vagy 'master' branch-et a frissítésekért
+$szeducate_update_checker->setBranch('main');
