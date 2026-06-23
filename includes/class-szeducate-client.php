@@ -8,7 +8,6 @@ class SZEducate_Client {
 	public function init() {
 		add_action( 'init', array( $this, 'register_course_cpt' ) );
 		add_action( 'init', array( $this, 'register_dynamic_taxonomies' ) );
-		add_action( 'rest_api_init', array( $this, 'register_editor_endpoints' ) );
 		
 		add_action( 'szeducate_background_sync', array( $this, 'sync_course_to_hub' ) );
 
@@ -39,6 +38,9 @@ class SZEducate_Client {
 		add_action( 'szeducate_daily_expiration_check', array( $this, 'process_daily_expirations' ) );
 
 		add_action( 'in_admin_header', array( $this, 'render_advanced_filter_panel' ) );
+
+		// API Végpontok regisztrálása
+		add_action( 'rest_api_init', array( $this, 'register_client_endpoints' ) );
 	}
 
 	public function register_query_vars( $vars ) {
@@ -75,7 +77,6 @@ class SZEducate_Client {
 			if ( empty( $group['fields'] ) ) continue;
 			foreach ( $group['fields'] as $field ) {
 				if ( !empty($field['is_filterable']) && in_array($field['type'], array('select', 'radio', 'checkbox', 'boolean')) ) {
-					// JAVÍTÁS: Asszociatív tömb kulcsként mentjük, így a közös mezők (pl. dualis) csak 1x fognak szerepelni!
 					$filterable_fields[$field['key']] = $field;
 				}
 			}
@@ -95,7 +96,7 @@ class SZEducate_Client {
 							if ( $field['type'] === 'boolean' ) {
 								$options = array('true' => 'Igen', 'false' => 'Nem');
 							} else {
-								$raw_options = array_map('trim', explode(',', $field['options'] ?? ''));
+								$raw_options = array_map('trim', explode(';', $field['options'] ?? ''));
 								foreach($raw_options as $ro) {
 									if(!empty($ro)) $options[$ro] = $ro;
 								}
@@ -189,13 +190,13 @@ class SZEducate_Client {
 			$schema = json_decode( get_option( 'szeducate_local_schema', '[]' ), true );
 			
 			$active_filters = array();
-			$processed_keys = array(); // JAVÍTÁS: Szűrő logika duplikáció védelme
+			$processed_keys = array(); 
 			
 			if ( is_array( $schema ) ) {
 				foreach ( $schema as $group ) {
 					if ( empty( $group['fields'] ) ) continue;
 					foreach ( $group['fields'] as $field ) {
-						if ( in_array( $field['key'], $processed_keys ) ) continue; // Ne futtassuk le újra a közös mezőket
+						if ( in_array( $field['key'], $processed_keys ) ) continue; 
 						$processed_keys[] = $field['key'];
 						
 						$get_key = 'szf_' . $field['key'];
@@ -232,7 +233,7 @@ class SZEducate_Client {
 							$actual_val = $actual_val ? 'true' : 'false';
 						}
 
-						$actual_array = is_array($actual_val) ? $actual_val : explode(',', (string)$actual_val);
+						$actual_array = is_array($actual_val) ? $actual_val : explode(';', (string)$actual_val);
 						$actual_array = array_map('trim', $actual_array);
 						
 						$intersection = array_intersect($f_vals, $actual_array);
@@ -525,7 +526,7 @@ class SZEducate_Client {
 				$target_value = isset( $rule['value'] ) ? $rule['value'] : '';
 
 				$actual_value = isset( $course_data[ $field ] ) ? $course_data[ $field ] : '';
-				$actual_string = is_array( $actual_value ) ? implode( ',', $actual_value ) : (string) $actual_value;
+				$actual_string = is_array( $actual_value ) ? implode( ';', $actual_value ) : (string) $actual_value;
 
 				$rule_result = true;
 				switch ( $operator ) {
@@ -712,7 +713,6 @@ class SZEducate_Client {
 	}
 
 	public function register_client_endpoints() {
-		// 1. Auto-suggest végpont az adminba (Csak szerkesztőknek)
 		register_rest_route( 'szeducate/v1/client', '/field-options', array(
 			'methods'             => \WP_REST_Server::READABLE,
 			'callback'            => array( $this, 'get_field_options_for_editor' ),
@@ -721,7 +721,6 @@ class SZEducate_Client {
 			}
 		) );
 
-		// 2. Okos Kereső végpont a látogatóknak (Bárkinek)
 		register_rest_route( 'szeducate/v1/client', '/search', array(
 			'methods'             => \WP_REST_Server::READABLE,
 			'callback'            => array( $this, 'ajax_search_courses' ),
@@ -765,7 +764,8 @@ class SZEducate_Client {
 
 	public function ajax_search_courses( \WP_REST_Request $request ) {
 		global $wpdb;
-		$query = mb_strtolower( sanitize_text_field( $request->get_param('q') ), 'UTF-8' );
+		$query = trim( sanitize_text_field( $request->get_param('q') ) );
+		$query_lower = mb_strtolower( $query, 'UTF-8' );
 		
 		if ( empty( $query ) || mb_strlen( $query, 'UTF-8' ) < 2 ) {
 			return rest_ensure_response( array() );
@@ -776,8 +776,25 @@ class SZEducate_Client {
 			return rest_ensure_response( array() );
 		}
 
+		// A séma beolvasása, hogy tudjuk, mi a mezők szép neve
+		$schema = json_decode( get_option( 'szeducate_local_schema', '[]' ), true );
+		$field_labels = array();
+		if ( is_array($schema) ) {
+			foreach ($schema as $group) {
+				if (empty($group['fields'])) continue;
+				foreach ($group['fields'] as $f) {
+					$field_labels[$f['key']] = $f['label'];
+				}
+			}
+		}
+
 		$courses = $wpdb->get_results( "SELECT local_post_id, title, course_data FROM $table_name", ARRAY_A );
-		$results = array();
+		
+		$course_results = array();
+		$category_results = array();
+		
+		// KIZÁRÓLAG ezekből a mezőkből generálhat "Kategória" (Csoport) ajánlást a kereső!
+		$allowed_category_keys = ['kepzesi_forma', 'kulcsszavak', 'kepzesi_terulet', 'indulas_idoszaka', 'telephely'];
 
 		foreach ( $courses as $course ) {
 			$post_id = $course['local_post_id'];
@@ -790,42 +807,105 @@ class SZEducate_Client {
 				continue;
 			}
 
-			$match = false;
+			$score = 0;
 			$title_lower = mb_strtolower( $course['title'], 'UTF-8' );
 			
-			if ( mb_strpos( $title_lower, $query ) !== false ) {
-				$match = true;
-			} else {
-				foreach ( $data as $key => $val ) {
-					if ( is_bool($val) || strpos($key, 'url') !== false ) continue;
+			// 1. CÍM VIZSGÁLATA (Legmagasabb pont)
+			if ( $title_lower === $query_lower ) $score += 100;
+			elseif ( mb_strpos( $title_lower, $query_lower ) === 0 ) $score += 80;
+			elseif ( preg_match( '/\b' . preg_quote( $query, '/' ) . '\b/iu', $course['title'] ) ) $score += 60;
+			elseif ( mb_strpos( $title_lower, $query_lower ) !== false ) $score += 40;
+
+			// 2. MEZŐK MÉLYKERESÉSE
+			foreach ( $data as $key => $val ) {
+				$safe_key = (string) $key;
+				if ( is_bool($val) || strpos($safe_key, 'url') !== false ) continue;
+
+				$is_category_field = in_array( $safe_key, $allowed_category_keys );
+
+				// Szöveggé alakítás a biztonságos mélykereséshez
+				$search_text = is_scalar($val) ? (string)$val : wp_json_encode( $val, JSON_UNESCAPED_UNICODE );
+				$s_text_lower = mb_strtolower( $search_text, 'UTF-8' );
+
+				// Ha van találat az adott mezőben (bárhol)
+				if ( mb_strpos( $s_text_lower, $query_lower ) !== false ) {
 					
-					$search_text = is_array($val) ? implode(' ', $val) : (string)$val;
-					$search_text = mb_strtolower( $search_text, 'UTF-8' );
-					
-					if ( mb_strpos( $search_text, $query ) !== false ) {
-						$match = true;
-						break;
+					// A) Pontszám növelése a szaknak
+					if ( $is_category_field ) {
+						if ( $s_text_lower === $query_lower ) $score += 50;
+						else $score += 30;
+					} else {
+						// Ha csak egy sima leírásban szerepel, sokkal kevesebb pontot kap
+						if ( preg_match( '/\b' . preg_quote( $query, '/' ) . '\b/iu', $search_text ) ) $score += 10;
+						else $score += 5;
+					}
+
+					// B) Kategória ajánlás generálása (CSAK a kijelölt rövid mezőkre!)
+					if ( $is_category_field && isset($field_labels[$safe_key]) ) {
+						$parts = is_array($val) ? $val : explode(';', (string)$val);
+						
+						foreach ( $parts as $single_val ) {
+							$single_val = trim((string)$single_val);
+							if ( $single_val === '' ) continue;
+
+							$single_val_lower = mb_strtolower( $single_val, 'UTF-8' );
+
+							// Csak akkor csinálunk belőle ajánlást, ha maga a konkrét címke tartalmazza a szót
+							if ( mb_strpos( $single_val_lower, $query_lower ) !== false ) {
+								$cat_hash = $safe_key . '|' . $single_val;
+								if ( !isset($category_results[$cat_hash]) ) {
+									$cat_score = 0;
+									if ($single_val_lower === $query_lower) $cat_score = 100;
+									elseif (mb_strpos($single_val_lower, $query_lower) === 0) $cat_score = 80;
+									else $cat_score = 40;
+
+									$category_results[$cat_hash] = array(
+										'type'      => 'category',
+										'title'     => $single_val,
+										'label'     => $field_labels[$safe_key],
+										'field_key' => $safe_key,
+										'field_val' => $single_val,
+										'score'     => $cat_score
+									);
+								}
+							}
+						}
 					}
 				}
 			}
 
-			if ( $match ) {
+			// Szak hozzáadása a listához, ha kapott legalább 1 pontot
+			if ( $score > 0 ) {
 				$status = isset( $data['meghirdetes_allapota'] ) ? mb_strtolower(trim((string)$data['meghirdetes_allapota']), 'UTF-8') : '';
 				$is_active = ( $status === 'aktív' || $status === 'aktiv' );
 
-				$results[] = array(
+				$course_results[] = array(
+					'type'      => 'course',
 					'id'        => $post_id,
 					'title'     => $course['title'],
 					'url'       => get_permalink( $post_id ),
-					'is_active' => $is_active
+					'is_active' => $is_active,
+					'score'     => $score
 				);
 			}
 		}
 
-		usort( $results, function($a, $b) {
+		// Kategóriák rendezése pontszám alapján
+		usort( $category_results, function($a, $b) {
+			if ( $a['score'] !== $b['score'] ) return $b['score'] - $a['score'];
 			return strcmp( $a['title'], $b['title'] );
 		});
 
-		return rest_ensure_response( array_slice( $results, 0, 10 ) );
+		// Szakok rendezése pontszám alapján
+		usort( $course_results, function($a, $b) {
+			if ( $a['score'] !== $b['score'] ) return $b['score'] - $a['score'];
+			return strcmp( $a['title'], $b['title'] );
+		});
+
+		// A legördülőben max 3 kategóriát és 7 szakot mutatunk
+		$final_categories = array_slice( $category_results, 0, 3 );
+		$final_courses = array_slice( $course_results, 0, 7 );
+
+		return rest_ensure_response( array_merge( $final_categories, $final_courses ) );
 	}
 }

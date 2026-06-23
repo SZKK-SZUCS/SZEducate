@@ -42,7 +42,6 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 			}
 		}
 
-		// --- TARTALOM FÜL: Lekérdezés ---
 		$this->start_controls_section(
 			'query_section',
 			[
@@ -54,10 +53,9 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 		$this->add_control(
 			'visibility_key',
 			[
-				'label'   => 'Láthatóság Kapcsoló (Boolean kulcs)',
+				'label'   => 'Láthatóság Kapcsoló',
 				'type'    => \Elementor\Controls_Manager::TEXT,
 				'default' => 'public',
-				'description' => 'Ez a mező dönti el, hogy a szak egyáltalán megjelenjen-e a listában.',
 			]
 		);
 
@@ -71,7 +69,6 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 			]
 		);
 
-		// ÚJ: Rendezési opciók
 		$this->add_control(
 			'group_sort_order',
 			[
@@ -89,7 +86,6 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 			]
 		);
 
-		// ÚJ: Drag & Drop ismétlődő mező a manuális sorrendhez
 		$repeater = new \Elementor\Repeater();
 		$repeater->add_control(
 			'group_name',
@@ -112,7 +108,6 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 					'group_sort_order' => 'custom',
 					'group_by_key!'    => '',
 				],
-				'description' => 'Vedd fel a csoportok nevét, és húzd őket a kívánt sorrendbe. Ami nincs a listában, az a végére kerül ábécé sorrendben.',
 			]
 		);
 
@@ -141,7 +136,7 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 		$this->add_control(
 			'status_key',
 			[
-				'label'   => 'Állapot kulcs (Aktív/Passzív)',
+				'label'   => 'Állapot kulcs',
 				'type'    => \Elementor\Controls_Manager::TEXT,
 				'default' => 'meghirdetes_allapota',
 			]
@@ -150,7 +145,7 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 		$this->add_control(
 			'date_key',
 			[
-				'label'   => 'Passziválás dátuma kulcs',
+				'label'   => 'Passziválás dátuma',
 				'type'    => \Elementor\Controls_Manager::TEXT,
 				'default' => 'passziv_ettol',
 			]
@@ -160,7 +155,7 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 			$this->add_control(
 				'filter_heading',
 				[
-					'label'     => 'Dinamikus Szűrők (Statikus felülbírálás)',
+					'label'     => 'Dinamikus Szűrők',
 					'type'      => \Elementor\Controls_Manager::HEADING,
 					'separator' => 'before',
 				]
@@ -181,7 +176,6 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 
 		$this->end_controls_section();
 
-		// --- STÍLUS FÜL: Aktív Szűrő Címke ---
 		$this->start_controls_section(
 			'style_active_filter_section',
 			[
@@ -226,7 +220,6 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 
 		$this->end_controls_section();
 
-		// --- STÍLUS FÜL: Elrendezés (Rács) ---
 		$this->start_controls_section(
 			'style_layout_section',
 			[
@@ -261,7 +254,6 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 				'label'      => 'Kártyák (oszlopok) közötti távolság',
 				'type'       => \Elementor\Controls_Manager::SLIDER,
 				'size_units' => [ 'px', 'em' ],
-				'range'      => [ 'px' => [ 'min' => 0, 'max' => 100 ] ],
 				'default'    => [ 'unit' => 'px', 'size' => 30 ],
 				'selectors'  => [
 					'{{WRAPPER}} .sz-listing-grid' => 'column-gap: {{SIZE}}{{UNIT}};',
@@ -275,7 +267,6 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 				'label'      => 'Kártyák (sorok) közötti távolság',
 				'type'       => \Elementor\Controls_Manager::SLIDER,
 				'size_units' => [ 'px', 'em' ],
-				'range'      => [ 'px' => [ 'min' => 0, 'max' => 100 ] ],
 				'default'    => [ 'unit' => 'px', 'size' => 30 ],
 				'selectors'  => [
 					'{{WRAPPER}} .sz-listing-grid' => 'row-gap: {{SIZE}}{{UNIT}};',
@@ -286,7 +277,6 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 
 		$this->end_controls_section();
 
-		// --- STÍLUS FÜL: Kártya (Csoport) Stílus ---
 		$this->start_controls_section(
 			'style_card_section',
 			[
@@ -311,29 +301,19 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 				'label'      => 'Belső margó (Padding)',
 				'type'       => \Elementor\Controls_Manager::DIMENSIONS,
 				'size_units' => [ 'px', '%', 'em' ],
-				'default'    => [
-					'top' => 25, 'right' => 25, 'bottom' => 25, 'left' => 25,
-					'unit' => 'px', 'isLinked' => false,
-				],
-				'selectors'  => [
-					'{{WRAPPER}} .sz-group-block' => 'padding: {{TOP}}{{UNIT}} {{RIGHT}}{{UNIT}} {{BOTTOM}}{{UNIT}} {{LEFT}}{{UNIT}};',
-				],
+				'default'    => [ 'top' => 25, 'right' => 25, 'bottom' => 25, 'left' => 25, 'unit' => 'px' ],
+				'selectors'  => [ '{{WRAPPER}} .sz-group-block' => 'padding: {{TOP}}{{UNIT}} {{RIGHT}}{{UNIT}} {{BOTTOM}}{{UNIT}} {{LEFT}}{{UNIT}};' ],
 			]
 		);
 
 		$this->add_responsive_control(
 			'card_border_radius',
 			[
-				'label'      => 'Lekerekítés (Border Radius)',
+				'label'      => 'Lekerekítés',
 				'type'       => \Elementor\Controls_Manager::DIMENSIONS,
 				'size_units' => [ 'px', '%', 'em' ],
-				'default'    => [
-					'top' => 12, 'right' => 12, 'bottom' => 12, 'left' => 12,
-					'unit' => 'px', 'isLinked' => true,
-				],
-				'selectors'  => [
-					'{{WRAPPER}} .sz-group-block' => 'border-radius: {{TOP}}{{UNIT}} {{RIGHT}}{{UNIT}} {{BOTTOM}}{{UNIT}} {{LEFT}}{{UNIT}};',
-				],
+				'default'    => [ 'top' => 12, 'right' => 12, 'bottom' => 12, 'left' => 12, 'unit' => 'px' ],
+				'selectors'  => [ '{{WRAPPER}} .sz-group-block' => 'border-radius: {{TOP}}{{UNIT}} {{RIGHT}}{{UNIT}} {{BOTTOM}}{{UNIT}} {{LEFT}}{{UNIT}};' ],
 			]
 		);
 
@@ -354,11 +334,7 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 					'box_shadow_type' => [ 'default' => 'yes' ],
 					'box_shadow' => [
 						'default' => [
-							'horizontal' => 0,
-							'vertical'   => 5,
-							'blur'       => 15,
-							'spread'     => 0,
-							'color'      => 'rgba(36, 41, 67, 0.08)',
+							'horizontal' => 0, 'vertical' => 5, 'blur' => 15, 'spread' => 0, 'color' => 'rgba(36, 41, 67, 0.08)',
 						]
 					]
 				]
@@ -367,15 +343,12 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 
 		$this->end_controls_section();
 
-		// --- STÍLUS FÜL: Címsorok ---
 		$this->start_controls_section(
 			'style_title_section',
 			[
 				'label'     => 'Kategória Címek',
 				'tab'       => \Elementor\Controls_Manager::TAB_STYLE,
-				'condition' => [
-					'group_by_key!' => '',
-				],
+				'condition' => [ 'group_by_key!' => '' ],
 			]
 		);
 
@@ -392,7 +365,7 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 		$this->add_control(
 			'group_title_border_color',
 			[
-				'label'     => 'Alsó elválasztó vonal színe',
+				'label'     => 'Alsó elválasztó',
 				'type'      => \Elementor\Controls_Manager::COLOR,
 				'default'   => '#50ADC9',
 				'selectors' => [ '{{WRAPPER}} .sz-group-title' => 'border-bottom-color: {{VALUE}};' ],
@@ -414,15 +387,12 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 				'type'       => \Elementor\Controls_Manager::SLIDER,
 				'size_units' => [ 'px', 'em' ],
 				'default'    => [ 'unit' => 'px', 'size' => 20 ],
-				'selectors'  => [
-					'{{WRAPPER}} .sz-group-title' => 'margin-bottom: {{SIZE}}{{UNIT}};',
-				],
+				'selectors'  => [ '{{WRAPPER}} .sz-group-title' => 'margin-bottom: {{SIZE}}{{UNIT}};' ],
 			]
 		);
 
 		$this->end_controls_section();
 
-		// --- STÍLUS FÜL: Lista Elemek (Szakok) és Ikonok ---
 		$this->start_controls_section(
 			'style_items_section',
 			[
@@ -436,10 +406,7 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 			[
 				'label' => 'Aktív Szak Ikon',
 				'type' => \Elementor\Controls_Manager::ICONS,
-				'default' => [
-					'value' => 'fas fa-chevron-right',
-					'library' => 'fa-solid',
-				],
+				'default' => [ 'value' => 'fas fa-chevron-right', 'library' => 'fa-solid' ],
 			]
 		);
 
@@ -448,10 +415,7 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 			[
 				'label' => 'Passzív Szak Ikon',
 				'type' => \Elementor\Controls_Manager::ICONS,
-				'default' => [
-					'value' => 'fas fa-circle',
-					'library' => 'fa-solid',
-				],
+				'default' => [ 'value' => 'fas fa-circle', 'library' => 'fa-solid' ],
 			]
 		);
 
@@ -461,7 +425,6 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 				'label'      => 'Ikon Mérete',
 				'type'       => \Elementor\Controls_Manager::SLIDER,
 				'size_units' => [ 'px', 'em' ],
-				'range'      => [ 'px' => [ 'min' => 5, 'max' => 50 ] ],
 				'default'    => [ 'unit' => 'px', 'size' => 14 ],
 				'selectors'  => [
 					'{{WRAPPER}} .sz-item-icon' => 'font-size: {{SIZE}}{{UNIT}}; width: {{SIZE}}{{UNIT}}; height: {{SIZE}}{{UNIT}};',
@@ -474,130 +437,41 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 		$this->add_responsive_control(
 			'icon_spacing',
 			[
-				'label'      => 'Ikon Távolsága a szövegtől',
+				'label'      => 'Ikon Távolsága',
 				'type'       => \Elementor\Controls_Manager::SLIDER,
 				'size_units' => [ 'px', 'em' ],
-				'range'      => [ 'px' => [ 'min' => 0, 'max' => 30 ] ],
 				'default'    => [ 'unit' => 'px', 'size' => 10 ],
-				'selectors'  => [
-					'{{WRAPPER}} .sz-item-icon' => 'margin-right: {{SIZE}}{{UNIT}};',
-				],
+				'selectors'  => [ '{{WRAPPER}} .sz-item-icon' => 'margin-right: {{SIZE}}{{UNIT}};' ],
 			]
 		);
 
 		$this->add_responsive_control(
 			'icon_valign',
 			[
-				'label'      => 'Ikon Függőleges Pozíciója (Finomhangolás)',
+				'label'      => 'Ikon Függőleges Pozíció',
 				'type'       => \Elementor\Controls_Manager::SLIDER,
 				'size_units' => [ 'px', 'em' ],
-				'range'      => [ 'px' => [ 'min' => -20, 'max' => 20 ] ],
 				'default'    => [ 'unit' => 'px', 'size' => 0 ],
-				'selectors'  => [
-					'{{WRAPPER}} .sz-item-icon' => 'margin-top: {{SIZE}}{{UNIT}};',
-				],
+				'selectors'  => [ '{{WRAPPER}} .sz-item-icon' => 'margin-top: {{SIZE}}{{UNIT}};' ],
 				'separator'  => 'after',
 			]
 		);
 
 		$this->start_controls_tabs( 'tabs_item_style' );
 
-		// AKTÍV NÉZET
-		$this->start_controls_tab(
-			'tab_item_normal',
-			[ 'label' => 'Aktív' ]
-		);
-
-		$this->add_control(
-			'item_color',
-			[
-				'label'     => 'Szövegszín',
-				'type'      => \Elementor\Controls_Manager::COLOR,
-				'default'   => '#242943',
-				'selectors' => [ '{{WRAPPER}} .sz-course-active' => 'color: {{VALUE}};' ],
-			]
-		);
-
-		$this->add_control(
-			'item_icon_color',
-			[
-				'label'     => 'Ikon Színe',
-				'type'      => \Elementor\Controls_Manager::COLOR,
-				'default'   => '#50ADC9',
-				'selectors' => [ 
-					'{{WRAPPER}} .sz-course-active .sz-item-icon' => 'color: {{VALUE}} !important; fill: {{VALUE}} !important;',
-					'{{WRAPPER}} .sz-course-active .sz-item-icon i' => 'color: {{VALUE}} !important;',
-					'{{WRAPPER}} .sz-course-active .sz-item-icon svg' => 'fill: {{VALUE}} !important;',
-					'{{WRAPPER}} .sz-course-active .sz-item-icon svg path' => 'fill: {{VALUE}} !important;',
-				],
-			]
-		);
-
+		$this->start_controls_tab( 'tab_item_normal', [ 'label' => 'Aktív' ] );
+		$this->add_control( 'item_color', [ 'label' => 'Szövegszín', 'type' => \Elementor\Controls_Manager::COLOR, 'default' => '#242943', 'selectors' => [ '{{WRAPPER}} .sz-course-active' => 'color: {{VALUE}};' ] ] );
+		$this->add_control( 'item_icon_color', [ 'label' => 'Ikon Színe', 'type' => \Elementor\Controls_Manager::COLOR, 'default' => '#50ADC9', 'selectors' => [ '{{WRAPPER}} .sz-course-active .sz-item-icon' => 'color: {{VALUE}} !important; fill: {{VALUE}} !important;', '{{WRAPPER}} .sz-course-active .sz-item-icon i' => 'color: {{VALUE}} !important;', '{{WRAPPER}} .sz-course-active .sz-item-icon svg' => 'fill: {{VALUE}} !important;', '{{WRAPPER}} .sz-course-active .sz-item-icon svg path' => 'fill: {{VALUE}} !important;' ] ] );
 		$this->end_controls_tab();
 
-		// HOVER NÉZET
-		$this->start_controls_tab(
-			'tab_item_hover',
-			[ 'label' => 'Hover' ]
-		);
-
-		$this->add_control(
-			'item_hover_color',
-			[
-				'label'     => 'Szövegszín',
-				'type'      => \Elementor\Controls_Manager::COLOR,
-				'default'   => '#50ADC9',
-				'selectors' => [ '{{WRAPPER}} .sz-course-active:hover' => 'color: {{VALUE}};' ],
-			]
-		);
-
-		$this->add_control(
-			'item_icon_hover_color',
-			[
-				'label'     => 'Ikon Színe',
-				'type'      => \Elementor\Controls_Manager::COLOR,
-				'selectors' => [ 
-					'{{WRAPPER}} .sz-course-active:hover .sz-item-icon' => 'color: {{VALUE}} !important; fill: {{VALUE}} !important;',
-					'{{WRAPPER}} .sz-course-active:hover .sz-item-icon i' => 'color: {{VALUE}} !important;',
-					'{{WRAPPER}} .sz-course-active:hover .sz-item-icon svg' => 'fill: {{VALUE}} !important;',
-					'{{WRAPPER}} .sz-course-active:hover .sz-item-icon svg path' => 'fill: {{VALUE}} !important;',
-				],
-			]
-		);
-
+		$this->start_controls_tab( 'tab_item_hover', [ 'label' => 'Hover' ] );
+		$this->add_control( 'item_hover_color', [ 'label' => 'Szövegszín', 'type' => \Elementor\Controls_Manager::COLOR, 'default' => '#50ADC9', 'selectors' => [ '{{WRAPPER}} .sz-course-active:hover' => 'color: {{VALUE}};' ] ] );
+		$this->add_control( 'item_icon_hover_color', [ 'label' => 'Ikon Színe', 'type' => \Elementor\Controls_Manager::COLOR, 'selectors' => [ '{{WRAPPER}} .sz-course-active:hover .sz-item-icon' => 'color: {{VALUE}} !important; fill: {{VALUE}} !important;', '{{WRAPPER}} .sz-course-active:hover .sz-item-icon i' => 'color: {{VALUE}} !important;', '{{WRAPPER}} .sz-course-active:hover .sz-item-icon svg' => 'fill: {{VALUE}} !important;', '{{WRAPPER}} .sz-course-active:hover .sz-item-icon svg path' => 'fill: {{VALUE}} !important;' ] ] );
 		$this->end_controls_tab();
 
-		// PASSZÍV NÉZET
-		$this->start_controls_tab(
-			'tab_item_passive',
-			[ 'label' => 'Passzív' ]
-		);
-
-		$this->add_control(
-			'item_passive_color',
-			[
-				'label'     => 'Szövegszín',
-				'type'      => \Elementor\Controls_Manager::COLOR,
-				'default'   => '#8C8F94',
-				'selectors' => [ '{{WRAPPER}} .sz-course-passive' => 'color: {{VALUE}};' ],
-			]
-		);
-
-		$this->add_control(
-			'item_icon_passive_color',
-			[
-				'label'     => 'Ikon Színe',
-				'type'      => \Elementor\Controls_Manager::COLOR,
-				'default'   => '#D9D9D9',
-				'selectors' => [ 
-					'{{WRAPPER}} .sz-course-passive .sz-item-icon' => 'color: {{VALUE}} !important; fill: {{VALUE}} !important;',
-					'{{WRAPPER}} .sz-course-passive .sz-item-icon i' => 'color: {{VALUE}} !important;',
-					'{{WRAPPER}} .sz-course-passive .sz-item-icon svg' => 'fill: {{VALUE}} !important;',
-					'{{WRAPPER}} .sz-course-passive .sz-item-icon svg path' => 'fill: {{VALUE}} !important;',
-				],
-			]
-		);
-
+		$this->start_controls_tab( 'tab_item_passive', [ 'label' => 'Passzív' ] );
+		$this->add_control( 'item_passive_color', [ 'label' => 'Szövegszín', 'type' => \Elementor\Controls_Manager::COLOR, 'default' => '#8C8F94', 'selectors' => [ '{{WRAPPER}} .sz-course-passive' => 'color: {{VALUE}};' ] ] );
+		$this->add_control( 'item_icon_passive_color', [ 'label' => 'Ikon Színe', 'type' => \Elementor\Controls_Manager::COLOR, 'default' => '#D9D9D9', 'selectors' => [ '{{WRAPPER}} .sz-course-passive .sz-item-icon' => 'color: {{VALUE}} !important; fill: {{VALUE}} !important;', '{{WRAPPER}} .sz-course-passive .sz-item-icon i' => 'color: {{VALUE}} !important;', '{{WRAPPER}} .sz-course-passive .sz-item-icon svg' => 'fill: {{VALUE}} !important;', '{{WRAPPER}} .sz-course-passive .sz-item-icon svg path' => 'fill: {{VALUE}} !important;' ] ] );
 		$this->end_controls_tab();
 		$this->end_controls_tabs();
 
@@ -617,7 +491,6 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 				'label'      => 'Szakok közötti térköz (sorok)',
 				'type'       => \Elementor\Controls_Manager::SLIDER,
 				'size_units' => [ 'px', 'em' ],
-				'range'      => [ 'px' => [ 'min' => 0, 'max' => 30 ] ],
 				'default'    => [ 'unit' => 'px', 'size' => 12 ],
 				'selectors'  => [
 					'{{WRAPPER}} .sz-course-list li' => 'margin-bottom: {{SIZE}}{{UNIT}};',
@@ -635,11 +508,13 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 		$vis_key    = isset($settings['visibility_key']) ? trim($settings['visibility_key']) : 'public';
 		$status_key = isset($settings['status_key']) ? trim($settings['status_key']) : 'meghirdetes_allapota';
 		$date_key   = isset($settings['date_key']) ? trim($settings['date_key']) : 'passziv_ettol';
-		$group_key  = isset($settings['group_by_key']) ? trim($settings['group_by_key']) : '';
+		
+		// ÚJ: URL paraméter alapú Dinamikus Csoportosítás (?sz_group=valami)
+		$group_key  = isset($_GET['sz_group']) ? sanitize_text_field($_GET['sz_group']) : (isset($settings['group_by_key']) ? trim($settings['group_by_key']) : '');
+		
 		$schema_json = get_option( 'szeducate_local_schema', '[]' );
 		$schema = json_decode( $schema_json, true );
 
-		// Ikon HTML előállítása
 		$active_icon_html = '';
 		$active_icon = isset($settings['active_icon']) ? $settings['active_icon'] : [];
 		if ( ! empty( $active_icon['value'] ) ) {
@@ -668,7 +543,6 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 			}
 		}
 
-		// Alapértelmezett, Elementor felületen megadott szűrők gyűjtése
 		$active_filters = array();
 		foreach ( $settings as $key => $val ) {
 			if ( strpos( $key, 'filter_' ) === 0 && $key !== 'filter_heading' && ! empty( $val ) ) {
@@ -677,22 +551,22 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 			}
 		}
 
-		// SEO URL-ből érkező külső szűrés észlelése
 		$seo_field   = get_query_var('sz_seo_field');
 		$seo_keyword = get_query_var('sz_seo_keyword');
-		$free_text_search = isset($_GET['sz_search']) ? mb_strtolower(sanitize_text_field($_GET['sz_search']), 'UTF-8') : '';
-		
 		if ( ! empty($seo_field) && ! empty($seo_keyword) ) {
 			$active_filters = array( sanitize_text_field($seo_field) => sanitize_title($seo_keyword) );
 		}
 
-		// ÚJ: Aktív Szűrő Szövegének meghatározása a sémából
+		$free_text_search = isset($_GET['sz_search']) ? trim(sanitize_text_field($_GET['sz_search'])) : '';
+		$free_text_search_lower = mb_strtolower($free_text_search, 'UTF-8');
+
 		$display_filter_text = '';
-		if ( ! empty( $active_filters ) && $settings['show_active_filter'] === 'yes' ) {
+		if ( ! empty( $free_text_search ) && $settings['show_active_filter'] === 'yes' ) {
+			$display_filter_text = sprintf( 'Keresés eredménye: "%s"', esc_html( $_GET['sz_search'] ) );
+		} elseif ( ! empty( $active_filters ) && $settings['show_active_filter'] === 'yes' ) {
 			reset($active_filters);
 			$f_key = key($active_filters);
 			$f_val_slug = current($active_filters);
-
 			$f_label = $f_key;
 			$f_val_display = $f_val_slug;
 
@@ -711,7 +585,6 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 									}
 								}
 							} else {
-								// Ha pl. szabad szavas kulcsszó, próbáljuk nagybetűsíteni
 								$f_val_display = ucfirst( str_replace('-', ' ', $f_val_slug) );
 							}
 							break 2;
@@ -728,6 +601,7 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 
 		$grouped_data = array();
 		$today_time = strtotime( current_time( 'Y-m-d' ) );
+		$priority_keys = ['kepzesi_forma', 'kulcsszavak', 'kepzesi_terulet', 'indulas_idoszaka'];
 
 		foreach ( $courses as $course ) {
 			$post_id = $course['local_post_id'];
@@ -743,25 +617,35 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 				}
 			}
 
+			$score = 0;
 			if ( ! empty( $free_text_search ) ) {
-				$match = false;
 				$t_lower = mb_strtolower( $course['title'], 'UTF-8' );
-				if ( mb_strpos( $t_lower, $free_text_search ) !== false ) {
-					$match = true;
-				} else {
-					foreach ( $data as $k => $v ) {
-						if ( is_bool($v) || strpos($k, 'url') !== false ) continue;
-						$s_text = is_array($v) ? implode(' ', $v) : (string)$v;
-						if ( mb_strpos( mb_strtolower( $s_text, 'UTF-8' ), $free_text_search ) !== false ) {
-							$match = true;
-							break;
+				
+				if ( $t_lower === $free_text_search_lower ) $score += 100;
+				elseif ( mb_strpos( $t_lower, $free_text_search_lower ) === 0 ) $score += 80;
+				elseif ( preg_match( '/\b' . preg_quote( $free_text_search, '/' ) . '\b/iu', $course['title'] ) ) $score += 60;
+				elseif ( mb_strpos( $t_lower, $free_text_search_lower ) !== false ) $score += 40;
+
+				foreach ( $data as $k => $v ) {
+					$safe_key = (string) $k;
+					if ( is_bool($v) || strpos($safe_key, 'url') !== false ) continue;
+					
+					$s_text = is_scalar($v) ? (string)$v : wp_json_encode( $v, JSON_UNESCAPED_UNICODE );
+					$s_text_lower = mb_strtolower( $s_text, 'UTF-8' );
+					
+					if ( mb_strpos( $s_text_lower, $free_text_search_lower ) !== false ) {
+						if ( in_array( $safe_key, $priority_keys ) ) {
+							if ( $s_text_lower === $free_text_search_lower ) $score += 50;
+							else $score += 30;
+						} else {
+							if ( preg_match( '/\b' . preg_quote( $free_text_search, '/' ) . '\b/iu', $s_text ) ) $score += 10;
+							else $score += 5;
 						}
 					}
 				}
-				if ( ! $match ) continue; // Ha a keresőszóra nem egyezik, eldobjuk, nem is nézzük a többi szűrőt
+				if ( $score === 0 ) continue; // Ha nincs egyetlen találat sem, eldobjuk
 			}
 
-			// Szűrők alkalmazása (Ékezet és kis/nagybetű független SEO SLUG egyezés)
 			$passes_filters = true;
 			foreach ( $active_filters as $f_key => $f_val_slug ) {
 				$actual_val = isset( $data[$f_key] ) ? $data[$f_key] : '';
@@ -813,7 +697,8 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 				$grouped_data[ $safe_g_name ][] = array(
 					'title'     => $course['title'],
 					'url'       => get_permalink( $post_id ),
-					'is_active' => $is_active
+					'is_active' => $is_active,
+					'score'     => $score // Pontszám átadása a rendezéshez
 				);
 			}
 		}
@@ -821,17 +706,19 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 		if ( empty( $grouped_data ) ) {
 			if ( \Elementor\Plugin::$instance->editor->is_edit_mode() ) {
 				echo '<p style="color:#666; font-style:italic;">A beállított szűrőknek megfelelő képzés jelenleg nem található.</p>';
+			} else {
+				if ( ! empty( $display_filter_text ) ) {
+					echo '<div class="sz-active-filter-badge" style="font-weight:600; margin-bottom:20px;">' . esc_html( $display_filter_text ) . '</div>';
+				}
+				echo '<p style="color:#888; font-style:italic; padding:20px; text-align:center;">Sajnos nem találtunk a keresésnek megfelelő képzést.</p>';
 			}
 			return;
 		}
 
-		// ÚJ LOGIKA: Csoportok rendezése
 		if ( $settings['group_sort_order'] === 'desc' ) {
 			krsort( $grouped_data );
 		} elseif ( $settings['group_sort_order'] === 'custom' && ! empty( $settings['custom_sort_list'] ) ) {
 			$sorted_data = array();
-			
-			// 1. A megadott egyedi sorrend alkalmazása
 			foreach ( $settings['custom_sort_list'] as $custom_item ) {
 				$c_name = trim( $custom_item['group_name'] );
 				if ( isset( $grouped_data[ $c_name ] ) ) {
@@ -839,24 +726,25 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 					unset( $grouped_data[ $c_name ] );
 				}
 			}
-			// 2. A maradék (listában nem szereplő) csoportok hozzáadása ábécé sorrendben
 			ksort( $grouped_data );
 			foreach ( $grouped_data as $rem_key => $rem_val ) {
 				$sorted_data[ $rem_key ] = $rem_val;
 			}
 			$grouped_data = $sorted_data;
 		} else {
-			ksort( $grouped_data ); // Alapértelmezett: ASC (A-Z)
+			ksort( $grouped_data ); 
 		}
 
-		// Szakok betűrendbe szedése a csoportokon belül
+		// A KÁRTYÁKON BELÜLI SZAKOK RENDEZÉSE: 1. Pontszám 2. ABC
 		foreach ( $grouped_data as $key => $items ) {
 			usort( $grouped_data[$key], function($a, $b) {
-				return strcmp( $a['title'], $b['title'] );
+				if ( isset($a['score']) && isset($b['score']) && $a['score'] !== $b['score'] ) {
+					return $b['score'] - $a['score']; // Csökkenő sorrend pontszám alapján
+				}
+				return strcmp( $a['title'], $b['title'] ); // Ha egyenlő a pont, marad az ABC sorrend
 			});
 		}
 
-		// Aktív Szűrő Kiírása
 		if ( ! empty( $display_filter_text ) ) {
 			echo '<div class="sz-active-filter-badge" style="font-weight:600;">' . esc_html( $display_filter_text ) . '</div>';
 		}

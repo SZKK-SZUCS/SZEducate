@@ -174,6 +174,23 @@ class SZEducate_Search_Widget extends \Elementor\Widget_Base {
 			const spinner = document.getElementById('sz-spinner-<?php echo $widget_id; ?>');
 			let debounceTimer;
 
+			// JS-alapú URL generátor (ékezetes szavak SEO baráttá alakítása)
+			function slugify(text) {
+				const a = 'àáäâãåăæąçćčđďèéěėëêęğǵḧìíïîįłḿǹńňñöôœőõöøóòřsşšșťțùúüûųůűűưũýÿýżžź';
+				const b = 'aaaaaaaaacccdeeeeeeegghiiiiilmnnnnoooooooooorssssttuuuuuuuuuuuyyyzzz';
+				const p = new RegExp(a.split('').join('|'), 'g');
+				return text.toString().toLowerCase()
+					.replace(/\s+/g, '-') 
+					.replace(p, c => b.charAt(a.indexOf(c))) 
+					.replace(/&/g, '-and-') 
+					.replace(/[^\w\-]+/g, '') 
+					.replace(/\-\-+/g, '-') 
+					.replace(/^-+/, '') 
+					.replace(/-+$/, ''); 
+			}
+
+			const archiveUrl = "<?php echo esc_url($archive_url); ?>".replace(/\/$/, "");
+
 			input.addEventListener('input', function() {
 				clearTimeout(debounceTimer);
 				const query = input.value.trim();
@@ -195,22 +212,41 @@ class SZEducate_Search_Widget extends \Elementor\Widget_Base {
 						
 						if (data.length > 0) {
 							let html = '<ul style="list-style:none; padding:0; margin:0;">';
+							
 							data.forEach(item => {
-								const dotColor = item.is_active ? '#50ADC9' : '#D9D9D9';
-								html += `
-									<li>
-										<a href="${item.url}" class="sz-search-item" style="display:flex; align-items:center; padding:12px 20px; text-decoration:none; border-bottom:1px solid #eee; transition:background 0.2s;">
-											<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background-color:${dotColor}; margin-right:12px; flex-shrink:0;"></span>
-											<span style="font-weight:600; line-height:1.2;">${item.title}</span>
-										</a>
-									</li>`;
+								if (item.type === 'category') {
+									// Kategória (Csoport) találat!
+									let catUrl = archiveUrl;
+									if (archiveUrl) {
+										catUrl = archiveUrl + '/' + item.field_key + '/' + slugify(item.field_val) + '/';
+									} else {
+										catUrl = '?sz_p=' + item.field_key + '&sz_v=' + encodeURIComponent(item.field_val);
+									}
+
+									html += `
+										<li>
+											<a href="${catUrl}" class="sz-search-item sz-category-item" style="display:flex; align-items:center; padding:12px 20px; text-decoration:none; border-bottom:1px solid #eee; transition:background 0.2s; background:#f0f6fc;">
+												<svg style="margin-right:12px; fill:#2271b1; flex-shrink:0;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+												<span style="font-weight:600; line-height:1.2; color:#2271b1;">${item.title} <span style="font-weight:400; font-size:12px; opacity:0.8;">(${item.label})</span></span>
+											</a>
+										</li>`;
+								} else {
+									// Normál szak találat!
+									const dotColor = item.is_active ? '#50ADC9' : '#D9D9D9';
+									html += `
+										<li>
+											<a href="${item.url}" class="sz-search-item" style="display:flex; align-items:center; padding:12px 20px; text-decoration:none; border-bottom:1px solid #eee; transition:background 0.2s;">
+												<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background-color:${dotColor}; margin-right:12px; flex-shrink:0;"></span>
+												<span style="font-weight:600; line-height:1.2; color:#242943;">${item.title}</span>
+											</a>
+										</li>`;
+								}
 							});
 							
-							// Plusz "Összes találat" gomb a végére, ha van archívum megadva
 							<?php if ( ! empty( $archive_url ) ) : ?>
 							html += `
 								<li style="text-align:center; padding:10px; background:#f9f9f9;">
-									<a href="<?php echo $archive_url; ?>?sz_search=${encodeURIComponent(query)}" style="font-size:13px; color:#50ADC9; text-decoration:underline; font-weight:600;">Összes találat megtekintése</a>
+									<a href="${archiveUrl}?sz_search=${encodeURIComponent(query)}" style="font-size:13px; color:#50ADC9; text-decoration:underline; font-weight:600;">Összes találat megtekintése</a>
 								</li>`;
 							<?php endif; ?>
 							
@@ -225,17 +261,15 @@ class SZEducate_Search_Widget extends \Elementor\Widget_Base {
 					.catch(() => {
 						spinner.style.display = 'none';
 					});
-				}, 400); // 400ms várakozás gépelés után (kíméli a szervert)
+				}, 400); 
 			});
 
-			// Eltünteti a dobozt, ha máshova kattintasz
 			document.addEventListener('click', function(e) {
 				if (!input.contains(e.target) && !resultsBox.contains(e.target)) {
 					resultsBox.style.display = 'none';
 				}
 			});
 
-			// Ha rákattintasz az inputra és van benne szöveg, újra kinyitja
 			input.addEventListener('focus', function() {
 				if (input.value.trim().length >= 2 && resultsBox.innerHTML !== '') {
 					resultsBox.style.display = 'block';
