@@ -16,13 +16,41 @@ class SZEducate_Settings {
 	}
 
 	public function add_plugin_page() {
-		add_options_page(
-			'SZEducate Architektúra', 
-			'SZEducate', 
-			'manage_options', 
-			'szeducate-settings', 
-			array( $this, 'create_admin_page' )
-		);
+		// Lekérjük a jelenlegi módot
+		$this->options = get_option( $this->option_name );
+		$mode = isset( $this->options['mode'] ) ? $this->options['mode'] : 'client';
+
+		if ( $mode === 'hub' ) {
+			// HUB MÓD: Önálló főmenü, hogy a Séma és Kliensek almenük is beférjenek!
+			add_menu_page(
+				'SZEducate Hub Beállítások',
+				'SZEducate (Hub)',
+				'manage_options',
+				'szeducate-settings',
+				array( $this, 'create_admin_page' ),
+				'dashicons-networking',
+				55 // Kicsit lejjebb tesszük a menüben
+			);
+
+			// Almenü maguknak a beállításoknak
+			add_submenu_page(
+				'szeducate-settings',
+				'Hub Beállítások',
+				'Beállítások',
+				'manage_options',
+				'szeducate-settings',
+				array( $this, 'create_admin_page' )
+			);
+		} else {
+			// KLIENS MÓD: Elegánsan elrejtve a WP natív Beállítások menüje alatt
+			add_options_page(
+				'SZEducate Architektúra', 
+				'SZEducate', 
+				'manage_options', 
+				'szeducate-settings', 
+				array( $this, 'create_admin_page' )
+			);
+		}
 	}
 
 	public function create_admin_page() {
