@@ -151,6 +151,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.1
+
+- Settings page átrakva kliens és hub oldalon is
+
 ### 0.9.0
 
 - Beta verzió kiadása
