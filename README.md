@@ -151,6 +151,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.3
+
+- Vendor for export-import
+
 ### 0.9.2
 
 - RBAC added, most már lehet rolenak capability-t adni hozzá
