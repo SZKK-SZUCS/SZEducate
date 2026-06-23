@@ -384,7 +384,7 @@ class SZEducate_Client {
 
 	public function ajax_process_bulk_status() {
 		check_ajax_referer( 'szeducate_bulk_nonce' );
-		if ( ! current_user_can( 'edit_posts' ) ) wp_send_json_error( 'Nincs jogosultságod.' );
+		if ( ! current_user_can( 'edit_sz_courses' ) && ! current_user_can( 'manage_options' ) ) wp_send_json_error( 'Nincs jogosultságod.' );
 
 		$bulk_action = isset($_POST['bulk_action']) ? sanitize_text_field($_POST['bulk_action']) : '';
 		$expiry_date = isset($_POST['expiry_date']) ? sanitize_text_field($_POST['expiry_date']) : '';
@@ -479,6 +479,8 @@ class SZEducate_Client {
 			'menu_icon'          => 'dashicons-welcome-learn-more',
 			'show_in_rest'       => true, 
 			'supports'           => array( 'title' ), 
+			'capability_type'    => array( 'sz_course', 'sz_courses' ),
+			'map_meta_cap'       => true,
 		);
 		register_post_type( 'sz_course', $args );
 	}
@@ -716,7 +718,7 @@ class SZEducate_Client {
 			'methods'             => \WP_REST_Server::READABLE,
 			'callback'            => array( $this, 'get_field_options_for_editor' ),
 			'permission_callback' => function() {
-				return current_user_can( 'edit_posts' );
+				return current_user_can( 'edit_sz_courses' ) || current_user_can( 'manage_options' );
 			}
 		) );
 

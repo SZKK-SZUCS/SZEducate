@@ -28,7 +28,7 @@ class SZEducate_Import_Export {
 			'edit.php?post_type=sz_course',
 			'Excel Import / Export',
 			'Excel Import / Export',
-			'manage_options',
+			'edit_sz_courses',
 			'szeducate-import',
 			array( $this, 'render_page' )
 		);
@@ -44,7 +44,7 @@ class SZEducate_Import_Export {
 		$action = $wp_list_table->current_action();
 
 		if ( $action === 'szeducate_export_selected' && isset( $_REQUEST['post'] ) && is_array( $_REQUEST['post'] ) ) {
-			if ( ! current_user_can( 'edit_posts' ) ) wp_die( 'Nincs jogosultságod.' );
+			if ( ! current_user_can( 'edit_sz_courses' ) && ! current_user_can( 'manage_options' ) ) wp_die( 'Nincs jogosultságod.' );
 			
 			$post_ids = array_map( 'intval', $_REQUEST['post'] );
 			
@@ -69,13 +69,13 @@ class SZEducate_Import_Export {
 	}
 
 	public function handle_download_template() {
-		if ( ! current_user_can( 'manage_options' ) ) wp_die( 'Nincs jogosultságod.' );
+		if ( ! current_user_can( 'edit_sz_courses' ) && ! current_user_can( 'manage_options' ) ) wp_die( 'Nincs jogosultságod.' );
 		$formats = isset($_POST['formats']) && is_array($_POST['formats']) ? array_map('sanitize_text_field', $_POST['formats']) : array();
 		$this->generate_excel( array(), true, $formats );
 	}
 
 	public function handle_export_all() {
-		if ( ! current_user_can( 'manage_options' ) ) wp_die( 'Nincs jogosultságod.' );
+		if ( ! current_user_can( 'edit_sz_courses' ) && ! current_user_can( 'manage_options' ) ) wp_die( 'Nincs jogosultságod.' );
 		$formats = isset($_POST['formats']) && is_array($_POST['formats']) ? array_map('sanitize_text_field', $_POST['formats']) : array();
 		$this->generate_excel( array(), false, $formats );
 	}
