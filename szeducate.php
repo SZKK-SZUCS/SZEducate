@@ -26,17 +26,23 @@ register_activation_hook( __FILE__, array( 'SZEducate_Activator', 'activate' ) )
 
 function run_szeducate() {
 	$plugin = new SZEducate_Core();
-	$plugin->init();
+	$plugin->run();
 }
 run_szeducate();
 
-require_once plugin_dir_path( __FILE__ ) . 'plugin-update-checker/plugin-update-checker.php';
+$composer_autoload = plugin_dir_path( __FILE__ ) . 'vendor/autoload.php';
+if ( file_exists( $composer_autoload ) ) {
+	require_once $composer_autoload;
+}
+
 use YahnisElsts\PluginUpdateChecker\v5\PucFactory;
 
-$szeducate_update_checker = PucFactory::buildUpdateChecker(
-	'https://github.com/SZKK-SZUCS/SZEducate',
-	__FILE__,
-	'szeducate'
-);
+if ( class_exists( 'YahnisElsts\PluginUpdateChecker\v5\PucFactory' ) ) {
+	$szeducate_update_checker = PucFactory::buildUpdateChecker(
+		'https://github.com/SZKK-SZUCS/SZEducate',
+		__FILE__,
+		'szeducate'
+	);
 
-$szeducate_update_checker->setBranch('main');
+	$szeducate_update_checker->setBranch('main');
+}
