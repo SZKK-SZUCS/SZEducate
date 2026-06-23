@@ -4,7 +4,7 @@ A **SZEducate** egy professzionális, WordPress és Elementor alapú, elosztott 
 
 ---
 
-## 📑 Tartalomjegyzék
+## Tartalomjegyzék
 
 1. [Architektúra és Működési Elv](#1-architektúra-és-működési-elv)
 2. [Főbb Funkciók Részletesen](#2-főbb-funkciók-részletesen)
@@ -19,14 +19,14 @@ A **SZEducate** egy professzionális, WordPress és Elementor alapú, elosztott 
 
 A SZEducate rendszer nem egy hagyományos, egyedülálló bővítmény. Kétféle hálózati szerepkörben (módban) képes futni, melyet a beállításokban lehet kiválasztani:
 
-- **🏢 Hub (Központi Adatszerver):** Ez a "karmester". Ezen a szerveren történik a képzési adatlapok logikai struktúrájának (a Sémának) a felépítése. Fogadja a kliensekről beérkező adatokat, és rendelkezik egy dedikált API végponttal a teljes rendszer napi biztonsági mentéséhez.
-- **💻 Client (Kliens Csomópont):** A publikus weboldal. Letölti és értelmezi a Hub-ról a Sémát. Itt történik a konkrét képzések (szakok) rögzítése, Excel alapú tömeges módosítása, valamint az Elementor widgeteken keresztüli megjelenítés. A Kliens a háttérben folyamatosan visszaszinkronizálja az adatokat a Hub-ra.
+- **Hub (Központi Adatszerver):** Ez a "karmester". Ezen a szerveren történik a képzési adatlapok logikai struktúrájának (a Sémának) a felépítése. Fogadja a kliensekről beérkező adatokat, és rendelkezik egy dedikált API végponttal a teljes rendszer napi biztonsági mentéséhez.
+- **Client (Kliens Csomópont):** A publikus weboldal. Letölti és értelmezi a Hub-ról a Sémát. Itt történik a konkrét képzések (szakok) rögzítése, Excel alapú tömeges módosítása, valamint az Elementor widgeteken keresztüli megjelenítés. A Kliens a háttérben folyamatosan visszaszinkronizálja az adatokat a Hub-ra.
 
 ---
 
 ## 2. Főbb Funkciók Részletesen
 
-### 🧠 Intelligens Adatbevitel (React Editor)
+### Intelligens Adatbevitel (React Editor)
 
 A képzések rögzítése lecseréli a hagyományos WordPress felületet egy egyedi, villámgyors React alkalmazásra.
 
@@ -34,18 +34,18 @@ A képzések rögzítése lecseréli a hagyományos WordPress felületet egy egy
 - **Auto-suggest címkék:** A kulcsszavak és kategóriák gépelésekor a rendszer felajánlja az adatbázisban már szereplő kifejezéseket, ezzel drasztikusan csökkentve az elgépelések (pl. _Agrár_ vs. _agrar_) számát.
 - **Szigorú validáció:** A rendszer nem enged hiányos adatlapot menteni, és figyeli a kötelezően kitöltendő (piros csillagos) mezőket.
 
-### 🔍 Szemantikus AJAX Okos Kereső
+### Szemantikus AJAX Okos Kereső
 
 Egy modern Elementor widget, amely oldalújratöltés nélkül, gépelés közben keres.
 
 - **Súlyozott algoritmus:** A rendszer pontozza a találatokat. (Pl. 100 pont, ha a cím pontosan megegyezik, 50 pont, ha a képzési terület egyezik, és csak 5 pont, ha a szó egy hosszú leírás közepén van elrejtve). Így mindig a legrelevánsabb találat van legfelül.
 - **Kategória felismerés:** Ha a keresőszó egyezik egy Telephely vagy Képzési Forma nevével (pl. _"Győr"_), a rendszer kiemelt mappaként (kategóriaként) felajánlja azt, és egyenesen a szűrt listázó oldalra irányítja a látogatót.
 
-### 📋 Dinamikus Szaklista és Szűrés
+### Dinamikus Szaklista és Szűrés
 
 Egy komplex listázó widget, amely képes URL paraméterek vagy tiszta SEO linkek (pl. `/kepzeseink/telephely/gyor/`) alapján automatikusan leszűrni a megjelenített képzéseket. Tartalmaz beépített Drag & Drop manuális sorrendezési lehetőséget, így a kategóriák vizuális sorrendje szabadon testreszabható.
 
-### 📊 Tömeges Excel (XLSX) Import / Export
+### Tömeges Excel (XLSX) Import / Export
 
 A WordPress admin felületébe integrált, professzionális tömeges adatkezelő eszköz.
 
@@ -53,7 +53,7 @@ A WordPress admin felületébe integrált, professzionális tömeges adatkezelő
 - **Beépített Validáció:** A legördülő (egyválasztós) mezők az Excelben is natív legördülő listaként jelennek meg, megakadályozva a hibás adatbevitelt.
 - **"Puska" munkalap:** A letöltött Excel fájl tartalmaz egy külön lapot az eddig használt összes kulcsszóval, megkönnyítve az adatrögzítők munkáját.
 
-### 🔄 Automatikus Frissítés (PUC)
+### Automatikus Frissítés (PUC)
 
 A bővítmény a Plugin Update Checker (PUC) segítségével közvetlenül a GitHubról frissül. A WordPress Vezérlőpultján ugyanúgy jelzi az új verziókat, és egy kattintással frissíthető, mint a hivatalos tárolóból letöltött pluginok.
 
