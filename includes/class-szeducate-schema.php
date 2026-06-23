@@ -157,8 +157,7 @@ class SZEducate_Schema {
 			const addGroupBtn = document.getElementById('add-group-btn');
 			const form = document.getElementById('szeducate-schema-form');
 			const dataInput = document.getElementById('szeducate_schema_data');
-			
-			// --- EXPORT / IMPORT LOGIKA ---
+
 			document.getElementById('export-schema-btn').addEventListener('click', () => {
 				const data = dataInput.value;
 				if (!data || data === '[]') { alert('Üres a séma, nincs mit exportálni.'); return; }
@@ -192,7 +191,6 @@ class SZEducate_Schema {
 						if (confirm("Az importált fájl betöltése azonnal felülírja a jelenlegi sémát. Véglegesítjük a mentést?")) {
 							HTMLFormElement.prototype.submit.call(form);
 						} else {
-							// Ha nem akarja menteni, ürítjük az inputot, hogy újra megpróbálhassa
 							e.target.value = '';
 						}
 					} catch (err) {
@@ -201,7 +199,6 @@ class SZEducate_Schema {
 				};
 				reader.readAsText(file);
 			});
-			// --- EXPORT / IMPORT LOGIKA VÉGE ---
 
 			let schemaData = [];
 			try { schemaData = JSON.parse(dataInput.value); } catch(e) {}
@@ -271,16 +268,15 @@ class SZEducate_Schema {
 				});
 			}
 
-			// --- KÖZÖS MEZŐK SZINKRONIZÁCIÓJA ---
 			let isSyncing = false;
 			function syncCommonFields(sourceField) {
-				if (isSyncing) return; // Végtelen ciklus elkerülése
+				if (isSyncing) return;
 				
 				const sourceKey = sourceField.querySelector('.f-key').value.trim();
 				if (!sourceKey) return;
 
 				const badge = sourceField.querySelector('.badge-duplicate');
-				if (!badge || badge.style.display === 'none') return; // Csak akkor szinkronizálunk, ha van párja
+				if (!badge || badge.style.display === 'none') return;
 
 				isSyncing = true;
 				
@@ -303,7 +299,7 @@ class SZEducate_Schema {
 						const typeEl = fDiv.querySelector('.f-type');
 						if (typeEl.value !== sourceType) {
 							typeEl.value = sourceType;
-							typeEl.dispatchEvent(new Event('change')); // Hogy megjelenítse/elrejtse az opciókat a UI-on
+							typeEl.dispatchEvent(new Event('change'));
 						}
 						
 						fDiv.querySelector('.f-options').value = sourceOptions;
@@ -316,7 +312,6 @@ class SZEducate_Schema {
 				
 				isSyncing = false;
 			}
-			// --- KÖZÖS MEZŐK SZINKRONIZÁCIÓJA VÉGE ---
 
 			function createSubFieldRow(subField) {
 				const sfDiv = document.createElement('div');
@@ -417,7 +412,6 @@ class SZEducate_Schema {
 				`;
 
 				if (!field.is_locked) {
-					// Eseménykezelők a Közös Mezők Szinkronizációjához
 					const triggerSync = () => syncCommonFields(fDiv);
 					
 					fDiv.querySelector('.f-label').addEventListener('input', triggerSync);
@@ -433,7 +427,6 @@ class SZEducate_Schema {
 						triggerSync();
 					});
 					
-					// Azonosító kezelés
 					fDiv.querySelector('.f-label').addEventListener('blur', function() {
 						const ki = fDiv.querySelector('.f-key');
 						if (!ki.value && this.value) { ki.value = generateUniqueKey(slugify(this.value), ki); checkDuplicateKeys(); }

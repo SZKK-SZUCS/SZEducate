@@ -24,7 +24,6 @@ class SZEducate_Activator {
 		$table_name = $wpdb->prefix . 'szeducate_courses_data';
 		$charset_collate = $wpdb->get_charset_collate();
 
-		// Szigorúan csak a core mezők
 		$sql = "CREATE TABLE $table_name (
 			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
 			hub_id bigint(20) unsigned DEFAULT NULL,

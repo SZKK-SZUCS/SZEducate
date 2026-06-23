@@ -12,7 +12,6 @@ class SZEducate_Keywords_Widget extends \Elementor\Widget_Base {
 
 	protected function register_controls() {
 		
-		// --- TARTALOM FÜL ---
 		$this->start_controls_section(
 			'content_section',
 			[
@@ -56,7 +55,6 @@ class SZEducate_Keywords_Widget extends \Elementor\Widget_Base {
 
 		$this->end_controls_section();
 
-		// --- STÍLUS FÜL: Elrendezés ---
 		$this->start_controls_section(
 			'style_layout_section',
 			[
@@ -98,7 +96,6 @@ class SZEducate_Keywords_Widget extends \Elementor\Widget_Base {
 
 		$this->end_controls_section();
 
-		// --- STÍLUS FÜL: Címke (Pill) Dizájn ---
 		$this->start_controls_section(
 			'style_pill_section',
 			[
@@ -149,7 +146,6 @@ class SZEducate_Keywords_Widget extends \Elementor\Widget_Base {
 
 		$this->start_controls_tabs( 'tabs_pill_style' );
 
-		// NORMÁL NÉZET
 		$this->start_controls_tab(
 			'tab_pill_normal',
 			[ 'label' => 'Normál' ]
@@ -193,7 +189,6 @@ class SZEducate_Keywords_Widget extends \Elementor\Widget_Base {
 
 		$this->end_controls_tab();
 
-		// HOVER NÉZET
 		$this->start_controls_tab(
 			'tab_pill_hover',
 			[ 'label' => 'Hover' ]
@@ -283,7 +278,6 @@ class SZEducate_Keywords_Widget extends \Elementor\Widget_Base {
 			if ( $cleaned_pill === '' ) continue;
 
 			if ( ! empty( $base_slug ) ) {
-				// Tiszta SEO URL: /kepzeseink/kulcsszavak/agrar/
 				$clean_keyword = sanitize_title( $cleaned_pill );
 				$link_url = home_url( '/' . $base_slug . '/' . $field_key . '/' . $clean_keyword . '/' );
 				

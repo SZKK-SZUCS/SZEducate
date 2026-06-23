@@ -28,7 +28,6 @@ class SZEducate_Links_Widget extends \Elementor\Widget_Base {
 			}
 		}
 
-		// --- TARTALOM FÜL ---
 		$this->start_controls_section(
 			'content_section',
 			[
@@ -58,7 +57,6 @@ class SZEducate_Links_Widget extends \Elementor\Widget_Base {
 
 		$this->end_controls_section();
 
-		// --- STÍLUS FÜL: Elrendezés ---
 		$this->start_controls_section(
 			'style_layout_section',
 			[
@@ -117,7 +115,6 @@ class SZEducate_Links_Widget extends \Elementor\Widget_Base {
 
 		$this->end_controls_section();
 
-		// --- STÍLUS FÜL: Gomb Dizájn ---
 		$this->start_controls_section(
 			'style_button_section',
 			[
@@ -168,7 +165,6 @@ class SZEducate_Links_Widget extends \Elementor\Widget_Base {
 
 		$this->start_controls_tabs( 'tabs_button_style' );
 
-		// NORMÁL NÉZET
 		$this->start_controls_tab(
 			'tab_button_normal',
 			[ 'label' => 'Normál' ]
@@ -216,7 +212,6 @@ class SZEducate_Links_Widget extends \Elementor\Widget_Base {
 
 		$this->end_controls_tab();
 
-		// HOVER NÉZET
 		$this->start_controls_tab(
 			'tab_button_hover',
 			[ 'label' => 'Hover' ]
@@ -273,9 +268,8 @@ class SZEducate_Links_Widget extends \Elementor\Widget_Base {
 		$this->end_controls_tab();
 		$this->end_controls_tabs();
 
-		$this->end_controls_section(); // EZ AZ A SOR AMI KI AKASZTOTTA AZ EGÉSZET!
+		$this->end_controls_section();
 
-		// --- STÍLUS FÜL: Ikon Finomhangolás ---
 		$this->start_controls_section(
 			'style_icon_section',
 			[
@@ -353,7 +347,6 @@ class SZEducate_Links_Widget extends \Elementor\Widget_Base {
 
 		if ( ! is_array( $links ) || empty( $links ) ) return;
 
-		// Ikon HTML előállítása
 		$icon_html = '';
 		$icon_setting = isset($settings['link_icon']) ? $settings['link_icon'] : [];
 		if ( ! empty( $icon_setting['value'] ) ) {

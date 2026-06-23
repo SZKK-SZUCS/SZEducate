@@ -39,7 +39,6 @@ class SZEducate_Client {
 
 		add_action( 'in_admin_header', array( $this, 'render_advanced_filter_panel' ) );
 
-		// API Végpontok regisztrálása
 		add_action( 'rest_api_init', array( $this, 'register_client_endpoints' ) );
 	}
 
@@ -776,7 +775,6 @@ class SZEducate_Client {
 			return rest_ensure_response( array() );
 		}
 
-		// A séma beolvasása, hogy tudjuk, mi a mezők szép neve
 		$schema = json_decode( get_option( 'szeducate_local_schema', '[]' ), true );
 		$field_labels = array();
 		if ( is_array($schema) ) {
@@ -793,7 +791,6 @@ class SZEducate_Client {
 		$course_results = array();
 		$category_results = array();
 		
-		// KIZÁRÓLAG ezekből a mezőkből generálhat "Kategória" (Csoport) ajánlást a kereső!
 		$allowed_category_keys = ['kepzesi_forma', 'kulcsszavak', 'kepzesi_terulet', 'indulas_idoszaka', 'telephely'];
 
 		foreach ( $courses as $course ) {
@@ -810,37 +807,30 @@ class SZEducate_Client {
 			$score = 0;
 			$title_lower = mb_strtolower( $course['title'], 'UTF-8' );
 			
-			// 1. CÍM VIZSGÁLATA (Legmagasabb pont)
 			if ( $title_lower === $query_lower ) $score += 100;
 			elseif ( mb_strpos( $title_lower, $query_lower ) === 0 ) $score += 80;
 			elseif ( preg_match( '/\b' . preg_quote( $query, '/' ) . '\b/iu', $course['title'] ) ) $score += 60;
 			elseif ( mb_strpos( $title_lower, $query_lower ) !== false ) $score += 40;
 
-			// 2. MEZŐK MÉLYKERESÉSE
 			foreach ( $data as $key => $val ) {
 				$safe_key = (string) $key;
 				if ( is_bool($val) || strpos($safe_key, 'url') !== false ) continue;
 
 				$is_category_field = in_array( $safe_key, $allowed_category_keys );
 
-				// Szöveggé alakítás a biztonságos mélykereséshez
 				$search_text = is_scalar($val) ? (string)$val : wp_json_encode( $val, JSON_UNESCAPED_UNICODE );
 				$s_text_lower = mb_strtolower( $search_text, 'UTF-8' );
 
-				// Ha van találat az adott mezőben (bárhol)
 				if ( mb_strpos( $s_text_lower, $query_lower ) !== false ) {
 					
-					// A) Pontszám növelése a szaknak
 					if ( $is_category_field ) {
 						if ( $s_text_lower === $query_lower ) $score += 50;
 						else $score += 30;
 					} else {
-						// Ha csak egy sima leírásban szerepel, sokkal kevesebb pontot kap
 						if ( preg_match( '/\b' . preg_quote( $query, '/' ) . '\b/iu', $search_text ) ) $score += 10;
 						else $score += 5;
 					}
 
-					// B) Kategória ajánlás generálása (CSAK a kijelölt rövid mezőkre!)
 					if ( $is_category_field && isset($field_labels[$safe_key]) ) {
 						$parts = is_array($val) ? $val : explode(';', (string)$val);
 						
@@ -850,7 +840,6 @@ class SZEducate_Client {
 
 							$single_val_lower = mb_strtolower( $single_val, 'UTF-8' );
 
-							// Csak akkor csinálunk belőle ajánlást, ha maga a konkrét címke tartalmazza a szót
 							if ( mb_strpos( $single_val_lower, $query_lower ) !== false ) {
 								$cat_hash = $safe_key . '|' . $single_val;
 								if ( !isset($category_results[$cat_hash]) ) {
@@ -874,7 +863,6 @@ class SZEducate_Client {
 				}
 			}
 
-			// Szak hozzáadása a listához, ha kapott legalább 1 pontot
 			if ( $score > 0 ) {
 				$status = isset( $data['meghirdetes_allapota'] ) ? mb_strtolower(trim((string)$data['meghirdetes_allapota']), 'UTF-8') : '';
 				$is_active = ( $status === 'aktív' || $status === 'aktiv' );
@@ -890,19 +878,16 @@ class SZEducate_Client {
 			}
 		}
 
-		// Kategóriák rendezése pontszám alapján
 		usort( $category_results, function($a, $b) {
 			if ( $a['score'] !== $b['score'] ) return $b['score'] - $a['score'];
 			return strcmp( $a['title'], $b['title'] );
 		});
 
-		// Szakok rendezése pontszám alapján
 		usort( $course_results, function($a, $b) {
 			if ( $a['score'] !== $b['score'] ) return $b['score'] - $a['score'];
 			return strcmp( $a['title'], $b['title'] );
 		});
 
-		// A legördülőben max 3 kategóriát és 7 szakot mutatunk
 		$final_categories = array_slice( $category_results, 0, 3 );
 		$final_courses = array_slice( $course_results, 0, 7 );
 

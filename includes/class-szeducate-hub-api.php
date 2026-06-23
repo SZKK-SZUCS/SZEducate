@@ -112,7 +112,6 @@ class SZEducate_Hub_API {
 				$target_value = isset( $rule['value'] ) ? $rule['value'] : '';
 
 				$actual_value = isset( $course_data[ $field ] ) ? $course_data[ $field ] : '';
-				// JAVÍTÁS: PONTOSVESSZŐ (;) használata
 				$actual_string = is_array( $actual_value ) ? implode( ';', $actual_value ) : (string) $actual_value;
 
 				$rule_result = true;
@@ -249,7 +248,6 @@ class SZEducate_Hub_API {
 								}
 							} else {
 								if ( is_array( $val ) ) {
-									// JAVÍTÁS: PONTOSVESSZŐ (;) használata
 									$val = implode( '; ', $val );
 								}
 								$db_data[$key] = sanitize_text_field( $val );

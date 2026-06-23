@@ -31,7 +31,6 @@ class SZEducate_Client_API {
 		) );
 	}
 
-	// --- ÚJ: KIEMELT KÉP AUTOMATIZÁLÁSA ---
 	private function set_featured_image_from_data( $post_id, $course_data ) {
 		$schema_json = get_option( 'szeducate_local_schema', '[]' );
 		$schema = json_decode( $schema_json, true );
@@ -42,14 +41,14 @@ class SZEducate_Client_API {
 			foreach ( $group['fields'] as $field ) {
 				if ( $field['type'] === 'image' && ! empty( $course_data[ $field['key'] ] ) ) {
 					$image_url = $course_data[ $field['key'] ];
-					// Megkeressük a média ID-t az URL alapján
+
 					$attachment_id = attachment_url_to_postid( $image_url );
 					if ( $attachment_id ) {
 						set_post_thumbnail( $post_id, $attachment_id );
 					} else {
 						delete_post_thumbnail( $post_id );
 					}
-					return; // Csak az első képet állítjuk be
+					return;
 				}
 			}
 		}
@@ -174,7 +173,6 @@ class SZEducate_Client_API {
 			) );
 		}
 
-		// Kiemelt kép beállítása PULL szinkronkor
 		$this->set_featured_image_from_data( $local_post_id, $course_data );
 
 		$schema_json = get_option( 'szeducate_local_schema', '[]' );
@@ -254,7 +252,6 @@ class SZEducate_Client_API {
 				throw new Exception( 'Adatbázis írási hiba az egyedi táblában.' );
 			}
 
-			// Kiemelt kép beállítása a React-os mentéskor
 			$this->set_featured_image_from_data( $saved_post_id, $dynamic_data );
 
 			$schema_json = get_option( 'szeducate_local_schema', '[]' );

@@ -16,7 +16,6 @@ class SZEducate_Settings {
 	}
 
 	public function add_plugin_page() {
-		// EZ A VÁLTOZÁS: Beilleszti a WP natív "Beállítások" menüje alá!
 		add_options_page(
 			'SZEducate Architektúra', 
 			'SZEducate', 

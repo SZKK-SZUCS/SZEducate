@@ -41,7 +41,6 @@ class SZEducate_Search_Widget extends \Elementor\Widget_Base {
 
 		$this->end_controls_section();
 
-		// --- STÍLUS: Beviteli Mező ---
 		$this->start_controls_section(
 			'style_input_section',
 			[
@@ -101,7 +100,6 @@ class SZEducate_Search_Widget extends \Elementor\Widget_Base {
 
 		$this->end_controls_section();
 
-		// --- STÍLUS: Legördülő Eredmények ---
 		$this->start_controls_section(
 			'style_dropdown_section',
 			[
@@ -149,7 +147,6 @@ class SZEducate_Search_Widget extends \Elementor\Widget_Base {
 		$archive_url = esc_url( $settings['archive_url'] );
 		$widget_id = $this->get_id();
 
-		// UI Kirajzolása
 		?>
 		<div class="sz-search-wrapper" style="position:relative; width:100%; font-family:sans-serif;">
 			<form action="<?php echo $archive_url; ?>" method="GET" class="sz-search-form" id="sz-search-form-<?php echo $widget_id; ?>" style="display:flex; align-items:center; overflow:hidden; border:1px solid #ddd; background:#F3F4F6;">
@@ -163,7 +160,6 @@ class SZEducate_Search_Widget extends \Elementor\Widget_Base {
 			</form>
 			
 			<div class="sz-search-results" id="sz-results-<?php echo $widget_id; ?>" style="display:none; position:absolute; top:100%; left:0; right:0; z-index:9999; margin-top:5px; background:#fff; border:1px solid #ddd; border-radius:8px; box-shadow:0 10px 25px rgba(0,0,0,0.1); overflow:hidden; max-height:400px; overflow-y:auto;">
-				<!-- Az eredmények ide jönnek AJAX-szal -->
 			</div>
 		</div>
 
@@ -174,7 +170,6 @@ class SZEducate_Search_Widget extends \Elementor\Widget_Base {
 			const spinner = document.getElementById('sz-spinner-<?php echo $widget_id; ?>');
 			let debounceTimer;
 
-			// JS-alapú URL generátor (ékezetes szavak SEO baráttá alakítása)
 			function slugify(text) {
 				const a = 'àáäâãåăæąçćčđďèéěėëêęğǵḧìíïîįłḿǹńňñöôœőõöøóòřsşšșťțùúüûųůűűưũýÿýżžź';
 				const b = 'aaaaaaaaacccdeeeeeeegghiiiiilmnnnnoooooooooorssssttuuuuuuuuuuuyyyzzz';
@@ -215,7 +210,6 @@ class SZEducate_Search_Widget extends \Elementor\Widget_Base {
 							
 							data.forEach(item => {
 								if (item.type === 'category') {
-									// Kategória (Csoport) találat!
 									let catUrl = archiveUrl;
 									if (archiveUrl) {
 										catUrl = archiveUrl + '/' + item.field_key + '/' + slugify(item.field_val) + '/';
@@ -231,7 +225,6 @@ class SZEducate_Search_Widget extends \Elementor\Widget_Base {
 											</a>
 										</li>`;
 								} else {
-									// Normál szak találat!
 									const dotColor = item.is_active ? '#50ADC9' : '#D9D9D9';
 									html += `
 										<li>

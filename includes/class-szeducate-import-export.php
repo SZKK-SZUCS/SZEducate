@@ -93,19 +93,16 @@ class SZEducate_Import_Export {
 		$sheet = $spreadsheet->getActiveSheet();
 		$sheet->setTitle('Képzések');
 
-		// Rejtett lap a szigorú legördülőkhöz (Egyválasztós)
 		$hidden_sheet = $spreadsheet->createSheet();
 		$hidden_sheet->setTitle('_opciok');
 		$hidden_sheet->setSheetState(\PhpOffice\PhpSpreadsheet\Worksheet\Worksheet::SHEETSTATE_HIDDEN);
 		$hidden_col_index = 1;
 
-		// Látható Puska Lap a többválasztósokhoz
 		$reference_sheet = $spreadsheet->createSheet();
 		$reference_sheet->setTitle('Kulcsszavak (Puska)');
 		$ref_col_index = 1;
 		$has_refs = false;
 
-		// JAVÍTÁS: Csak a kulcsszavak mezőt kérjük a puska lapra
 		$multi_select_keys = array();
 		if ( is_array( $schema ) ) {
 			foreach ( $schema as $group ) {
@@ -118,7 +115,6 @@ class SZEducate_Import_Export {
 			}
 		}
 
-		// Referencia szótár kinyerése
 		$all_courses = $wpdb->get_results( "SELECT course_data FROM {$wpdb->prefix}szeducate_courses_data", ARRAY_A );
 		$unique_values = array();
 		
@@ -161,12 +157,11 @@ class SZEducate_Import_Export {
 		$col_index = 1;
 		$group_borders = array(); 
 		$keys_map = array(); 
-		$required_cols = array(1); // JAVÍTÁS: Az 1. oszlop (Cím) mindig kötelező, ezt rögzítjük
+		$required_cols = array(1);
 
 		$fixed_formats = ["BSc", "MSc", "Osztatlan", "Felsőoktatási szakképzés", "Szakirányú továbbképzés", "Mikroképzés", "Előkészítő"];
 		$is_all_formats = empty($requested_formats);
 
-		// 1. ALAP OSZLOP: Cím
 		$sheet->setCellValue([$col_index, 1], 'Rendszer adatok');
 		$sheet->setCellValue([$col_index, 2], 'Cím (Szak megnevezése)');
 		$sheet->setCellValue([$col_index, 3], 'title');
@@ -180,7 +175,6 @@ class SZEducate_Import_Export {
 		$group_borders[] = $col_index; 
 		$col_index++;
 
-		// 2. SÉMA OSZLOPOK ÉPÍTÉSE ÉS VALIDÁCIÓ
 		if ( is_array( $schema ) ) {
 			foreach ( $schema as $group ) {
 				if ( empty( $group['fields'] ) || !is_array( $group['fields'] ) ) continue;
@@ -213,8 +207,7 @@ class SZEducate_Import_Export {
 					$is_multi_select  = in_array( $field['key'], $multi_select_keys );
 
 					$help_text = '';
-					
-					// JAVÍTÁS: Kötelező oszlopok regisztrálása
+
 					if ( !empty($field['is_required']) ) {
 						$help_text = '[KÖTELEZŐ MEZŐ!] ';
 						$required_cols[] = $col_index;
@@ -248,9 +241,8 @@ class SZEducate_Import_Export {
 					}
 					$sheet->setCellValue([$col_index, 4], $help_text);
 
-					// JAVÍTÁS: Egyválasztós értékek pontosvessző mentén történő darabolása a validációhoz
 					if ( $is_single_select && !empty($field['options']) ) {
-						$opts = array_map('trim', explode(';', $field['options'])); // Itt volt a hiba, átírva ; jelre
+						$opts = array_map('trim', explode(';', $field['options']));
 						$hidden_row = 1;
 						foreach($opts as $opt) {
 							if ($opt !== '') {
@@ -314,7 +306,6 @@ class SZEducate_Import_Export {
 			]);
 		}
 
-		// 3. EXCEL STÍLUSOZÁSA
 		$last_col_letter = Coordinate::stringFromColumnIndex($col_index - 1);
 
 		$sheet->getStyle("A1:{$last_col_letter}1")->applyFromArray([
@@ -324,14 +315,12 @@ class SZEducate_Import_Export {
 		]);
 		$sheet->getRowDimension(1)->setRowHeight(25);
 
-		// Alapértelmezett kék fejléc
 		$sheet->getStyle("A2:{$last_col_letter}2")->applyFromArray([
 			'font' => ['bold' => true, 'color' => ['argb' => 'FF333333']],
 			'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => 'FFF0F6FC']],
 			'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true],
 		]);
 
-		// JAVÍTÁS: Kötelező oszlopok pirosítása (fejléc piros, oszlop halvány piros)
 		foreach ($required_cols as $req_col) {
 			$letter = Coordinate::stringFromColumnIndex($req_col);
 			
@@ -370,7 +359,6 @@ class SZEducate_Import_Export {
 		}
 		$sheet->freezePane('B5');
 
-		// 4. ADATOK BETÖLTÉSE
 		if ( ! $is_template_only ) {
 			$table_name = $wpdb->prefix . 'szeducate_courses_data';
 			
@@ -434,7 +422,6 @@ class SZEducate_Import_Export {
 
 		$spreadsheet->setActiveSheetIndex(0);
 
-		// 5. FÁJLNÉV GENERÁLÁSA
 		if ( $is_template_only ) {
 			$formats_str = empty($requested_formats) ? 'MINDEN' : implode('_', $requested_formats);
 			$formats_str = preg_replace( '/[^A-Za-z0-9_áéíóöőúüűÁÉÍÓÖŐÚÜŰ]/', '_', $formats_str );
@@ -453,12 +440,10 @@ class SZEducate_Import_Export {
 		exit;
 	}
 
-	// IMPORTÁLÓ ÉS UI
 	public function render_page() {
 		$parsed_data = null;
 		$error_msg = '';
 
-		// EXCEL FELDOLGOZÁSA
 		if ( isset( $_POST['submit_excel'] ) && isset( $_FILES['excel_file'] ) ) {
 			if ( $_FILES['excel_file']['error'] === UPLOAD_ERR_OK ) {
 				$file_tmp = $_FILES['excel_file']['tmp_name'];

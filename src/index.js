@@ -40,7 +40,6 @@ const HelpTextUi = ({ text }) => {
   );
 };
 
-// ÚJ: Okos kulcsszó beviteli mező (Auto-suggest)
 const KeywordControl = ({
   label,
   fieldKey,
@@ -59,7 +58,6 @@ const KeywordControl = ({
       .catch(() => {});
   }, [fieldKey]);
 
-  // Biztosítjuk, hogy a meglévő értéket a FormTokenField értse (ami tömböt vár)
   const tokens =
     typeof value === "string" && value !== ""
       ? value
@@ -82,7 +80,6 @@ const KeywordControl = ({
         value={tokens}
         suggestions={suggestions}
         onChange={(newTokens) => {
-          // Ha változik, pontosvesszővel elválasztott stringgé alakítjuk a mentéshez
           onChange(fieldKey, newTokens.join("; "));
         }}
         disabled={isReadonly}
@@ -558,7 +555,6 @@ const SZEducateEditor = () => {
         );
         break;
       case "textarea":
-        // JAVÍTÁS: Ha a kulcsszavak mezőről van szó, betöltjük a Smart Komponenst
         if (field.key === "kulcsszavak") {
           control = (
             <KeywordControl

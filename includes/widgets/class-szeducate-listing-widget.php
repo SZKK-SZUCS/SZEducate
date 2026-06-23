@@ -509,7 +509,6 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 		$status_key = isset($settings['status_key']) ? trim($settings['status_key']) : 'meghirdetes_allapota';
 		$date_key   = isset($settings['date_key']) ? trim($settings['date_key']) : 'passziv_ettol';
 		
-		// ÚJ: URL paraméter alapú Dinamikus Csoportosítás (?sz_group=valami)
 		$group_key  = isset($_GET['sz_group']) ? sanitize_text_field($_GET['sz_group']) : (isset($settings['group_by_key']) ? trim($settings['group_by_key']) : '');
 		
 		$schema_json = get_option( 'szeducate_local_schema', '[]' );
@@ -643,7 +642,7 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 						}
 					}
 				}
-				if ( $score === 0 ) continue; // Ha nincs egyetlen találat sem, eldobjuk
+				if ( $score === 0 ) continue;
 			}
 
 			$passes_filters = true;
@@ -698,7 +697,7 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 					'title'     => $course['title'],
 					'url'       => get_permalink( $post_id ),
 					'is_active' => $is_active,
-					'score'     => $score // Pontszám átadása a rendezéshez
+					'score'     => $score
 				);
 			}
 		}
@@ -735,13 +734,12 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 			ksort( $grouped_data ); 
 		}
 
-		// A KÁRTYÁKON BELÜLI SZAKOK RENDEZÉSE: 1. Pontszám 2. ABC
 		foreach ( $grouped_data as $key => $items ) {
 			usort( $grouped_data[$key], function($a, $b) {
 				if ( isset($a['score']) && isset($b['score']) && $a['score'] !== $b['score'] ) {
-					return $b['score'] - $a['score']; // Csökkenő sorrend pontszám alapján
+					return $b['score'] - $a['score'];
 				}
-				return strcmp( $a['title'], $b['title'] ); // Ha egyenlő a pont, marad az ABC sorrend
+				return strcmp( $a['title'], $b['title'] );
 			});
 		}
 

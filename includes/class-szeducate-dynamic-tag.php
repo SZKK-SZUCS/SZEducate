@@ -3,7 +3,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-// Csak akkor fut le, ha az Elementor magja már betöltött
 class SZEducate_Dynamic_Tag extends \Elementor\Core\DynamicTags\Tag {
 
 	public function get_name() {
@@ -19,12 +18,10 @@ class SZEducate_Dynamic_Tag extends \Elementor\Core\DynamicTags\Tag {
 	}
 
 	public function get_categories() {
-		// Ez mondja meg az Elementornak, hogy ez a címke szöveges helyekre húzható be
 		return array( \Elementor\Modules\DynamicTags\Module::TEXT_CATEGORY );
 	}
 
 	protected function register_controls() {
-		// Betöltjük a lokális sémát, hogy dinamikusan felépítsük az Elementor beállításokat
 		$schema_json = get_option( 'szeducate_local_schema', '[]' );
 		$schema = json_decode( $schema_json, true );
 		
@@ -34,7 +31,6 @@ class SZEducate_Dynamic_Tag extends \Elementor\Core\DynamicTags\Tag {
 			foreach ( $schema as $group ) {
 				if ( ! empty( $group['fields'] ) ) {
 					foreach ( $group['fields'] as $field ) {
-						// Pl. 'munkarend' => 'Munkarend'
 						$options[ $field['key'] ] = $field['label'];
 					}
 				}
@@ -51,7 +47,6 @@ class SZEducate_Dynamic_Tag extends \Elementor\Core\DynamicTags\Tag {
 			)
 		);
 
-		// Ha listás (checkbox/multiselect) adat jön vissza, beállítható legyen az elválasztó karakter
 		$this->add_control(
 			'array_separator',
 			array(
@@ -63,7 +58,6 @@ class SZEducate_Dynamic_Tag extends \Elementor\Core\DynamicTags\Tag {
 		);
 	}
 
-	// Ez a metódus fut le a látogató böngészőjében
 	public function render() {
 		$field_key = $this->get_settings( 'field_key' );
 		if ( empty( $field_key ) ) return;
@@ -80,19 +74,16 @@ class SZEducate_Dynamic_Tag extends \Elementor\Core\DynamicTags\Tag {
 
 		$data = json_decode( $course['course_data'], true );
 		
-		// Ha nincs ilyen adat, vagy üres string, egyszerűen nem renderelünk semmit (Hide if empty logic)
 		if ( ! isset( $data[ $field_key ] ) || $data[ $field_key ] === '' ) return;
 
 		$value = $data[ $field_key ];
 
-		// Formázott kiíratás típus alapján
 		if ( is_array( $value ) ) {
 			$separator = $this->get_settings( 'array_separator' );
 			echo esc_html( implode( $separator, $value ) );
 		} elseif ( is_bool( $value ) ) {
 			echo $value ? 'Igen' : 'Nem';
 		} else {
-			// Szövegek engedélyezése biztonságos HTML-lel
 			echo wp_kses_post( $value ); 
 		}
 	}

@@ -35,7 +35,6 @@ class SZEducate_Clients {
 			require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
 			dbDelta( $sql );
 		} else {
-			// Adatbázis frissítés a meglévő táblán (client_url hozzáadása)
 			$column = $wpdb->get_results( "SHOW COLUMNS FROM {$this->table_name} LIKE 'client_url'" );
 			if ( empty( $column ) ) {
 				$wpdb->query( "ALTER TABLE {$this->table_name} ADD client_url varchar(255) NOT NULL DEFAULT '' AFTER client_name" );
@@ -98,11 +97,9 @@ class SZEducate_Clients {
 				array( 'id' => $client_id )
 			);
 
-			// --- ÚJ: WEBHOOK ELSÜTÉSE A KLIENS FELÉ ---
 			$client = $wpdb->get_row( $wpdb->prepare( "SELECT client_url FROM {$this->table_name} WHERE id = %d", $client_id ) );
 			if ( $client && ! empty( $client->client_url ) ) {
 				$webhook_url = rtrim( $client->client_url, '/' ) . '/wp-json/szeducate/v1/client/sync';
-				// Non-blocking kérés (nem várjuk meg a választ, hogy a Hub gyors maradjon)
 				wp_remote_post( $webhook_url, array(
 					'blocking' => false,
 					'timeout'  => 5

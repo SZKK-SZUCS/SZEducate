@@ -12,7 +12,6 @@ class SZEducate_Status_Widget extends \Elementor\Widget_Base {
 
 	protected function register_controls() {
 		
-		// --- TARTALOM FÜL ---
 		$this->start_controls_section(
 			'content_section',
 			[
@@ -51,7 +50,6 @@ class SZEducate_Status_Widget extends \Elementor\Widget_Base {
 
 		$this->end_controls_section();
 
-		// --- STÍLUS FÜL: Elrendezés ---
 		$this->start_controls_section(
 			'style_layout_section',
 			[
@@ -108,7 +106,6 @@ class SZEducate_Status_Widget extends \Elementor\Widget_Base {
 
 		$this->end_controls_section();
 
-		// --- STÍLUS FÜL: Tipográfia és Alak ---
 		$this->start_controls_section(
 			'style_badge_section',
 			[
@@ -151,7 +148,6 @@ class SZEducate_Status_Widget extends \Elementor\Widget_Base {
 
 		$this->end_controls_section();
 
-		// --- STÍLUS FÜL: Színek (Egyetemi arculat) ---
 		$this->start_controls_section(
 			'style_colors_section',
 			[
@@ -269,8 +265,6 @@ class SZEducate_Status_Widget extends \Elementor\Widget_Base {
 		$is_active = ( $safe_status === 'aktív' || $safe_status === 'aktiv' );
 		$is_expired = false;
 
-		// ÚJ LOGIKA a passziv_ettol mező alapján:
-		// Ha van dátum és az mai vagy múltbeli, akkor passzív.
 		if ( $is_active && ! empty( $expiry ) ) {
 			$expiry_time = strtotime( $expiry );
 			$today_time = strtotime( current_time( 'Y-m-d' ) );
@@ -281,7 +275,6 @@ class SZEducate_Status_Widget extends \Elementor\Widget_Base {
 			}
 		}
 
-		// Inline SVG Ikonok
 		$icon_calendar = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" style="margin-right:6px;"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z"/></svg>';
 		$icon_info = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" style="margin-right:6px;"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>';
 
@@ -304,7 +297,7 @@ class SZEducate_Status_Widget extends \Elementor\Widget_Base {
 			echo "</div>";
 			
 			if ( $is_active && ! empty( $expiry ) && strtotime( $expiry ) !== false ) {
-				// Ha aktív, akkor a határidőt mutatjuk (ami a "passziv_ettol" előtti nap gyakorlatilag, de vizuálisan magát a dátumot is kiírhatjuk)
+
 				$formatted_date = date('Y. m. d.', strtotime($expiry)) . ' határidő';
 				echo "<div class='sz-status-part sz-status-sub' style='{$css_part}'>";
 				echo esc_html( $formatted_date );

@@ -134,7 +134,7 @@ class SZEducate_Elementor {
 		}
 
 		if ( \Elementor\Plugin::$instance->editor->is_edit_mode() ) {
-			return $should_render; // Szerkesztőben mindig látjuk
+			return $should_render;
 		}
 
 		$post_id = get_the_ID();
@@ -173,9 +173,9 @@ class SZEducate_Elementor {
 		}
 
 		if ( $logic === 'all_match' ) {
-			if ( $match_count === $total_keys ) return false; // Elrejtjük
-		} else { // any_match
-			if ( $match_count > 0 ) return false; // Elrejtjük
+			if ( $match_count === $total_keys ) return false;
+		} else {
+			if ( $match_count > 0 ) return false;
 		}
 
 		return $should_render;
