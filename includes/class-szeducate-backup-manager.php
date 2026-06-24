@@ -49,7 +49,6 @@ class SZEducate_Backup_Manager {
 		add_settings_field( 'onedrive_user_email', 'Cél OneDrive Email címe', array( $this, 'cb_od_email' ), 'szeducate-backups', 'szeducate_backup_cloud' );
 	}
 
-	// --- Vizuális Felület ---
 	public function render_backup_page() {
 		if ( isset( $_GET['inspect_file'] ) ) {
 			$this->render_inspection_mode( sanitize_text_field( $_GET['inspect_file'] ) );
@@ -66,6 +65,13 @@ class SZEducate_Backup_Manager {
 		$cron_url = site_url( '/wp-json/szeducate/v1/hub/backup' );
 		$cron_command = sprintf( 'curl -X POST -H "X-Backup-Token: %s" "%s"', $backup_token, $cron_url );
 		?>
+		<div id="sz-restore-loader" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(240,246,252,0.9); z-index:999999; flex-direction:column; align-items:center; justify-content:center;">
+			<span class="dashicons dashicons-update" style="font-size: 60px; width: 60px; height: 60px; color: #2271b1; animation: sz-spin 2s linear infinite;"></span>
+			<h2 style="margin-top: 30px; color: #1d2327;">Visszaállítás és Szinkronizáció folyamatban...</h2>
+			<p style="font-size: 16px; color: #50575e;">Kérjük, ne zárd be és ne frissítsd az oldalt!</p>
+			<style>@keyframes sz-spin { 100% { transform: rotate(360deg); } }</style>
+		</div>
+
 		<div class="wrap">
 			<h1 class="wp-heading-inline"><span class="dashicons dashicons-database" style="font-size: 28px; width: 28px; height: 28px; margin-top: 2px;"></span> SZEducate Biztonsági Mentések (Hub)</h1>
 			<hr class="wp-header-end">
@@ -215,7 +221,6 @@ class SZEducate_Backup_Manager {
 		}
 	}
 
-	// --- INSPECTION MODE (Hibrid Párosító Motor) ---
 	public function render_inspection_mode( $filename ) {
 		$filepath = $this->backup_dir . basename( $filename );
 		if ( ! file_exists( $filepath ) ) {
@@ -251,7 +256,6 @@ class SZEducate_Backup_Manager {
 		$schema_changed = ( wp_json_encode($backup_schema) !== wp_json_encode($current_schema) );
 		$perms_changed  = ( wp_json_encode($backup_perms) !== wp_json_encode($current_perms) );
 
-		// Kliens Diff
 		$backup_clients_assoc = []; foreach($backup_clients as $c) $backup_clients_assoc[$c['id']] = $c;
 		$current_clients_assoc = []; foreach($current_clients_raw as $c) $current_clients_assoc[$c['id']] = $c;
 		$clients_changed_list = [];
@@ -264,7 +268,6 @@ class SZEducate_Backup_Manager {
 			}
 		}
 
-		// Képzések Diff (HIBRID PÁROSÍTÁS: ID + CÍM ALAPJÁN)
 		$backup_courses = isset($data['courses']) ? $data['courses'] : [];
 		
 		$current_unmatched = [];
@@ -275,7 +278,6 @@ class SZEducate_Backup_Manager {
 
 		$paired_courses = []; 
 
-		// 1. Kör: Párosítás pontos ID alapján (Címmódosítások lekövetése miatt)
 		foreach ($backup_unmatched as $b_id => $bc) {
 			if (isset($current_unmatched[$b_id])) {
 				$paired_courses[] = ['backup' => $bc, 'current' => $current_unmatched[$b_id]];
@@ -284,20 +286,19 @@ class SZEducate_Backup_Manager {
 			}
 		}
 
-		// 2. Kör: Párosítás Cím alapján (A Hard Reset miatti ID elcsúszások lekövetése miatt)
 		foreach ($backup_unmatched as $b_id => $bc) {
 			foreach ($current_unmatched as $c_id => $cc) {
 				if ($bc['title'] === $cc['title']) {
 					$paired_courses[] = ['backup' => $bc, 'current' => $cc];
 					unset($backup_unmatched[$b_id]);
 					unset($current_unmatched[$c_id]);
-					break; // Megtaláltuk, ugrás a következő mentett szakhoz
+					break; 
 				}
 			}
 		}
 
-		$to_be_restored = array_values($backup_unmatched); // Amiket a végén sem találtunk az élőben
-		$to_be_lost = array_values($current_unmatched); // Amik csak az élőben vannak, de a mentésben nem
+		$to_be_restored = array_values($backup_unmatched); 
+		$to_be_lost = array_values($current_unmatched); 
 		
 		$modified_courses = [];
 		foreach ( $paired_courses as $pair ) {
@@ -306,7 +307,6 @@ class SZEducate_Backup_Manager {
 			
 			$changes = [];
 
-			// 1. Cím változás ellenőrzése
 			if ( $bc['title'] !== $cc['title'] ) {
 				$changes['__sz_title__'] = [
 					'label'   => 'Cím (Szak megnevezése)',
@@ -315,7 +315,6 @@ class SZEducate_Backup_Manager {
 				];
 			}
 
-			// 2. Adatlap tartalom változás ellenőrzése
 			$bc_data = is_string($bc['course_data']) ? json_decode($bc['course_data'], true) : $bc['course_data'];
 			$cc_data = is_string($cc['course_data']) ? json_decode($cc['course_data'], true) : $cc['course_data'];
 			
@@ -346,7 +345,6 @@ class SZEducate_Backup_Manager {
 			}
 			
 			if ( !empty($changes) ) {
-				// Mivel a Hard Reset miatt az ID-k eltérhetnek, a HTML formnak mindkettőt tudnia kell!
 				$combined_id = $cc['id'] . '|' . $bc['id']; 
 				
 				$modified_courses[$combined_id] = [
@@ -356,9 +354,15 @@ class SZEducate_Backup_Manager {
 				];
 			}
 		}
+
+		$backup_timestamp = $data['timestamp'] ?? 'Ismeretlen';
+		if ( $backup_timestamp !== 'Ismeretlen' ) {
+			$backup_timestamp = wp_date( 'Y. m. d. H:i:s', strtotime($backup_timestamp) );
+		}
+
+		$restore_url = wp_nonce_url( admin_url( 'admin-post.php?action=szeducate_restore_backup&file=' . urlencode( $filename ) ), 'szeducate_restore_backup' );
 		?>
 
-		<!-- Töltőképernyő -->
 		<div id="sz-restore-loader" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(240,246,252,0.9); z-index:999999; flex-direction:column; align-items:center; justify-content:center;">
 			<span class="dashicons dashicons-update" style="font-size: 60px; width: 60px; height: 60px; color: #2271b1; animation: sz-spin 2s linear infinite;"></span>
 			<h2 style="margin-top: 30px; color: #1d2327;">Visszaállítás és Szinkronizáció folyamatban...</h2>
@@ -378,7 +382,6 @@ class SZEducate_Backup_Manager {
 				<input type="hidden" name="file" value="<?php echo esc_attr( basename($filename) ); ?>">
 				<?php wp_nonce_field( 'szeducate_restore_backup' ); ?>
 
-				<!-- 1. Rendszer beállítások -->
 				<div style="margin-top: 20px; background: #fff; padding: 20px; border: 1px solid #ccd0d4;">
 					<h3 style="margin-top:0; border-bottom:1px solid #eee; padding-bottom:10px;"><span class="dashicons dashicons-admin-generic"></span> Rendszerszintű beállítások</h3>
 					<table class="form-table" style="margin-top:0;">
@@ -405,7 +408,6 @@ class SZEducate_Backup_Manager {
 					</table>
 				</div>
 
-				<!-- 2. Kliensek -->
 				<?php if ( !empty($clients_changed_list) || !empty($clients_missing_list) ) : ?>
 				<div style="margin-top: 20px; background: #fff; padding: 20px; border: 1px solid #ccd0d4;">
 					<h3 style="margin-top:0; border-bottom:1px solid #eee; padding-bottom:10px;"><span class="dashicons dashicons-networking"></span> Kliensek (Node-ok) Szinkronizálása</h3>
@@ -420,11 +422,9 @@ class SZEducate_Backup_Manager {
 				</div>
 				<?php endif; ?>
 
-				<!-- 3. Képzések -->
 				<div style="margin-top: 20px; background: #fff; padding: 20px; border: 1px solid #ccd0d4;">
 					<h3 style="margin-top:0; border-bottom:1px solid #eee; padding-bottom:10px;"><span class="dashicons dashicons-feedback"></span> Képzések Adatbázisa</h3>
 					
-					<!-- Módosított (Részleges) -->
 					<?php if ( !empty($modified_courses) ) : ?>
 					<div style="margin-top: 20px;">
 						<h4 style="color: #f56e28; margin-top:0; font-size:15px; display:flex; justify-content:space-between;">
@@ -460,7 +460,6 @@ class SZEducate_Backup_Manager {
 					<?php endif; ?>
 
 					<div style="display: flex; gap: 20px; margin-top: 30px; flex-wrap: wrap;">
-						<!-- Törlésre kerülő -->
 						<div style="flex: 1; min-width: 45%;">
 							<h4 style="color: #d63638; margin-top:0; font-size:15px; display:flex; justify-content:space-between;">
 								<span><span class="dashicons dashicons-trash"></span> Törlésre ítélt képzések (Mentés óta újak)</span>
@@ -480,7 +479,6 @@ class SZEducate_Backup_Manager {
 							<?php endif; ?>
 						</div>
 						
-						<!-- Visszaállítandó (Insert) -->
 						<div style="flex: 1; min-width: 45%;">
 							<h4 style="color: #007cba; margin-top:0; font-size:15px; display:flex; justify-content:space-between;">
 								<span><span class="dashicons dashicons-undo"></span> Visszaállítandó képzések (Mentés óta töröltek)</span>
@@ -529,7 +527,6 @@ class SZEducate_Backup_Manager {
 		<?php
 	}
 
-	// --- RÉSZLEGES VISSZAÁLLÍTÁS FELDOLGOZÁSA ---
 	public function handle_restore_backup() {
 		if ( ! current_user_can( 'manage_options' ) || ! wp_verify_nonce( $_POST['_wpnonce'], 'szeducate_restore_backup' ) ) wp_die( 'Nincs jogosultságod.' );
 		
@@ -546,7 +543,6 @@ class SZEducate_Backup_Manager {
 		$courses_table = $wpdb->prefix . 'szeducate_courses_data';
 		$clients_table = $wpdb->prefix . 'szeducate_clients';
 
-		// 1. Rendszer beállítások
 		if ( !empty($_POST['restore_schema']) ) {
 			update_option( 'szeducate_local_schema', wp_json_encode( $data['schema'], JSON_UNESCAPED_UNICODE ) );
 		}
@@ -554,7 +550,6 @@ class SZEducate_Backup_Manager {
 			update_option( 'szeducate_client_permissions', wp_json_encode( $data['permissions'], JSON_UNESCAPED_UNICODE ) );
 		}
 
-		// 2. Kliensek
 		$backup_clients_assoc = []; foreach($data['clients'] as $c) $backup_clients_assoc[$c['id']] = $c;
 		
 		if ( !empty($_POST['restore_clients']['insert']) ) {
@@ -568,7 +563,6 @@ class SZEducate_Backup_Manager {
 			}
 		}
 
-		// 3. Képzések
 		$backup_courses_assoc = []; foreach($data['courses'] as $c) $backup_courses_assoc[$c['id']] = $c;
 		$current_courses_raw = $wpdb->get_results( "SELECT * FROM $courses_table", ARRAY_A );
 		$current_assoc = []; foreach ($current_courses_raw as $c) $current_assoc[$c['id']] = $c;
@@ -580,26 +574,23 @@ class SZEducate_Backup_Manager {
 		$hub_ids_to_sync = [];
 		$hub_ids_to_delete = [];
 
-		// Törlés (A jelenlegi Élő ID-t használja)
 		foreach ( $courses_to_delete as $cid ) {
 			$cid = intval($cid);
 			$wpdb->delete( $courses_table, ['id' => $cid] );
 			$hub_ids_to_delete[] = $cid;
 		}
 
-		// Újrafelvétel (A Mentés ID-jét kapjuk meg)
 		foreach ( $courses_to_insert as $backup_id ) {
 			$backup_id = intval($backup_id);
 			if ( isset($backup_courses_assoc[$backup_id]) ) {
 				$insert_data = $backup_courses_assoc[$backup_id];
-				unset($insert_data['id']); // Fontos! Töröljük a régi ID-t, és hagyjuk, hogy a MySQL generáljon egy újat, így elkerüljük a konfliktusokat!
+				unset($insert_data['id']);
 				
 				$wpdb->insert( $courses_table, $insert_data );
 				$hub_ids_to_sync[] = $wpdb->insert_id;
 			}
 		}
 
-		// Részleges módosítás (A hibrid ID alapján dolgozunk: Aktuális ID | Mentés ID)
 		if ( !empty($courses_to_update) ) {
 			$schema_json = get_option( 'szeducate_local_schema', '[]' );
 			$schema = json_decode( $schema_json, true );
@@ -639,7 +630,6 @@ class SZEducate_Backup_Manager {
 						'course_data' => wp_json_encode($cc_data, JSON_UNESCAPED_UNICODE)
 					];
 
-					// Lapított oszlopok szinkronizálása a Sémából
 					if ( is_array( $schema ) ) {
 						foreach ( $schema as $group ) {
 							if ( ! empty( $group['fields'] ) ) {
@@ -672,14 +662,12 @@ class SZEducate_Backup_Manager {
 			}
 		}
 
-		// 4. Webhookok kiküldése a Klienseknek
 		if ( $wpdb->get_var( "SHOW TABLES LIKE '{$clients_table}'" ) == $clients_table ) {
 			$all_clients = $wpdb->get_results( "SELECT client_url FROM {$clients_table} WHERE client_url != ''" );
 			
 			foreach ( $all_clients as $c ) {
 				$base_webhook_url = rtrim( $c->client_url, '/' ) . '/wp-json/szeducate/v1/client/sync-course';
 				
-				// Újak és módosítottak
 				foreach ( $hub_ids_to_sync as $h_id ) {
 					wp_remote_post( $base_webhook_url, [
 						'blocking' => false, 'timeout' => 5,
@@ -688,7 +676,6 @@ class SZEducate_Backup_Manager {
 					] );
 				}
 				
-				// Töröltek
 				foreach ( $hub_ids_to_delete as $h_id ) {
 					wp_remote_request( $base_webhook_url . '/' . $h_id, [
 						'method' => 'DELETE', 'blocking' => false, 'timeout' => 5,
@@ -743,219 +730,9 @@ class SZEducate_Backup_Manager {
 			$results[] = array(
 				'filename' => basename( $file ),
 				'size'     => size_format( filesize( $file ) ),
-				'time'     => date( 'Y. m. d. H:i:s', filemtime( $file ) )
+				'time'     => wp_date( 'Y. m. d. H:i:s', filemtime( $file ) )
 			);
 		}
 		return $results;
-	}
-
-	// --- Settings Callbacks (A többi változatlan) ---
-	public function cb_frequency() {
-		$opts = get_option( 'szeducate_backup_settings', [] );
-		$freq = $opts['backup_frequency'] ?? 'none';
-		echo '<select name="szeducate_backup_settings[backup_frequency]">
-			<option value="none" ' . selected( $freq, 'none', false ) . '>Kikapcsolva</option>
-			<option value="szeducate_hourly" ' . selected( $freq, 'szeducate_hourly', false ) . '>Óránként (WP Cron)</option>
-			<option value="szeducate_daily_three" ' . selected( $freq, 'szeducate_daily_three', false ) . '>Napi 3x (08:00, 12:00, 16:00) (WP Cron)</option>
-			<option value="daily" ' . selected( $freq, 'daily', false ) . '>Naponta egyszer (WP Cron)</option>
-			<option value="szeducate_weekly" ' . selected( $freq, 'szeducate_weekly', false ) . '>Hetente egyszer (WP Cron)</option>
-			<option value="szeducate_monthly" ' . selected( $freq, 'szeducate_monthly', false ) . '>Havonta egyszer (WP Cron)</option>
-		</select>';
-
-		$next_run = wp_next_scheduled( 'szeducate_automated_backup_cron' );
-		if ( $next_run && $freq !== 'none' ) {
-			$date_format = get_option( 'date_format' );
-			$time_format = get_option( 'time_format' );
-			
-			if ( $freq === 'szeducate_daily_three' ) {
-				$current_timestamp = current_time( 'timestamp' );
-				$current_hour = (int) wp_date( 'H', $current_timestamp );
-				
-				$next_valid_hour = 8;
-				$add_days = 0;
-
-				if ($current_hour < 8) { $next_valid_hour = 8; }
-				elseif ($current_hour < 12) { $next_valid_hour = 12; }
-				elseif ($current_hour < 16) { $next_valid_hour = 16; }
-				else { $next_valid_hour = 8; $add_days = 1; }
-
-				$tomorrow_str = wp_date( 'Y-m-d', strtotime( "+{$add_days} days", $current_timestamp ) );
-				$next_actual_run = strtotime( "{$tomorrow_str} " . str_pad($next_valid_hour, 2, '0', STR_PAD_LEFT) . ":00:00" );
-				$local_time = wp_date( "{$date_format} {$time_format}", $next_actual_run );
-			} else {
-				$local_time = wp_date( "{$date_format} {$time_format}", $next_run );
-			}
-			
-			echo '<p class="description" style="color:#007cba; margin-top:8px;"><strong><span class="dashicons dashicons-clock" style="font-size:16px; width:16px; height:16px; margin-top:2px;"></span> Következő várható mentés:</strong> ' . esc_html( $local_time ) . '</p>';
-		} elseif ( $freq !== 'none' ) {
-			echo '<p class="description" style="color:#d63638; margin-top:8px;"><strong><span class="dashicons dashicons-warning" style="font-size:16px; width:16px; height:16px; margin-top:2px;"></span> Figyelem:</strong> Az időzítő nem aktív. Kérlek, mentsd el a beállításokat!</p>';
-		}
-	}
-	public function cb_retention() {
-		$opts = get_option( 'szeducate_backup_settings', [] );
-		$val = $opts['backup_retention'] ?? 10;
-		echo '<input type="number" name="szeducate_backup_settings[backup_retention]" value="' . esc_attr($val) . '" class="small-text" min="1" max="100" />';
-		echo '<p class="description">A régebbi mentések automatikusan törlődnek a szerverről.</p>';
-	}
-	public function cb_cloud_desc() {
-		echo '<p class="description">A Graph API összekapcsolásával minden mentés (a manuális és az automatikus is) egy másolata azonnal felkerül a megadott felhasználó OneDrive tárhelyére, a <code>SZEducate_Backups</code> mappába.</p>';
-	}
-	public function cb_od_tenant() {
-		$opts = get_option( 'szeducate_backup_settings', [] );
-		echo '<input type="text" name="szeducate_backup_settings[onedrive_tenant_id]" value="' . esc_attr($opts['onedrive_tenant_id'] ?? '') . '" placeholder="pl: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />';
-	}
-	public function cb_od_client() {
-		$opts = get_option( 'szeducate_backup_settings', [] );
-		echo '<input type="text" name="szeducate_backup_settings[onedrive_client_id]" value="' . esc_attr($opts['onedrive_client_id'] ?? '') . '" placeholder="pl: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />';
-	}
-	public function cb_od_secret() {
-		$opts = get_option( 'szeducate_backup_settings', [] );
-		echo '<input type="password" name="szeducate_backup_settings[onedrive_client_secret]" value="' . esc_attr($opts['onedrive_client_secret'] ?? '') . '" placeholder="Value (Nem a Secret ID!)" />';
-	}
-	public function cb_od_email() {
-		$opts = get_option( 'szeducate_backup_settings', [] );
-		echo '<input type="email" name="szeducate_backup_settings[onedrive_user_email]" value="' . esc_attr($opts['onedrive_user_email'] ?? '') . '" placeholder="pl. admin@sze.hu" />';
-	}
-
-	public function add_cron_schedules( $schedules ) {
-		$schedules['szeducate_hourly']  = array( 'interval' => 3600, 'display' => 'Óránként' );
-		$schedules['szeducate_weekly']  = array( 'interval' => 604800, 'display' => 'Hetente egyszer' );
-		$schedules['szeducate_monthly'] = array( 'interval' => 2592000, 'display' => 'Havonta egyszer' );
-		return $schedules;
-	}
-
-	public function setup_directory() {
-		if ( ! file_exists( $this->backup_dir ) ) {
-			wp_mkdir_p( $this->backup_dir );
-			file_put_contents( $this->backup_dir . '.htaccess', 'deny from all' );
-			file_put_contents( $this->backup_dir . 'index.php', '<?php // Silence is golden' );
-		}
-	}
-
-	public function update_cron_schedule( $old_value, $new_value ) {
-		$main_settings = get_option( 'szeducate_settings' );
-		$mode = isset( $main_settings['mode'] ) ? $main_settings['mode'] : 'client';
-		wp_clear_scheduled_hook( 'szeducate_automated_backup_cron' );
-
-		if ( $mode === 'hub' && !empty( $new_value['backup_frequency'] ) && $new_value['backup_frequency'] !== 'none' ) {
-			$hook_interval = $new_value['backup_frequency'];
-			if ( $hook_interval === 'szeducate_daily_three' ) {
-				$hook_interval = 'szeducate_hourly';
-			}
-			wp_schedule_event( time(), $hook_interval, 'szeducate_automated_backup_cron' );
-		}
-	}
-
-	public function perform_automated_backup() {
-		$main_settings = get_option( 'szeducate_settings' );
-		if ( isset( $main_settings['mode'] ) && $main_settings['mode'] === 'hub' ) {
-			$opts = get_option( 'szeducate_backup_settings', [] );
-			$freq = $opts['backup_frequency'] ?? 'none';
-
-			if ( $freq === 'szeducate_daily_three' ) {
-				$current_hour = current_time( 'H' ); 
-				if ( ! in_array( $current_hour, ['08', '12', '16'], true ) ) {
-					return; 
-				}
-			}
-
-			$this->create_backup( 'auto' );
-			$this->clean_old_backups();
-		}
-	}
-
-	public function handle_manual_backup() {
-		if ( ! current_user_can( 'manage_options' ) || ! wp_verify_nonce( $_POST['_wpnonce'], 'szeducate_manual_backup' ) ) wp_die( 'Nincs jogosultságod.' );
-		$this->create_backup( 'manual' );
-		$this->clean_old_backups();
-		wp_safe_redirect( add_query_arg( array( 'page' => 'szeducate-backups', 'backup_msg' => 'success_create' ), admin_url( 'admin.php' ) ) );
-		exit;
-	}
-
-	public function handle_upload_backup() {
-		if ( ! current_user_can( 'manage_options' ) || ! wp_verify_nonce( $_POST['_wpnonce'], 'szeducate_upload_backup' ) ) wp_die( 'Nincs jogosultságod.' );
-		if ( empty( $_FILES['backup_file']['name'] ) ) wp_die( 'Nem választottál ki fájlt!' );
-
-		$file = $_FILES['backup_file'];
-		$ext = pathinfo( $file['name'], PATHINFO_EXTENSION );
-		if ( strtolower( $ext ) !== 'json' ) wp_die( 'Csak .json kiterjesztésű fájlt tölthetsz fel!' );
-
-		$this->setup_directory();
-		$filename = sanitize_file_name( $file['name'] );
-		$filepath = $this->backup_dir . $filename;
-
-		if ( move_uploaded_file( $file['tmp_name'], $filepath ) ) {
-			wp_safe_redirect( add_query_arg( array( 'page' => 'szeducate-backups', 'backup_msg' => 'success_upload' ), admin_url( 'admin.php' ) ) );
-		} else {
-			wp_die( 'Hiba történt a fájl feltöltése során. Ellenőrizd a szerver jogosultságait!' );
-		}
-		exit;
-	}
-
-	private function create_backup( $type = 'auto' ) {
-		global $wpdb;
-		$this->setup_directory();
-
-		$data = array(
-			'timestamp'   => current_time('mysql'),
-			'type'        => $type,
-			'schema'      => json_decode( get_option( 'szeducate_local_schema', '[]' ), true ),
-			'permissions' => json_decode( get_option( 'szeducate_client_permissions', '[]' ), true ),
-			'clients'     => $wpdb->get_results( "SELECT * FROM {$wpdb->prefix}szeducate_clients", ARRAY_A ),
-			'courses'     => $wpdb->get_results( "SELECT * FROM {$wpdb->prefix}szeducate_courses_data", ARRAY_A )
-		);
-
-		$json_data = wp_json_encode( $data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES );
-		if ( json_last_error() !== JSON_ERROR_NONE ) {
-			$json_data = json_encode( $data ); 
-		}
-
-		$filename = 'szeducate_backup_' . date('Y-m-d_H-i-s') . '_' . $type . '.json';
-		$filepath = $this->backup_dir . $filename;
-		file_put_contents( $filepath, $json_data );
-
-		$this->upload_to_onedrive( $filepath, $filename );
-	}
-
-	private function upload_to_onedrive( $filepath, $filename ) {
-		$opts = get_option( 'szeducate_backup_settings', [] );
-		if ( empty($opts['onedrive_tenant_id']) || empty($opts['onedrive_client_id']) || empty($opts['onedrive_client_secret']) || empty($opts['onedrive_user_email']) ) return false; 
-
-		$auth_url = "https://login.microsoftonline.com/{$opts['onedrive_tenant_id']}/oauth2/v2.0/token";
-		$auth_response = wp_remote_post( $auth_url, array(
-			'body' => array(
-				'client_id'     => $opts['onedrive_client_id'],
-				'client_secret' => $opts['onedrive_client_secret'],
-				'scope'         => 'https://graph.microsoft.com/.default',
-				'grant_type'    => 'client_credentials'
-			)
-		));
-
-		if ( is_wp_error( $auth_response ) ) return false;
-		$auth_body = json_decode( wp_remote_retrieve_body( $auth_response ), true );
-		if ( empty( $auth_body['access_token'] ) ) return false;
-
-		$upload_url = "https://graph.microsoft.com/v1.0/users/{$opts['onedrive_user_email']}/drive/root:/SZEducate_Backups/{$filename}:/content";
-		$upload_response = wp_remote_request( $upload_url, array(
-			'method'  => 'PUT',
-			'headers' => array( 'Authorization' => 'Bearer ' . $auth_body['access_token'], 'Content-Type'  => 'application/json' ),
-			'body'    => file_get_contents( $filepath ),
-			'timeout' => 60 
-		));
-
-		return true;
-	}
-
-	private function clean_old_backups() {
-		$opts = get_option( 'szeducate_backup_settings', [] );
-		$retention = isset( $opts['backup_retention'] ) ? intval( $opts['backup_retention'] ) : 10;
-		if ( $retention <= 0 ) return;
-
-		$files = glob( $this->backup_dir . '*.json' );
-		if ( count( $files ) > $retention ) {
-			usort( $files, function( $a, $b ) { return filemtime( $b ) - filemtime( $a ); });
-			$files_to_delete = array_slice( $files, $retention );
-			foreach ( $files_to_delete as $file ) unlink( $file );
-		}
 	}
 }

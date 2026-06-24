@@ -197,12 +197,10 @@ class SZEducate_Hub_API {
 
 		$existing_row = null;
 		
-		// ID alapján próbáljuk először megtalálni (Így ha a címet átírták, akkor is tudja, hogy ugyanarról van szó)
 		if ( $hub_id_param > 0 ) {
 			$existing_row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table_name WHERE id = %d LIMIT 1", $hub_id_param ), ARRAY_A );
 		}
 		
-		// Fallback: Ha nincs ID, de a cím megegyezik
 		if ( ! $existing_row ) {
 			$existing_row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table_name WHERE title = %s LIMIT 1", $title ), ARRAY_A );
 		}

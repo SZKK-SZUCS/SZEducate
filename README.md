@@ -151,6 +151,14 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.6
+
+- Version control and localization
+
+### 0.9.5
+
+- Backup Automation + editing fixup
+
 ### 0.9.4
 
 - BackupManagement
