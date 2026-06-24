@@ -1,7 +1,5 @@
 import { render, useState, useEffect, useRef } from "@wordpress/element";
 import {
-  Panel,
-  PanelBody,
   TextControl,
   TextareaControl,
   SelectControl,
@@ -464,7 +462,7 @@ const SZEducateEditor = () => {
     setFormData((prev) => ({ ...prev, [key]: value }));
 
   const renderField = (field) => {
-    const value = formData[field.key] || "";
+    const value = formData[field.key] !== undefined ? formData[field.key] : "";
     const requiredMark = field.is_required ? (
       <span style={{ color: "#d63638", marginLeft: "4px" }}>*</span>
     ) : (
@@ -771,7 +769,9 @@ const SZEducateEditor = () => {
 
           if (field.is_required && !field.is_readonly && !globalReadonly) {
             let isEmpty = false;
-            if (val === undefined || val === null) {
+            if (field.type === "boolean" || field.type === "true_false") {
+              isEmpty = false;
+            } else if (val === undefined || val === null) {
               isEmpty = true;
             } else if (field.type === "repeater" || field.type === "links") {
               if (!Array.isArray(val) || val.length === 0) isEmpty = true;
@@ -888,7 +888,7 @@ const SZEducateEditor = () => {
   return (
     <div
       className="szeducate-react-wrapper"
-      style={{ maxWidth: "1000px", margin: "0 auto" }}>
+      style={{ maxWidth: "1200px", margin: "0 auto" }}>
       {message && (
         <Notice
           status={message.type}
@@ -898,110 +898,142 @@ const SZEducateEditor = () => {
         </Notice>
       )}
 
-      <Panel
-        header={`SZEducate Képzés Szerkesztő ${
-          globalReadonly ? "(Csak Megtekintés)" : ""
-        }`}>
-        {schema && schema.length > 0 ? (
-          <div style={{ background: "#fff", border: "1px solid #e2e4e7" }}>
-            <TabPanel
-              className="szeducate-tabs"
-              activeClass="is-active"
-              tabs={buildTabs()}>
-              {(tab) => (
-                <div style={{ padding: "20px" }}>
-                  {tab.name === "alap_adatok" && (
-                    <div
-                      style={{
-                        marginBottom: "30px",
-                        paddingBottom: "25px",
-                        borderBottom: "1px solid #f0f0f1",
-                      }}>
-                      <TextControl
-                        label={
-                          <span
-                            style={{
-                              fontWeight: 600,
-                              fontSize: "13px",
-                              color: "#1d2327",
-                              display: "inline-flex",
-                              alignItems: "center",
-                            }}>
-                            Képzés Címe (Szak megnevezése){" "}
-                            <span
-                              style={{ color: "#d63638", marginLeft: "4px" }}>
-                              *
-                            </span>{" "}
-                            {globalReadonly && (
-                              <span
-                                style={{
-                                  color: "#888",
-                                  fontSize: "12px",
-                                  fontWeight: "normal",
-                                  marginLeft: "6px",
-                                }}>
-                                (Csak olvasható)
-                              </span>
-                            )}
-                          </span>
-                        }
-                        value={title}
-                        onChange={(value) => setTitle(value)}
-                        help="Add meg a képzés pontos, hivatalos megnevezését."
-                        disabled={globalReadonly}
-                      />
-                    </div>
-                  )}
-                  {tab.fields && tab.fields.map((field) => renderField(field))}
-                </div>
-              )}
-            </TabPanel>
-          </div>
-        ) : (
-          <Notice
-            status="warning"
-            isDismissible={false}
-            style={{ marginTop: "20px" }}>
-            Hiányzó séma! Kérlek szinkronizálj a Hubbal a Beállításokban.
-          </Notice>
-        )}
-      </Panel>
+      {globalReadonly && (
+        <Notice
+          status="warning"
+          isDismissible={false}
+          style={{ marginBottom: "20px" }}>
+          <strong>Figyelem:</strong> Nincs jogosultságod a képzés adatainak
+          módosítására. Az űrlap csak olvasható módban nyílt meg.
+        </Notice>
+      )}
 
       <div
         style={{
-          marginTop: "20px",
-          padding: "20px",
-          background: "#fff",
-          border: "1px solid #e2e4e7",
           display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
+          gap: "20px",
+          alignItems: "flex-start",
+          position: "relative",
         }}>
-        <span style={{ fontSize: "12px", color: "#666" }}>
-          {globalReadonly ? (
-            "Nincs jogosultságod módosítani ezt a képzést."
-          ) : (
-            <>
-              A <span style={{ color: "#d63638" }}>*</span>-gal jelölt mezők
-              kitöltése kötelező.
-            </>
-          )}
-        </span>
-        {canSave && (
-          <Button
-            isPrimary
-            isBusy={isSaving}
-            onClick={handleSave}
-            style={{ padding: "5px 30px", backgroundColor: "#007cba" }}>
-            {isSaving ? (
-              <>
-                <Spinner /> Mentés...
-              </>
-            ) : (
-              "Véglegesítés és Mentés"
-            )}
-          </Button>
-        )}
+        {/* Bal oldali statikus kártya */}
+        <div style={{ flex: 3 }}>
+          <div
+            style={{
+              background: "#fff",
+              border: "1px solid #c3c4c7",
+              borderRadius: "4px",
+              boxShadow: "0 1px 1px rgba(0,0,0,.04)",
+            }}>
+            <h2
+              style={{
+                padding: "15px 20px",
+                margin: 0,
+                borderBottom: "1px solid #c3c4c7",
+                fontSize: "14px",
+                fontWeight: 600,
+                background: "#f6f7f7",
+              }}>
+              Képzés Részletei {globalReadonly ? "(Csak Megtekintés)" : ""}
+            </h2>
+            <div style={{ padding: "20px" }}>
+              {schema && schema.length > 0 ? (
+                <TabPanel
+                  className="szeducate-tabs"
+                  activeClass="is-active"
+                  tabs={buildTabs()}>
+                  {(tab) => (
+                    <div style={{ padding: "20px 0" }}>
+                      {tab.fields &&
+                        tab.fields.map((field) => renderField(field))}
+                    </div>
+                  )}
+                </TabPanel>
+              ) : (
+                <Notice
+                  status="warning"
+                  isDismissible={false}
+                  style={{ marginTop: "20px" }}>
+                  Hiányzó séma! Kérlek szinkronizálj a Hubbal a Beállításokban.
+                </Notice>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Jobb oldali ragadós (sticky) kártya */}
+        <div style={{ flex: 1, position: "sticky", top: "50px", zIndex: 10 }}>
+          <div
+            style={{
+              background: "#fff",
+              border: "1px solid #c3c4c7",
+              borderRadius: "4px",
+              boxShadow: "0 1px 1px rgba(0,0,0,.04)",
+            }}>
+            <h2
+              style={{
+                padding: "15px 20px",
+                margin: 0,
+                borderBottom: "1px solid #c3c4c7",
+                fontSize: "14px",
+                fontWeight: 600,
+                background: "#f6f7f7",
+              }}>
+              Mentés és Megnevezés
+            </h2>
+            <div style={{ padding: "20px" }}>
+              <TextControl
+                label={
+                  <span
+                    style={{
+                      fontWeight: 600,
+                      fontSize: "13px",
+                      color: "#1d2327",
+                      display: "inline-flex",
+                      alignItems: "center",
+                    }}>
+                    Képzés Címe (Szak megnevezése){" "}
+                    <span style={{ color: "#d63638", marginLeft: "4px" }}>
+                      *
+                    </span>{" "}
+                  </span>
+                }
+                value={title}
+                onChange={(value) => setTitle(value)}
+                help="Ez jelenik meg a listákban és a címekben."
+                disabled={globalReadonly}
+                style={{ marginBottom: "20px" }}
+              />
+
+              {!globalReadonly && (
+                <Button
+                  isPrimary
+                  isLarge
+                  style={{
+                    width: "100%",
+                    justifyContent: "center",
+                    marginTop: "10px",
+                  }}
+                  onClick={handleSave}
+                  disabled={isSaving}>
+                  {isSaving ? <Spinner /> : "Adatlap Mentése"}
+                </Button>
+              )}
+
+              <p
+                style={{
+                  fontSize: "12px",
+                  color: "#666",
+                  marginTop: "15px",
+                  marginBottom: 0,
+                  textAlign: "center",
+                }}>
+                {globalReadonly
+                  ? "Nincs jogosultságod módosítani ezt a képzést."
+                  : "A csillaggal (*) jelölt mezők kitöltése kötelező."}
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

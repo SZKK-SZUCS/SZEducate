@@ -10,8 +10,6 @@ class SZEducate_Client {
 		add_action( 'init', array( $this, 'register_dynamic_taxonomies' ) );
 		
 		add_action( 'szeducate_background_sync', array( $this, 'sync_course_to_hub' ) );
-		add_action( 'wp_trash_post', array( $this, 'delete_course_on_hub' ) );
-		add_action( 'before_delete_post', array( $this, 'delete_course_on_hub' ) );
 
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_react_app' ) );
 		add_action( 'edit_form_after_title', array( $this, 'render_react_root' ) );
@@ -42,6 +40,9 @@ class SZEducate_Client {
 		add_action( 'in_admin_header', array( $this, 'render_advanced_filter_panel' ) );
 
 		add_action( 'rest_api_init', array( $this, 'register_client_endpoints' ) );
+
+		add_filter( 'pre_trash_post', array( $this, 'bypass_trash_for_courses' ), 10, 2 );
+		add_action( 'before_delete_post', array( $this, 'process_course_deletion' ), 10, 1 );
 	}
 
 	public function register_query_vars( $vars ) {
@@ -77,7 +78,7 @@ class SZEducate_Client {
 		foreach ( $schema as $group ) {
 			if ( empty( $group['fields'] ) ) continue;
 			foreach ( $group['fields'] as $field ) {
-				if ( !empty($field['is_filterable']) && in_array($field['type'], array('select', 'radio', 'checkbox', 'boolean')) ) {
+				if ( !empty($field['is_filterable']) && in_array($field['type'], array('select', 'radio', 'checkbox', 'boolean', 'true_false')) ) {
 					$filterable_fields[$field['key']] = $field;
 				}
 			}
@@ -94,7 +95,7 @@ class SZEducate_Client {
 					<div style="display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 20px;">
 						<?php foreach ( $filterable_fields as $field ) : 
 							$options = array();
-							if ( $field['type'] === 'boolean' ) {
+							if ( $field['type'] === 'boolean' || $field['type'] === 'true_false' ) {
 								$options = array('true' => 'Igen', 'false' => 'Nem');
 							} else {
 								$raw_options = array_map('trim', explode(';', $field['options'] ?? ''));
@@ -259,8 +260,21 @@ class SZEducate_Client {
 	}
 
 	public function add_custom_bulk_actions( $bulk_actions ) {
+		unset($bulk_actions['trash']);
+		unset($bulk_actions['delete']);
+
+		$perms = json_decode( get_option('szeducate_client_permissions', '{}'), true );
+		$actions = isset($perms['actions']) ? $perms['actions'] : array();
+
 		$bulk_actions['szeducate_activate'] = 'Tömeges Aktiválás (Határidővel is)';
 		$bulk_actions['szeducate_deactivate'] = 'Tömeges Passziválás';
+		
+		$can_delete = isset($actions['delete']) ? (bool) $actions['delete'] : true;
+
+		if ( $can_delete && current_user_can('edit_posts') ) {
+			$bulk_actions['szeducate_delete'] = 'Végleges Törlés (központilag is)';
+		}
+
 		return $bulk_actions;
 	}
 
@@ -352,7 +366,7 @@ class SZEducate_Client {
 					if (!select) return;
 					const action = select.value;
 
-					if ( action === 'szeducate_activate' || action === 'szeducate_deactivate' ) {
+					if ( action === 'szeducate_activate' || action === 'szeducate_deactivate' || action === 'szeducate_delete' ) {
 						e.preventDefault();
 						
 						const checked = document.querySelectorAll('input[name="post[]"]:checked');
@@ -367,6 +381,10 @@ class SZEducate_Client {
 						if ( action === 'szeducate_activate' ) {
 							dateInput.value = ''; 
 							modal.style.display = 'flex'; 
+						} else if ( action === 'szeducate_delete' ) {
+							if (confirm('FIGYELEM! Biztosan VÉGLEGESEN törlöd a kijelölt képzéseket? Ez a művelet a Hubról is visszavonhatatlanul letörli őket!')) {
+								executeBulkAction(action, '', currentPostIds);
+							}
 						} else {
 							if (confirm('Biztosan passziválod a kijelölt képzéseket?')) {
 								executeBulkAction(action, '', currentPostIds);
@@ -386,7 +404,8 @@ class SZEducate_Client {
 
 	public function ajax_process_bulk_status() {
 		check_ajax_referer( 'szeducate_bulk_nonce' );
-		if ( ! current_user_can( 'edit_sz_courses' ) && ! current_user_can( 'manage_options' ) ) wp_send_json_error( 'Nincs jogosultságod.' );
+		
+		if ( ! current_user_can( 'edit_posts' ) && ! current_user_can( 'manage_options' ) ) wp_send_json_error( 'Nincs jogosultságod.' );
 
 		$bulk_action = isset($_POST['bulk_action']) ? sanitize_text_field($_POST['bulk_action']) : '';
 		$expiry_date = isset($_POST['expiry_date']) ? sanitize_text_field($_POST['expiry_date']) : '';
@@ -395,6 +414,16 @@ class SZEducate_Client {
 
 		if ( empty($post_ids) || ! is_array($post_ids) ) {
 			wp_send_json_error( 'Nincsenek kijelölt elemek.' );
+		}
+
+		if ( $bulk_action === 'szeducate_delete' ) {
+			$deleted_count = 0;
+			foreach ( $post_ids as $pid ) {
+				wp_delete_post( intval($pid), true ); 
+				$deleted_count++;
+			}
+			wp_send_json_success( "Sikeresen véglegesen törölve: $deleted_count db képzés." );
+			return; 
 		}
 
 		global $wpdb;
@@ -447,7 +476,8 @@ class SZEducate_Client {
 			$perm_actions = isset($perms['actions']) ? $perms['actions'] : array();
 			
 			unset( $actions['inline hide-if-no-js'] ); 
-			unset( $actions['view'] );
+			unset( $actions['view'] ); 
+			unset( $actions['trash'] );
 			
 			if ( isset($perm_actions['edit']) && !$perm_actions['edit'] ) {
 				if ( isset( $actions['edit'] ) ) {
@@ -455,19 +485,17 @@ class SZEducate_Client {
 				}
 			}
 
+			$can_delete = isset($perm_actions['delete']) ? (bool) $perm_actions['delete'] : true;
 
-			if ( isset($perm_actions['delete']) && !$perm_actions['delete'] ) {
-				unset( $actions['trash'] );
+			if ( ! $can_delete ) {
 				unset( $actions['delete'] );
 			} else {
-				
-				unset( $actions['trash'] );
-				if ( current_user_can( 'delete_sz_course', $post->ID ) ) {
-					$delete_url = get_delete_post_link( $post->ID, '', true ); 
+				if ( current_user_can( 'edit_posts' ) ) {
+					$delete_url = wp_nonce_url( admin_url( 'post.php?post=' . $post->ID . '&action=delete' ), 'delete-post_' . $post->ID );
 					$actions['delete'] = sprintf(
-						'<a href="%s" class="submitdelete" onclick="return confirm(\'%s\');">%s</a>',
-						esc_url( $delete_url ),
-						'Biztosan véglegesen törölni akarod? Ez minden gépen azonnal törli a képzést!',
+						'<a href="%s" class="submitdelete" style="color: #d63638;" onclick="return confirm(\'%s\');">%s</a>',
+						$delete_url,
+						'Biztosan véglegesen törölni akarod? Ez a művelet a Hub-ról is eltünteti a képzést!',
 						'Végleges törlés'
 					);
 				}
@@ -496,7 +524,7 @@ class SZEducate_Client {
 			'menu_icon'          => 'dashicons-welcome-learn-more',
 			'show_in_rest'       => true, 
 			'supports'           => array( 'title' ), 
-			'capability_type'    => array( 'sz_course', 'sz_courses' ),
+			'capability_type'    => 'post',
 			'map_meta_cap'       => true,
 		);
 		register_post_type( 'sz_course', $args );
@@ -591,7 +619,7 @@ class SZEducate_Client {
 				}
 				#szeducate-react-root {
 					margin-top: 20px;
-					max-width: 1000px;
+					max-width: 1200px;
 					display: block !important;
 				}
 			</style>';
@@ -671,6 +699,7 @@ class SZEducate_Client {
 
 		$payload = array(
 			'local_post_id' => $local_post_id,
+			'hub_id'        => isset($course['hub_id']) ? intval($course['hub_id']) : 0,
 			'title'         => $course['title'],
 			'course_data'   => json_decode( $course['course_data'], true )
 		);
@@ -735,7 +764,7 @@ class SZEducate_Client {
 			'methods'             => \WP_REST_Server::READABLE,
 			'callback'            => array( $this, 'get_field_options_for_editor' ),
 			'permission_callback' => function() {
-				return current_user_can( 'edit_sz_courses' ) || current_user_can( 'manage_options' );
+				return current_user_can( 'edit_posts' ) || current_user_can( 'manage_options' );
 			}
 		) );
 
@@ -778,6 +807,77 @@ class SZEducate_Client {
 		
 		sort( $options );
 		return rest_ensure_response( $options );
+	}
+
+	public function bypass_trash_for_courses( $trash, $post ) {
+		if ( $post->post_type === 'sz_course' ) {
+			wp_delete_post( $post->ID, true );
+			return true;
+		}
+		return $trash;
+	}
+
+	public function process_course_deletion( $post_id ) {
+		$post = get_post( $post_id );
+		if ( ! $post || $post->post_type !== 'sz_course' ) return;
+
+		if ( !empty($GLOBALS['szeducate_is_sync_deleting']) ) return;
+
+		$perms = json_decode( get_option('szeducate_client_permissions', '{}'), true );
+		$actions = isset($perms['actions']) ? $perms['actions'] : array();
+		
+		if ( isset($actions['delete']) && !$actions['delete'] ) {
+			if ( wp_doing_ajax() ) {
+				wp_send_json_error('A karod Jogosultsági Mátrixa jelenleg nem engedélyezi a képzések törlését!');
+			} else {
+				wp_die( '<h1>Nincs jogosultságod!</h1><p>A karod Jogosultsági Mátrixa jelenleg nem engedélyezi a képzések törlését!</p><a href="javascript:history.back()">Vissza</a>' );
+			}
+		}
+
+		global $wpdb;
+		$table_name = $wpdb->prefix . 'szeducate_courses_data';
+		$course = $wpdb->get_row( $wpdb->prepare( "SELECT hub_id FROM $table_name WHERE local_post_id = %d", $post_id ), ARRAY_A );
+
+		if ( $course && ! empty( $course['hub_id'] ) ) {
+			$settings = get_option( 'szeducate_settings', array() );
+			$hub_url = rtrim( $settings['hub_url'], '/' );
+			$api_token = $settings['api_token'];
+
+			if ( !empty( $hub_url ) && !empty( $api_token ) ) {
+				$endpoint = $hub_url . '/wp-json/szeducate/v1/hub/courses/' . $course['hub_id'];
+				
+				$response = wp_remote_request( $endpoint, array(
+					'method'      => 'DELETE',
+					'headers'     => array( 'Authorization' => 'Bearer ' . $api_token ),
+					'timeout'     => 15,
+					'blocking'    => true, 
+				) );
+
+				if ( is_wp_error( $response ) ) {
+					if ( wp_doing_ajax() ) {
+						wp_send_json_error('Hálózati Hiba a Hub elérésekor!');
+					} else {
+						wp_die( '<h1>Hálózati Hiba</h1><p>Nem sikerült elérni a Hub szervert a törléshez! A képzést nem tudtuk törölni! (' . $response->get_error_message() . ')</p><a href="javascript:history.back()">Vissza</a>' );
+					}
+				}
+				
+				$code = wp_remote_retrieve_response_code($response);
+				if ( $code !== 200 && $code !== 404 ) { 
+					$body = json_decode(wp_remote_retrieve_body($response), true);
+					$msg = isset($body['message']) ? $body['message'] : 'Ismeretlen hiba';
+					if ( wp_doing_ajax() ) {
+						wp_send_json_error('Hub Elutasítva: ' . $msg);
+					} else {
+						wp_die( '<h1>Hub Elutasítva</h1><p>A központi szerver elutasította a törlést, így helyben is megszakítottuk azt! Oka: ' . esc_html($msg) . '</p><a href="javascript:history.back()">Vissza</a>' );
+					}
+				}
+			}
+		}
+
+		$wpdb->delete( $table_name, array( 'local_post_id' => $post_id ) );
+
+		global $szeducate_is_local_deleting;
+		$szeducate_is_local_deleting = true; 
 	}
 
 	public function ajax_search_courses( \WP_REST_Request $request ) {
@@ -911,39 +1011,5 @@ class SZEducate_Client {
 		$final_courses = array_slice( $course_results, 0, 7 );
 
 		return rest_ensure_response( array_merge( $final_categories, $final_courses ) );
-	}
-
-	public function delete_course_on_hub( $post_id ) {
-		// Megjelöljük, hogy a törlés innen, a mi gépünkről indult
-		global $szeducate_is_local_deleting;
-		$szeducate_is_local_deleting = true;
-
-		if ( !empty($GLOBALS['szeducate_is_sync_deleting']) ) return;
-		if ( get_post_type( $post_id ) !== 'sz_course' ) return;
-
-		global $wpdb;
-		$table_name = $wpdb->prefix . 'szeducate_courses_data';
-
-		$course = $wpdb->get_row( $wpdb->prepare( "SELECT hub_id FROM $table_name WHERE local_post_id = %d", $post_id ), ARRAY_A );
-		if ( ! $course || empty( $course['hub_id'] ) ) return;
-
-		$settings = get_option( 'szeducate_settings', array() );
-		$hub_url = rtrim( $settings['hub_url'], '/' );
-		$api_token = $settings['api_token'];
-
-		if ( empty( $hub_url ) || empty( $api_token ) ) return;
-
-		$endpoint = $hub_url . '/wp-json/szeducate/v1/hub/courses/' . $course['hub_id'];
-
-		wp_remote_request( $endpoint, array(
-			'method'      => 'DELETE',
-			'headers'     => array(
-				'Authorization' => 'Bearer ' . $api_token,
-			),
-			'timeout'     => 5,
-			'blocking'    => false, 
-		) );
-
-		$wpdb->delete( $table_name, array( 'local_post_id' => $post_id ) );
 	}
 }

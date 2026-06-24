@@ -215,7 +215,7 @@ class SZEducate_Backup_Manager {
 		}
 	}
 
-	// --- INSPECTION MODE (Részleges, Sebészi Visszaállítás) ---
+	// --- INSPECTION MODE (Hibrid Párosító Motor) ---
 	public function render_inspection_mode( $filename ) {
 		$filepath = $this->backup_dir . basename( $filename );
 		if ( ! file_exists( $filepath ) ) {
@@ -233,7 +233,7 @@ class SZEducate_Backup_Manager {
 		$courses_table = $wpdb->prefix . 'szeducate_courses_data';
 		$clients_table = $wpdb->prefix . 'szeducate_clients';
 		
-		$current_courses_raw = $wpdb->get_results( "SELECT * FROM $courses_table", ARRAY_A );
+		$current_courses_raw = $wpdb->get_var( "SHOW TABLES LIKE '$courses_table'" ) == $courses_table ? $wpdb->get_results( "SELECT * FROM $courses_table", ARRAY_A ) : [];
 		$current_clients_raw = $wpdb->get_var( "SHOW TABLES LIKE '$clients_table'" ) == $clients_table ? $wpdb->get_results( "SELECT * FROM $clients_table", ARRAY_A ) : [];
 		
 		$current_schema = json_decode( get_option( 'szeducate_local_schema', '[]' ), true );
@@ -264,19 +264,49 @@ class SZEducate_Backup_Manager {
 			}
 		}
 
-		// Képzések Diff (ID alapú párosítás)
+		// Képzések Diff (HIBRID PÁROSÍTÁS: ID + CÍM ALAPJÁN)
 		$backup_courses = isset($data['courses']) ? $data['courses'] : [];
-		$backup_assoc = []; foreach ($backup_courses as $c) $backup_assoc[$c['id']] = $c;
-		$current_assoc = []; foreach ($current_courses_raw as $c) $current_assoc[$c['id']] = $c;
+		
+		$current_unmatched = [];
+		foreach ($current_courses_raw as $c) $current_unmatched[$c['id']] = $c;
 
-		$to_be_restored_ids = array_keys(array_diff_key($backup_assoc, $current_assoc));
-		$to_be_lost_ids = array_keys(array_diff_key($current_assoc, $backup_assoc));
+		$backup_unmatched = [];
+		foreach ($backup_courses as $c) $backup_unmatched[$c['id']] = $c;
+
+		$paired_courses = []; 
+
+		// 1. Kör: Párosítás pontos ID alapján (Címmódosítások lekövetése miatt)
+		foreach ($backup_unmatched as $b_id => $bc) {
+			if (isset($current_unmatched[$b_id])) {
+				$paired_courses[] = ['backup' => $bc, 'current' => $current_unmatched[$b_id]];
+				unset($backup_unmatched[$b_id]);
+				unset($current_unmatched[$b_id]);
+			}
+		}
+
+		// 2. Kör: Párosítás Cím alapján (A Hard Reset miatti ID elcsúszások lekövetése miatt)
+		foreach ($backup_unmatched as $b_id => $bc) {
+			foreach ($current_unmatched as $c_id => $cc) {
+				if ($bc['title'] === $cc['title']) {
+					$paired_courses[] = ['backup' => $bc, 'current' => $cc];
+					unset($backup_unmatched[$b_id]);
+					unset($current_unmatched[$c_id]);
+					break; // Megtaláltuk, ugrás a következő mentett szakhoz
+				}
+			}
+		}
+
+		$to_be_restored = array_values($backup_unmatched); // Amiket a végén sem találtunk az élőben
+		$to_be_lost = array_values($current_unmatched); // Amik csak az élőben vannak, de a mentésben nem
 		
 		$modified_courses = [];
-		foreach ( array_intersect_key($backup_assoc, $current_assoc) as $id => $bc ) {
-			$cc = $current_assoc[$id];
+		foreach ( $paired_courses as $pair ) {
+			$bc = $pair['backup'];
+			$cc = $pair['current'];
+			
 			$changes = [];
 
+			// 1. Cím változás ellenőrzése
 			if ( $bc['title'] !== $cc['title'] ) {
 				$changes['__sz_title__'] = [
 					'label'   => 'Cím (Szak megnevezése)',
@@ -285,6 +315,7 @@ class SZEducate_Backup_Manager {
 				];
 			}
 
+			// 2. Adatlap tartalom változás ellenőrzése
 			$bc_data = is_string($bc['course_data']) ? json_decode($bc['course_data'], true) : $bc['course_data'];
 			$cc_data = is_string($cc['course_data']) ? json_decode($cc['course_data'], true) : $cc['course_data'];
 			
@@ -315,7 +346,10 @@ class SZEducate_Backup_Manager {
 			}
 			
 			if ( !empty($changes) ) {
-				$modified_courses[$id] = [
+				// Mivel a Hard Reset miatt az ID-k eltérhetnek, a HTML formnak mindkettőt tudnia kell!
+				$combined_id = $cc['id'] . '|' . $bc['id']; 
+				
+				$modified_courses[$combined_id] = [
 					'current_title' => $cc['title'],
 					'backup_title'  => $bc['title'],
 					'changes'       => $changes
@@ -398,7 +432,7 @@ class SZEducate_Backup_Manager {
 							<a href="#" class="button button-small" onclick="szToggleCheckboxes(this, '.sz-cb-mod'); return false;">Mind Kijelöl/Töröl</a>
 						</h4>
 						<div style="margin-top:10px; border:1px solid #c3c4c7; background:#fafafa; border-radius:3px;">
-							<?php foreach ( $modified_courses as $cid => $mod ) : ?>
+							<?php foreach ( $modified_courses as $combined_id => $mod ) : ?>
 								<details style="border-bottom: 1px solid #c3c4c7; padding:0;">
 									<summary style="padding: 12px 15px; font-weight: 600; cursor: pointer; color: #f56e28; outline:none;">
 										<?php echo esc_html( $mod['current_title'] ); ?>
@@ -410,7 +444,7 @@ class SZEducate_Backup_Manager {
 											<tbody>
 												<?php foreach($mod['changes'] as $fkey => $diff): ?>
 												<tr>
-													<td><input type="checkbox" class="sz-cb-mod" name="restore_courses[update][<?php echo $cid; ?>][<?php echo base64_encode($fkey); ?>]" value="1" checked></td>
+													<td><input type="checkbox" class="sz-cb-mod" name="restore_courses[update][<?php echo $combined_id; ?>][<?php echo base64_encode($fkey); ?>]" value="1" checked></td>
 													<td><strong><?php echo esc_html($diff['label']); ?></strong></td>
 													<td style="color:#d63638; white-space:pre-wrap; font-family:monospace; font-size:12px;"><?php echo $diff['current']; ?></td>
 													<td style="color:#46b450; white-space:pre-wrap; font-family:monospace; font-size:12px;"><?php echo $diff['backup']; ?></td>
@@ -546,33 +580,39 @@ class SZEducate_Backup_Manager {
 		$hub_ids_to_sync = [];
 		$hub_ids_to_delete = [];
 
-		// Törlés
+		// Törlés (A jelenlegi Élő ID-t használja)
 		foreach ( $courses_to_delete as $cid ) {
 			$cid = intval($cid);
 			$wpdb->delete( $courses_table, ['id' => $cid] );
 			$hub_ids_to_delete[] = $cid;
 		}
 
-		// Újrafelvétel
-		foreach ( $courses_to_insert as $cid ) {
-			$cid = intval($cid);
-			if ( isset($backup_courses_assoc[$cid]) ) {
-				$wpdb->insert( $courses_table, $backup_courses_assoc[$cid] );
-				$hub_ids_to_sync[] = $cid;
+		// Újrafelvétel (A Mentés ID-jét kapjuk meg)
+		foreach ( $courses_to_insert as $backup_id ) {
+			$backup_id = intval($backup_id);
+			if ( isset($backup_courses_assoc[$backup_id]) ) {
+				$insert_data = $backup_courses_assoc[$backup_id];
+				unset($insert_data['id']); // Fontos! Töröljük a régi ID-t, és hagyjuk, hogy a MySQL generáljon egy újat, így elkerüljük a konfliktusokat!
+				
+				$wpdb->insert( $courses_table, $insert_data );
+				$hub_ids_to_sync[] = $wpdb->insert_id;
 			}
 		}
 
-		// Részleges módosítás
+		// Részleges módosítás (A hibrid ID alapján dolgozunk: Aktuális ID | Mentés ID)
 		if ( !empty($courses_to_update) ) {
 			$schema_json = get_option( 'szeducate_local_schema', '[]' );
 			$schema = json_decode( $schema_json, true );
 			$existing_columns = $wpdb->get_col( "DESCRIBE $courses_table", 0 );
 
-			foreach ( $courses_to_update as $cid => $fields ) {
-				$cid = intval($cid);
-				if ( isset($backup_courses_assoc[$cid]) && isset($current_assoc[$cid]) ) {
-					$bc = $backup_courses_assoc[$cid];
-					$cc = $current_assoc[$cid];
+			foreach ( $courses_to_update as $combined_id => $fields ) {
+				$ids = explode('|', $combined_id);
+				$current_id = intval($ids[0]);
+				$backup_id = intval($ids[1]);
+
+				if ( isset($backup_courses_assoc[$backup_id]) && isset($current_assoc[$current_id]) ) {
+					$bc = $backup_courses_assoc[$backup_id];
+					$cc = $current_assoc[$current_id];
 
 					$cc_data = is_string($cc['course_data']) ? json_decode($cc['course_data'], true) : $cc['course_data'];
 					$bc_data = is_string($bc['course_data']) ? json_decode($bc['course_data'], true) : $bc['course_data'];
@@ -612,7 +652,7 @@ class SZEducate_Backup_Manager {
 										
 										if ( $field['type'] === 'number' ) {
 											$db_data[$key] = $val !== '' ? intval( $val ) : null;
-										} elseif ( $field['type'] === 'boolean' ) {
+										} elseif ( $field['type'] === 'boolean' || $field['type'] === 'true_false' ) {
 											$db_data[$key] = $val ? 1 : 0;
 										} elseif ( $field['type'] === 'date' ) {
 											$db_data[$key] = ($val !== '') ? date( 'Y-m-d H:i:s', strtotime( $val ) ) : null;
@@ -626,8 +666,8 @@ class SZEducate_Backup_Manager {
 						}
 					}
 
-					$wpdb->update( $courses_table, $db_data, ['id' => $cid] );
-					$hub_ids_to_sync[] = $cid;
+					$wpdb->update( $courses_table, $db_data, ['id' => $current_id] );
+					$hub_ids_to_sync[] = $current_id;
 				}
 			}
 		}

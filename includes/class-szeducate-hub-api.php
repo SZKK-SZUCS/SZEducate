@@ -188,13 +188,24 @@ class SZEducate_Hub_API {
 
 		$title = sanitize_text_field( $params['title'] );
 		$local_post_id = isset( $params['local_post_id'] ) ? intval( $params['local_post_id'] ) : 0;
+		$hub_id_param = isset( $params['hub_id'] ) ? intval( $params['hub_id'] ) : 0;
 		$course_data = isset( $params['course_data'] ) && is_array( $params['course_data'] ) ? $params['course_data'] : array();
 
 		if ( ! $this->evaluate_conditions( $conditions, $course_data ) ) {
 			return new WP_Error( 'forbidden_record', 'Nincs jogosultsága a kliensnek ezt a képzést beküldeni.', array( 'status' => 403 ) );
 		}
 
-		$existing_row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table_name WHERE title = %s LIMIT 1", $title ), ARRAY_A );
+		$existing_row = null;
+		
+		// ID alapján próbáljuk először megtalálni (Így ha a címet átírták, akkor is tudja, hogy ugyanarról van szó)
+		if ( $hub_id_param > 0 ) {
+			$existing_row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table_name WHERE id = %d LIMIT 1", $hub_id_param ), ARRAY_A );
+		}
+		
+		// Fallback: Ha nincs ID, de a cím megegyezik
+		if ( ! $existing_row ) {
+			$existing_row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table_name WHERE title = %s LIMIT 1", $title ), ARRAY_A );
+		}
 
 		if ( $existing_row ) {
 			if ( empty( $actions['edit'] ) ) {
@@ -327,7 +338,6 @@ class SZEducate_Hub_API {
 			$clients_table = $wpdb->prefix . 'szeducate_clients';
 			if ( $wpdb->get_var( "SHOW TABLES LIKE '{$clients_table}'" ) == $clients_table ) {
 				
-				// JAVÍTÁS: Kijelöljük a klienseket, KIVÉVE azt, akitől a törlési kérés érkezett!
 				$all_clients = $wpdb->get_results( $wpdb->prepare( 
 					"SELECT client_url FROM {$clients_table} WHERE client_url != '' AND id != %d", 
 					$client['id'] 

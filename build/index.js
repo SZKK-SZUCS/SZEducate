@@ -551,7 +551,7 @@ const SZEducateEditor = () => {
     [key]: value
   }));
   const renderField = field => {
-    const value = formData[field.key] || "";
+    const value = formData[field.key] !== undefined ? formData[field.key] : "";
     const requiredMark = field.is_required ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
       style: {
         color: "#d63638",
@@ -778,7 +778,9 @@ const SZEducateEditor = () => {
           const val = formData[field.key];
           if (field.is_required && !field.is_readonly && !globalReadonly) {
             let isEmpty = false;
-            if (val === undefined || val === null) {
+            if (field.type === "boolean" || field.type === "true_false") {
+              isEmpty = false;
+            } else if (val === undefined || val === null) {
               isEmpty = true;
             } else if (field.type === "repeater" || field.type === "links") {
               if (!Array.isArray(val) || val.length === 0) isEmpty = true;
@@ -893,7 +895,7 @@ const SZEducateEditor = () => {
   return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
     className: "szeducate-react-wrapper",
     style: {
-      maxWidth: "1000px",
+      maxWidth: "1200px",
       margin: "0 auto"
     }
   }, message && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Notice, {
@@ -902,26 +904,83 @@ const SZEducateEditor = () => {
     style: {
       marginBottom: "20px"
     }
-  }, message.text), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Panel, {
-    header: `SZEducate Képzés Szerkesztő ${globalReadonly ? "(Csak Megtekintés)" : ""}`
-  }, schema && schema.length > 0 ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+  }, message.text), globalReadonly && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Notice, {
+    status: "warning",
+    isDismissible: false,
+    style: {
+      marginBottom: "20px"
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, "Figyelem:"), " Nincs jogosults\xE1god a k\xE9pz\xE9s adatainak m\xF3dos\xEDt\xE1s\xE1ra. Az \u0171rlap csak olvashat\xF3 m\xF3dban ny\xEDlt meg."), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+    style: {
+      display: "flex",
+      gap: "20px",
+      alignItems: "flex-start",
+      position: "relative"
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+    style: {
+      flex: 3
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
     style: {
       background: "#fff",
-      border: "1px solid #e2e4e7"
+      border: "1px solid #c3c4c7",
+      borderRadius: "4px",
+      boxShadow: "0 1px 1px rgba(0,0,0,.04)"
     }
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.TabPanel, {
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("h2", {
+    style: {
+      padding: "15px 20px",
+      margin: 0,
+      borderBottom: "1px solid #c3c4c7",
+      fontSize: "14px",
+      fontWeight: 600,
+      background: "#f6f7f7"
+    }
+  }, "K\xE9pz\xE9s R\xE9szletei ", globalReadonly ? "(Csak Megtekintés)" : ""), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+    style: {
+      padding: "20px"
+    }
+  }, schema && schema.length > 0 ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.TabPanel, {
     className: "szeducate-tabs",
     activeClass: "is-active",
     tabs: buildTabs()
   }, tab => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
     style: {
-      padding: "20px"
+      padding: "20px 0"
     }
-  }, tab.name === "alap_adatok" && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+  }, tab.fields && tab.fields.map(field => renderField(field)))) : (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Notice, {
+    status: "warning",
+    isDismissible: false,
     style: {
-      marginBottom: "30px",
-      paddingBottom: "25px",
-      borderBottom: "1px solid #f0f0f1"
+      marginTop: "20px"
+    }
+  }, "Hi\xE1nyz\xF3 s\xE9ma! K\xE9rlek szinkroniz\xE1lj a Hubbal a Be\xE1ll\xEDt\xE1sokban.")))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+    style: {
+      flex: 1,
+      position: "sticky",
+      top: "50px",
+      zIndex: 10
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+    style: {
+      background: "#fff",
+      border: "1px solid #c3c4c7",
+      borderRadius: "4px",
+      boxShadow: "0 1px 1px rgba(0,0,0,.04)"
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("h2", {
+    style: {
+      padding: "15px 20px",
+      margin: 0,
+      borderBottom: "1px solid #c3c4c7",
+      fontSize: "14px",
+      fontWeight: 600,
+      background: "#f6f7f7"
+    }
+  }, "Ment\xE9s \xE9s Megnevez\xE9s"), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+    style: {
+      padding: "20px"
     }
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.TextControl, {
     label: (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
@@ -937,52 +996,33 @@ const SZEducateEditor = () => {
         color: "#d63638",
         marginLeft: "4px"
       }
-    }, "*"), " ", globalReadonly && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
-      style: {
-        color: "#888",
-        fontSize: "12px",
-        fontWeight: "normal",
-        marginLeft: "6px"
-      }
-    }, "(Csak olvashat\xF3)")),
+    }, "*"), " "),
     value: title,
     onChange: value => setTitle(value),
-    help: "Add meg a k\xE9pz\xE9s pontos, hivatalos megnevez\xE9s\xE9t.",
-    disabled: globalReadonly
-  })), tab.fields && tab.fields.map(field => renderField(field))))) : (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Notice, {
-    status: "warning",
-    isDismissible: false,
+    help: "Ez jelenik meg a list\xE1kban \xE9s a c\xEDmekben.",
+    disabled: globalReadonly,
     style: {
-      marginTop: "20px"
+      marginBottom: "20px"
     }
-  }, "Hi\xE1nyz\xF3 s\xE9ma! K\xE9rlek szinkroniz\xE1lj a Hubbal a Be\xE1ll\xEDt\xE1sokban.")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+  }), !globalReadonly && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
+    isPrimary: true,
+    isLarge: true,
     style: {
-      marginTop: "20px",
-      padding: "20px",
-      background: "#fff",
-      border: "1px solid #e2e4e7",
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center"
-    }
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+      width: "100%",
+      justifyContent: "center",
+      marginTop: "10px"
+    },
+    onClick: handleSave,
+    disabled: isSaving
+  }, isSaving ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Spinner, null) : "Adatlap Mentése"), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("p", {
     style: {
       fontSize: "12px",
-      color: "#666"
+      color: "#666",
+      marginTop: "15px",
+      marginBottom: 0,
+      textAlign: "center"
     }
-  }, globalReadonly ? "Nincs jogosultságod módosítani ezt a képzést." : (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, "A ", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
-    style: {
-      color: "#d63638"
-    }
-  }, "*"), "-gal jel\xF6lt mez\u0151k kit\xF6lt\xE9se k\xF6telez\u0151.")), canSave && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
-    isPrimary: true,
-    isBusy: isSaving,
-    onClick: handleSave,
-    style: {
-      padding: "5px 30px",
-      backgroundColor: "#007cba"
-    }
-  }, isSaving ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Spinner, null), " Ment\xE9s...") : "Véglegesítés és Mentés")));
+  }, globalReadonly ? "Nincs jogosultságod módosítani ezt a képzést." : "A csillaggal (*) jelölt mezők kitöltése kötelező."))))));
 };
 document.addEventListener("DOMContentLoaded", () => {
   const rootElement = document.getElementById("szeducate-react-root");
