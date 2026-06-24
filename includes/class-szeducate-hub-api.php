@@ -25,9 +25,16 @@ class SZEducate_Hub_API {
 		) );
 
 		register_rest_route( 'szeducate/v1/hub', '/courses/(?P<id>\d+)', array(
-			'methods'             => WP_REST_Server::READABLE,
-			'callback'            => array( $this, 'get_single_course' ),
-			'permission_callback' => array( $this, 'verify_bearer_token' ),
+			array(
+				'methods'             => WP_REST_Server::READABLE,
+				'callback'            => array( $this, 'get_single_course' ),
+				'permission_callback' => array( $this, 'verify_bearer_token' ),
+			),
+			array(
+				'methods'             => WP_REST_Server::DELETABLE,
+				'callback'            => array( $this, 'delete_course' ),
+				'permission_callback' => array( $this, 'verify_bearer_token' ),
+			)
 		) );
 
 		register_rest_route( 'szeducate/v1/hub', '/backup', array(
@@ -294,6 +301,52 @@ class SZEducate_Hub_API {
 			'message' => $message,
 			'hub_id'  => $hub_id
 		), 200 );
+	}
+
+	public function delete_course( WP_REST_Request $request ) {
+		global $wpdb;
+		$hub_id = intval( $request['id'] );
+		$table_name = $wpdb->prefix . 'szeducate_courses_data';
+
+		$client = $this->current_client;
+		$permissions = json_decode( $client['permissions'], true );
+		$actions = isset( $permissions['actions'] ) ? $permissions['actions'] : array();
+
+		if ( isset( $actions['delete'] ) && $actions['delete'] === false ) {
+			return new WP_Error( 'forbidden_delete', 'A kliensnek nincs engedélye törlésre.', array( 'status' => 403 ) );
+		}
+
+		$course = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table_name WHERE id = %d", $hub_id ), ARRAY_A );
+		if ( ! $course ) {
+			return new WP_REST_Response( array( 'success' => true, 'message' => 'Képzés már törölve vagy nem létezik.' ), 200 );
+		}
+
+		$deleted = $wpdb->delete( $table_name, array( 'id' => $hub_id ) );
+
+		if ( $deleted !== false ) {
+			$clients_table = $wpdb->prefix . 'szeducate_clients';
+			if ( $wpdb->get_var( "SHOW TABLES LIKE '{$clients_table}'" ) == $clients_table ) {
+				
+				// JAVÍTÁS: Kijelöljük a klienseket, KIVÉVE azt, akitől a törlési kérés érkezett!
+				$all_clients = $wpdb->get_results( $wpdb->prepare( 
+					"SELECT client_url FROM {$clients_table} WHERE client_url != '' AND id != %d", 
+					$client['id'] 
+				) );
+				
+				foreach ( $all_clients as $c ) {
+					$webhook_url = rtrim( $c->client_url, '/' ) . '/wp-json/szeducate/v1/client/sync-course/' . $hub_id;
+					wp_remote_request( $webhook_url, array(
+						'method'   => 'DELETE',
+						'blocking' => false,
+						'timeout'  => 5,
+						'headers'  => array( 'Content-Type' => 'application/json' )
+					) );
+				}
+			}
+			return new WP_REST_Response( array( 'success' => true, 'message' => 'Sikeresen törölve a Hub-ról és értesítés kiküldve a TÖBBI kliensnek.' ), 200 );
+		}
+
+		return new WP_Error( 'db_error', 'Sikertelen törlés az adatbázisból.', array( 'status' => 500 ) );
 	}
 
 	public function generate_backup( WP_REST_Request $request ) {

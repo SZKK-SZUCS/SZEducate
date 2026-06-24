@@ -151,6 +151,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.4
+
+- BackupManagement
+
 ### 0.9.3
 
 - Vendor for export-import

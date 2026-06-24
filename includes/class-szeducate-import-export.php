@@ -39,6 +39,22 @@ class SZEducate_Import_Export {
 		return $bulk_actions;
 	}
 
+	private function get_schema_field_types() {
+		$schema_json = get_option( 'szeducate_local_schema', '[]' );
+		$schema = json_decode( $schema_json, true );
+		$types = array( 'public' => 'boolean' );
+		
+		if ( is_array( $schema ) ) {
+			foreach ( $schema as $group ) {
+				if ( empty( $group['fields'] ) ) continue;
+				foreach ( $group['fields'] as $field ) {
+					$types[ $field['key'] ] = $field['type'];
+				}
+			}
+		}
+		return $types;
+	}
+
 	public function process_bulk_export_action() {
 		$wp_list_table = _get_list_table( 'WP_Posts_List_Table' );
 		$action = $wp_list_table->current_action();
@@ -88,6 +104,7 @@ class SZEducate_Import_Export {
 		global $wpdb;
 		$schema_json = get_option( 'szeducate_local_schema', '[]' );
 		$schema = json_decode( $schema_json, true );
+		$field_types = $this->get_schema_field_types();
 
 		$spreadsheet = new Spreadsheet();
 		$sheet = $spreadsheet->getActiveSheet();
@@ -108,7 +125,7 @@ class SZEducate_Import_Export {
 			foreach ( $schema as $group ) {
 				if ( empty( $group['fields'] ) ) continue;
 				foreach ( $group['fields'] as $field ) {
-					if ( $field['key'] === 'kulcsszavak' ) {
+					if ( in_array($field['type'], ['checkbox', 'multiselect']) || $field['key'] === 'kulcsszavak' ) {
 						$multi_select_keys[] = $field['key'];
 					}
 				}
@@ -219,13 +236,18 @@ class SZEducate_Import_Export {
 						$help_text .= '[Több érték esetén PONTOSVESSZŐVEL (;) válaszd el]';
 					} else {
 						switch ( $field['type'] ) {
-							case 'boolean': $help_text .= '[Kapcsoló: "true" vagy "false"]'; break;
+							case 'boolean': 
+							case 'true_false': 
+								$help_text .= '[Kapcsoló: "Igaz" vagy "Hamis"]'; break;
 							case 'number': $help_text .= '[Csak szám]'; break;
 							case 'date': $help_text .= '[Dátum: ÉÉÉÉ-HH-NN]'; break;
 							case 'email': $help_text .= '[Email cím @sze.hu]'; break;
 							case 'wysiwyg': $help_text .= '[Formázott szöveg. Sima szöveget is fogad.]'; break;
-							case 'repeater': $help_text .= '[Táblázat. Sima szöveget beírva automatikusan az 1. oszlopba kerül.]'; break;
-							case 'links': $help_text .= '[Linkek. Sima URL-t megadva a felület gombbá alakítja.]'; break;
+							case 'repeater': 
+							case 'links':
+							case 'group':
+							case 'flexible_content':
+								$help_text .= '[Komplex mező (JSON formátum). Kérlek ne piszkáld a struktúrát!]'; break;
 							default: 
 								if ( $is_multi_select ) {
 									$help_text .= '[Több érték esetén PONTOSVESSZŐVEL (;) válaszd el]';
@@ -323,12 +345,10 @@ class SZEducate_Import_Export {
 
 		foreach ($required_cols as $req_col) {
 			$letter = Coordinate::stringFromColumnIndex($req_col);
-			
 			$sheet->getStyle("{$letter}2")->applyFromArray([
 				'font' => ['bold' => true, 'color' => ['argb' => 'FFFFFFFF']],
 				'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => 'FFD63638']],
 			]);
-			
 			$sheet->getStyle("{$letter}5:{$letter}1000")->applyFromArray([
 				'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => 'FFFFF2F2']],
 			]);
@@ -348,9 +368,7 @@ class SZEducate_Import_Export {
 		foreach ($group_borders as $col_num) {
 			$letter = Coordinate::stringFromColumnIndex($col_num);
 			$sheet->getStyle("{$letter}1:{$letter}1000")->applyFromArray([
-				'borders' => [
-					'right' => ['borderStyle' => Border::BORDER_MEDIUM, 'color' => ['argb' => 'FF000000']],
-				],
+				'borders' => ['right' => ['borderStyle' => Border::BORDER_MEDIUM, 'color' => ['argb' => 'FF000000']]],
 			]);
 		}
 
@@ -405,13 +423,21 @@ class SZEducate_Import_Export {
 
 						if ( $is_relevant ) {
 							$val = isset( $course_data[$key] ) ? $course_data[$key] : '';
+							$ftype = $field_types[$key] ?? 'text';
 							
-							if ( is_bool( $val ) ) {
-								$sheet->setCellValue([$col_idx, $current_row], $val ? 'true' : 'false');
+							if ( $ftype === 'boolean' || $ftype === 'true_false' ) {
+								$is_true = ($val === true || $val === '1' || $val === 1 || strtolower((string)$val) === 'true');
+								$sheet->setCellValue([$col_idx, $current_row], $is_true ? 'Igaz' : 'Hamis');
+							} elseif ( in_array($ftype, ['repeater', 'links', 'group', 'flexible_content']) ) {
+								if ( is_array($val) || is_object($val) ) {
+									$sheet->setCellValueExplicit([$col_idx, $current_row], wp_json_encode($val, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+								} else {
+									$sheet->setCellValueExplicit([$col_idx, $current_row], (string)$val, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+								}
 							} elseif ( is_array( $val ) ) {
 								$sheet->setCellValueExplicit([$col_idx, $current_row], implode( '; ', $val ), \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
 							} else {
-								$sheet->setCellValue([$col_idx, $current_row], $val);
+								$sheet->setCellValue([$col_idx, $current_row], (string)$val);
 							}
 						}
 					}
@@ -465,6 +491,7 @@ class SZEducate_Import_Export {
 						
 						if ( $is_valid_format && !empty($keys) && in_array( 'title', $keys ) ) {
 							$parsed_data = array();
+							$field_types = $this->get_schema_field_types();
 							
 							for ( $i = 4; $i < count($rows); $i++ ) {
 								$row = $rows[$i];
@@ -475,18 +502,52 @@ class SZEducate_Import_Export {
 									$key = $keys[$index] ?? null;
 									if ( ! $key ) continue;
 									
+									$val_str = trim((string)$value);
+
 									if ( $key === 'title' ) {
-										$course['title'] = $value;
+										$course['title'] = $val_str;
 									} else {
-										$val_to_set = $value;
-										if ( strtolower(trim((string)$value)) === 'true' ) {
-											$val_to_set = true;
-										} elseif ( strtolower(trim((string)$value)) === 'false' ) {
-											$val_to_set = false;
+										$ftype = $field_types[$key] ?? 'text';
+										$val_to_set = $val_str;
+
+										if ( $ftype === 'boolean' || $ftype === 'true_false' ) {
+											$val_lower = strtolower($val_str);
+											if ( in_array( $val_lower, ['1', 'true', 'igen', 'yes', 'y', 'igaz'], true ) ) {
+												$val_to_set = "1";
+											} elseif ( in_array( $val_lower, ['0', 'false', 'nem', 'no', 'n', 'hamis'], true ) ) {
+												$val_to_set = "0";
+											} else {
+												$val_to_set = null;
+											}
 										} 
-										
-										if ( isset($course['course_data'][$key]) && $course['course_data'][$key] !== '' && $val_to_set === '' ) {
-											continue;
+										elseif ( in_array($ftype, ['repeater', 'links', 'group', 'flexible_content']) ) {
+											if ( $val_str === '' ) {
+												$val_to_set = null;
+											} else {
+												$decoded = json_decode($val_str, true);
+												if ( json_last_error() === JSON_ERROR_NONE && (is_array($decoded) || is_object($decoded)) ) {
+													$val_to_set = $decoded;
+												} else {
+													$val_to_set = $val_str; 
+												}
+											}
+										} 
+										elseif ( in_array($ftype, ['checkbox', 'multiselect', 'select']) ) {
+											if ( $val_str === '' ) {
+												$val_to_set = null;
+											} elseif ( strpos($val_str, ';') !== false ) {
+												$parts = array_map('trim', explode(';', $val_str));
+												$val_to_set = array_values(array_filter($parts, function($p){ return $p !== ''; }));
+											} else {
+												if ( in_array($ftype, ['checkbox', 'multiselect']) ) {
+													$val_to_set = [ $val_str ];
+												} else {
+													$val_to_set = $val_str;
+												}
+											}
+										} 
+										else {
+											$val_to_set = ( $val_str === '' ) ? null : $val_str;
 										}
 
 										$course['course_data'][$key] = $val_to_set;
@@ -634,29 +695,28 @@ class SZEducate_Import_Export {
 					const response = await fetch(restUrl, {
 						method: 'POST',
 						headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': nonce },
-						body: JSON.stringify({
-							local_post_id: course.local_post_id,
-							title: course.title,
-							course_data: course.course_data
-						})
+						body: JSON.stringify(course)
 					});
-					
-					const data = await response.json();
-					if (data.success) {
-						logMsg(`[OK - ${actionText}] ${course.title}`);
+
+					const result = await response.json();
+					if (response.ok) {
+						logMsg(`Siker: ${course.title}`);
 					} else {
-						logMsg(`[HIBA] ${course.title} - ${data.message || data.code}`);
+						logMsg(`Hiba [${course.title}]: ${result.message || 'Ismeretlen API hiba'}`);
 					}
-				} catch (e) {
-					logMsg(`[HÁLÓZATI HIBA] ${course.title}`);
+				} catch (error) {
+					logMsg(`Kritikus hiba [${course.title}]: ${error.message}`);
 				}
 
 				currentIndex++;
-				setTimeout(processNext, 200); 
+				processNext();
 			}
 
-			logMsg('Importálás indítása...');
-			processNext();
+			if (total > 0) {
+				processNext();
+			} else {
+				statusText.innerText = 'Nem található érvényes adat.';
+			}
 			<?php endif; ?>
 		});
 		</script>

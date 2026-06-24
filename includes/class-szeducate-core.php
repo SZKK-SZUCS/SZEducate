@@ -42,6 +42,9 @@ class SZEducate_Core {
 
 		$api = new SZEducate_Hub_API();
 		$api->init();
+
+		$backup_manager = new SZEducate_Backup_Manager();
+		$backup_manager->init();
 	}
 
 	private function init_client() {

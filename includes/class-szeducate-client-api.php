@@ -29,6 +29,12 @@ class SZEducate_Client_API {
 			'callback'            => array( $this, 'webhook_sync_course' ),
 			'permission_callback' => '__return_true', 
 		) );
+
+		register_rest_route( 'szeducate/v1/client', '/sync-course/(?P<id>\d+)', array(
+			'methods'             => WP_REST_Server::DELETABLE,
+			'callback'            => array( $this, 'webhook_delete_course' ),
+			'permission_callback' => '__return_true', 
+		) );
 	}
 
 	private function set_featured_image_from_data( $post_id, $course_data ) {
@@ -332,5 +338,32 @@ class SZEducate_Client_API {
 			$wpdb->query( 'ROLLBACK' );
 			return new WP_Error( 'db_transaction_failed', $e->getMessage(), array( 'status' => 500 ) );
 		}
+	}
+	public function webhook_delete_course( WP_REST_Request $request ) {
+		// Ha mi indítottuk el a lomtárazást/törlést helyben, ne csináljunk semmit a Webhook hatására!
+		global $szeducate_is_local_deleting;
+		if ( ! empty( $szeducate_is_local_deleting ) ) {
+			return new WP_REST_Response( array( 'success' => true, 'message' => 'Helyi törlés volt, a Webhook ignorálva.' ), 200 );
+		}
+
+		$hub_id = intval( $request['id'] );
+		if ( ! $hub_id ) return new WP_Error( 'missing_id', 'Hiányzó hub_id.', array( 'status' => 400 ) );
+
+		global $wpdb;
+		$table_name = $wpdb->prefix . 'szeducate_courses_data';
+
+		$course = $wpdb->get_row( $wpdb->prepare( "SELECT local_post_id FROM $table_name WHERE hub_id = %d", $hub_id ), ARRAY_A );
+		
+		if ( $course ) {
+			if ( ! empty( $course['local_post_id'] ) ) {
+				global $szeducate_is_sync_deleting;
+				$szeducate_is_sync_deleting = true; 
+				wp_delete_post( $course['local_post_id'], true );
+			}
+			$wpdb->delete( $table_name, array( 'hub_id' => $hub_id ) );
+			return new WP_REST_Response( array( 'success' => true, 'message' => 'Sikeresen törölve a Kliens gépéről.' ), 200 );
+		}
+
+		return new WP_REST_Response( array( 'success' => true, 'message' => 'Helyben már nem létezett a képzés.' ), 200 );
 	}
 }
