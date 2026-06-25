@@ -6,6 +6,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 class SZEducate_Client {
 
 	public function init() {
+		add_action( 'admin_init', array( $this, 'assign_admin_caps' ) );
+
 		add_action( 'init', array( $this, 'register_course_cpt' ) );
 		add_action( 'init', array( $this, 'register_dynamic_taxonomies' ) );
 		
@@ -43,6 +45,22 @@ class SZEducate_Client {
 
 		add_filter( 'pre_trash_post', array( $this, 'bypass_trash_for_courses' ), 10, 2 );
 		add_action( 'before_delete_post', array( $this, 'process_course_deletion' ), 10, 1 );
+	}
+
+	public function assign_admin_caps() {
+		$admin_role = get_role( 'administrator' );
+		if ( $admin_role && ! $admin_role->has_cap( 'edit_sz_courses' ) ) {
+			$caps = array(
+				'edit_sz_course', 'read_sz_course', 'delete_sz_course',
+				'edit_sz_courses', 'edit_others_sz_courses', 'publish_sz_courses',
+				'read_private_sz_courses', 'delete_sz_courses', 'delete_private_sz_courses',
+				'delete_published_sz_courses', 'delete_others_sz_courses',
+				'edit_private_sz_courses', 'edit_published_sz_courses'
+			);
+			foreach ( $caps as $cap ) {
+				$admin_role->add_cap( $cap );
+			}
+		}
 	}
 
 	public function register_query_vars( $vars ) {
@@ -260,8 +278,8 @@ class SZEducate_Client {
 	}
 
 	public function add_custom_bulk_actions( $bulk_actions ) {
-		unset($bulk_actions['trash']);
-		unset($bulk_actions['delete']);
+		unset($bulk_actions['trash']);   // Lomtár elrejtése
+		unset($bulk_actions['delete']);  // Régi törlés elrejtése
 
 		$perms = json_decode( get_option('szeducate_client_permissions', '{}'), true );
 		$actions = isset($perms['actions']) ? $perms['actions'] : array();
@@ -269,10 +287,11 @@ class SZEducate_Client {
 		$bulk_actions['szeducate_activate'] = 'Tömeges Aktiválás (Határidővel is)';
 		$bulk_actions['szeducate_deactivate'] = 'Tömeges Passziválás';
 		
+		// Ha a Mátrix kifejezetten engedi
 		$can_delete = isset($actions['delete']) ? (bool) $actions['delete'] : true;
 
-		if ( $can_delete && current_user_can('edit_posts') ) {
-			$bulk_actions['szeducate_delete'] = 'Végleges Törlés (központilag is)';
+		if ( $can_delete && current_user_can('edit_sz_courses') ) {
+			$bulk_actions['szeducate_delete'] = 'Végleges Törlés (A Hubról is)';
 		}
 
 		return $bulk_actions;
@@ -405,7 +424,7 @@ class SZEducate_Client {
 	public function ajax_process_bulk_status() {
 		check_ajax_referer( 'szeducate_bulk_nonce' );
 		
-		if ( ! current_user_can( 'edit_posts' ) && ! current_user_can( 'manage_options' ) ) wp_send_json_error( 'Nincs jogosultságod.' );
+		if ( ! current_user_can( 'edit_sz_courses' ) && ! current_user_can( 'manage_options' ) ) wp_send_json_error( 'Nincs jogosultságod.' );
 
 		$bulk_action = isset($_POST['bulk_action']) ? sanitize_text_field($_POST['bulk_action']) : '';
 		$expiry_date = isset($_POST['expiry_date']) ? sanitize_text_field($_POST['expiry_date']) : '';
@@ -477,7 +496,7 @@ class SZEducate_Client {
 			
 			unset( $actions['inline hide-if-no-js'] ); 
 			unset( $actions['view'] ); 
-			unset( $actions['trash'] );
+			unset( $actions['trash'] ); 
 			
 			if ( isset($perm_actions['edit']) && !$perm_actions['edit'] ) {
 				if ( isset( $actions['edit'] ) ) {
@@ -490,7 +509,7 @@ class SZEducate_Client {
 			if ( ! $can_delete ) {
 				unset( $actions['delete'] );
 			} else {
-				if ( current_user_can( 'edit_posts' ) ) {
+				if ( current_user_can( 'delete_sz_course', $post->ID ) ) {
 					$delete_url = wp_nonce_url( admin_url( 'post.php?post=' . $post->ID . '&action=delete' ), 'delete-post_' . $post->ID );
 					$actions['delete'] = sprintf(
 						'<a href="%s" class="submitdelete" style="color: #d63638;" onclick="return confirm(\'%s\');">%s</a>',
@@ -524,7 +543,7 @@ class SZEducate_Client {
 			'menu_icon'          => 'dashicons-welcome-learn-more',
 			'show_in_rest'       => true, 
 			'supports'           => array( 'title' ), 
-			'capability_type'    => 'post',
+			'capability_type'    => array( 'sz_course', 'sz_courses' ),
 			'map_meta_cap'       => true,
 		);
 		register_post_type( 'sz_course', $args );
@@ -764,7 +783,7 @@ class SZEducate_Client {
 			'methods'             => \WP_REST_Server::READABLE,
 			'callback'            => array( $this, 'get_field_options_for_editor' ),
 			'permission_callback' => function() {
-				return current_user_can( 'edit_posts' ) || current_user_can( 'manage_options' );
+				return current_user_can( 'edit_sz_courses' ) || current_user_can( 'manage_options' );
 			}
 		) );
 

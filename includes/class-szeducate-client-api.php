@@ -14,7 +14,7 @@ class SZEducate_Client_API {
 			'methods'             => WP_REST_Server::CREATABLE,
 			'callback'            => array( $this, 'save_course_data' ),
 			'permission_callback' => function() {
-				return current_user_can( 'edit_posts' ); 
+				return current_user_can( 'edit_sz_courses' ); 
 			}
 		) );
 
@@ -273,7 +273,6 @@ class SZEducate_Client_API {
 			);
 			$db_formats = array( '%d', '%s', '%s' );
 
-			// JAVÍTÁS: Kinyerjük a hub_id-t is, hogy el tudjuk küldeni párosításhoz!
 			$existing = $wpdb->get_row( $wpdb->prepare( "SELECT id, hub_id FROM $table_name WHERE local_post_id = %d", $saved_post_id ), ARRAY_A );
 			
 			$current_hub_id = 0;
