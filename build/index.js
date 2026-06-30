@@ -215,6 +215,8 @@ const WysiwygControl = ({
       window.wp.editor.initialize(editorId, {
         tinymce: {
           readonly: isReadonly ? 1 : 0,
+          plugins: "paste,lists,link,textcolor,colorpicker,table",
+          toolbar1: "formatselect,bold,italic,underline,bullist,numlist,link,unlink,forecolor,backcolor,table",
           setup: function (editor) {
             editor.on("Change KeyUp", function () {
               if (!isReadonly) onChange(fieldKey, editor.getContent());

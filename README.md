@@ -151,6 +151,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.9
+
+- Localization fixage
+
 ### 0.9.8
 
 - HUB fix

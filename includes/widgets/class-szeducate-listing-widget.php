@@ -411,9 +411,9 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 		);
 
 		$this->add_control(
-			'passive_icon',
+			'inactive_icon',
 			[
-				'label' => 'Passzív Szak Ikon',
+				'label' => 'Inaktív Szak Ikon',
 				'type' => \Elementor\Controls_Manager::ICONS,
 				'default' => [ 'value' => 'fas fa-circle', 'library' => 'fa-solid' ],
 			]
@@ -469,9 +469,9 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 		$this->add_control( 'item_icon_hover_color', [ 'label' => 'Ikon Színe', 'type' => \Elementor\Controls_Manager::COLOR, 'selectors' => [ '{{WRAPPER}} .sz-course-active:hover .sz-item-icon' => 'color: {{VALUE}} !important; fill: {{VALUE}} !important;', '{{WRAPPER}} .sz-course-active:hover .sz-item-icon i' => 'color: {{VALUE}} !important;', '{{WRAPPER}} .sz-course-active:hover .sz-item-icon svg' => 'fill: {{VALUE}} !important;', '{{WRAPPER}} .sz-course-active:hover .sz-item-icon svg path' => 'fill: {{VALUE}} !important;' ] ] );
 		$this->end_controls_tab();
 
-		$this->start_controls_tab( 'tab_item_passive', [ 'label' => 'Passzív' ] );
-		$this->add_control( 'item_passive_color', [ 'label' => 'Szövegszín', 'type' => \Elementor\Controls_Manager::COLOR, 'default' => '#8C8F94', 'selectors' => [ '{{WRAPPER}} .sz-course-passive' => 'color: {{VALUE}};' ] ] );
-		$this->add_control( 'item_icon_passive_color', [ 'label' => 'Ikon Színe', 'type' => \Elementor\Controls_Manager::COLOR, 'default' => '#D9D9D9', 'selectors' => [ '{{WRAPPER}} .sz-course-passive .sz-item-icon' => 'color: {{VALUE}} !important; fill: {{VALUE}} !important;', '{{WRAPPER}} .sz-course-passive .sz-item-icon i' => 'color: {{VALUE}} !important;', '{{WRAPPER}} .sz-course-passive .sz-item-icon svg' => 'fill: {{VALUE}} !important;', '{{WRAPPER}} .sz-course-passive .sz-item-icon svg path' => 'fill: {{VALUE}} !important;' ] ] );
+		$this->start_controls_tab( 'tab_item_inactive', [ 'label' => 'Inaktív' ] );
+		$this->add_control( 'item_inactive_color', [ 'label' => 'Szövegszín', 'type' => \Elementor\Controls_Manager::COLOR, 'default' => '#8C8F94', 'selectors' => [ '{{WRAPPER}} .sz-course-inactive' => 'color: {{VALUE}};' ] ] );
+		$this->add_control( 'item_icon_inactive_color', [ 'label' => 'Ikon Színe', 'type' => \Elementor\Controls_Manager::COLOR, 'default' => '#D9D9D9', 'selectors' => [ '{{WRAPPER}} .sz-course-inactive .sz-item-icon' => 'color: {{VALUE}} !important; fill: {{VALUE}} !important;', '{{WRAPPER}} .sz-course-inactive .sz-item-icon i' => 'color: {{VALUE}} !important;', '{{WRAPPER}} .sz-course-inactive .sz-item-icon svg' => 'fill: {{VALUE}} !important;', '{{WRAPPER}} .sz-course-inactive .sz-item-icon svg path' => 'fill: {{VALUE}} !important;' ] ] );
 		$this->end_controls_tab();
 		$this->end_controls_tabs();
 
@@ -528,17 +528,17 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 			}
 		}
 
-		$passive_icon_html = '';
-		$passive_icon = isset($settings['passive_icon']) ? $settings['passive_icon'] : [];
-		if ( ! empty( $passive_icon['value'] ) ) {
+		$inactive_icon_html = '';
+		$inactive_icon = isset($settings['inactive_icon']) ? $settings['inactive_icon'] : [];
+		if ( ! empty( $inactive_icon['value'] ) ) {
 			ob_start();
-			\Elementor\Icons_Manager::render_icon( $passive_icon, [ 'aria-hidden' => 'true' ] );
+			\Elementor\Icons_Manager::render_icon( $inactive_icon, [ 'aria-hidden' => 'true' ] );
 			$icon_out = ob_get_clean();
-			if ( empty( $icon_out ) && is_string( $passive_icon['value'] ) ) {
-				$icon_out = '<i class="' . esc_attr( $passive_icon['value'] ) . '" aria-hidden="true"></i>';
+			if ( empty( $icon_out ) && is_string( $inactive_icon['value'] ) ) {
+				$icon_out = '<i class="' . esc_attr( $inactive_icon['value'] ) . '" aria-hidden="true"></i>';
 			}
 			if ( ! empty( $icon_out ) ) {
-				$passive_icon_html = '<span class="sz-item-icon" style="display:inline-flex; align-items:center; justify-content:center; flex-shrink:0;">' . $icon_out . '</span>';
+				$inactive_icon_html = '<span class="sz-item-icon" style="display:inline-flex; align-items:center; justify-content:center; flex-shrink:0;">' . $icon_out . '</span>';
 			}
 		}
 
@@ -761,8 +761,8 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 			
 			echo '<ul class="sz-course-list" style="list-style:none; padding:0; margin:0; width:100%;">';
 			foreach ( $items as $item ) {
-				$state_class = $item['is_active'] ? 'sz-course-active' : 'sz-course-passive';
-				$current_icon = $item['is_active'] ? $active_icon_html : $passive_icon_html;
+				$state_class = $item['is_active'] ? 'sz-course-active' : 'sz-course-inactive';
+				$current_icon = $item['is_active'] ? $active_icon_html : $inactive_icon_html;
 				
 				echo '<li style="display:flex; align-items:flex-start;">';
 				echo '<a href="' . esc_url( $item['url'] ) . '" class="sz-course-link ' . $state_class . '" style="display:inline-flex; align-items:center; text-decoration:none; transition:all 0.3s ease; line-height:1.2; width:100%; box-sizing:border-box;">';

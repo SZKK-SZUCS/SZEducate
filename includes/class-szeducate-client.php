@@ -86,7 +86,7 @@ class SZEducate_Client {
 	}
 
 	public function render_advanced_filter_panel() {
-		global $typenow;
+		global $typenow, $wpdb;
 		if ( $typenow !== 'sz_course' ) return;
 
 		$schema = json_decode( get_option( 'szeducate_local_schema', '[]' ), true );
@@ -103,6 +103,56 @@ class SZEducate_Client {
 		}
 
 		if ( empty($filterable_fields) ) return;
+
+		$perms = json_decode( get_option('szeducate_client_permissions', '{}'), true );
+		$table_name = $wpdb->prefix . 'szeducate_courses_data';
+		$all_courses = $wpdb->get_results("SELECT course_data FROM $table_name", ARRAY_A);
+		
+		$permitted_data = array();
+		
+		foreach ( $all_courses as $c ) {
+			$data = json_decode( $c['course_data'], true );
+			if ( ! is_array($data) ) continue;
+
+			$has_permission = true;
+			if ( !empty( $perms['conditions'] ) && !empty( $perms['conditions']['rules'] ) ) {
+				$has_permission = $this->evaluate_conditions( $perms['conditions'], $data );
+			}
+
+			if ( $has_permission ) {
+				$permitted_data[] = $data;
+			}
+		}
+
+		$dynamic_options = array();
+		foreach ( $filterable_fields as $key => $field ) {
+			$dynamic_options[$key] = array();
+		}
+
+		foreach ( $permitted_data as $data ) {
+			foreach ( $filterable_fields as $key => $field ) {
+				if ( isset( $data[$key] ) ) {
+					$val = $data[$key];
+					if ( $field['type'] === 'boolean' || $field['type'] === 'true_false' ) {
+						$str_val = $val ? 'true' : 'false';
+						$dynamic_options[$key][$str_val] = $val ? 'Igen' : 'Nem';
+					} else {
+						$parts = is_array($val) ? $val : explode(';', (string)$val);
+						foreach ( $parts as $p ) {
+							$p = trim($p);
+							if ( $p !== '' ) {
+								$dynamic_options[$key][$p] = $p;
+							}
+						}
+					}
+				}
+			}
+		}
+
+		foreach ( $dynamic_options as $key => $opts ) {
+			ksort($dynamic_options[$key]);
+		}
+
 		?>
 		<div id="sz-filter-panel-wrapper" style="display: none; margin-top: 15px;">
 			<div id="sz-filter-panel" style="padding: 20px; background: #fff; border: 1px solid #c3c4c7; box-shadow: 0 1px 1px rgba(0,0,0,.04); border-radius: 4px;">
@@ -111,18 +161,11 @@ class SZEducate_Client {
 					<h3 style="margin-top: 0; margin-bottom: 20px; font-size: 14px;">Speciális Képzés Szűrők</h3>
 					
 					<div style="display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 20px;">
-						<?php foreach ( $filterable_fields as $field ) : 
-							$options = array();
-							if ( $field['type'] === 'boolean' || $field['type'] === 'true_false' ) {
-								$options = array('true' => 'Igen', 'false' => 'Nem');
-							} else {
-								$raw_options = array_map('trim', explode(';', $field['options'] ?? ''));
-								foreach($raw_options as $ro) {
-									if(!empty($ro)) $options[$ro] = $ro;
-								}
-							}
+						<?php foreach ( $filterable_fields as $field_key => $field ) : 
+							$options = $dynamic_options[$field_key];
+							if ( empty($options) ) continue;
 							
-							$get_key = 'szf_' . $field['key'];
+							$get_key = 'szf_' . $field_key;
 							$selected_vals = isset($_GET[$get_key]) && is_array($_GET[$get_key]) ? $_GET[$get_key] : array();
 						?>
 						<div style="flex: 1 1 250px; min-width: 250px;">
@@ -278,16 +321,15 @@ class SZEducate_Client {
 	}
 
 	public function add_custom_bulk_actions( $bulk_actions ) {
-		unset($bulk_actions['trash']);   // Lomtár elrejtése
-		unset($bulk_actions['delete']);  // Régi törlés elrejtése
+		unset($bulk_actions['trash']);
+		unset($bulk_actions['delete']);
 
 		$perms = json_decode( get_option('szeducate_client_permissions', '{}'), true );
 		$actions = isset($perms['actions']) ? $perms['actions'] : array();
 
 		$bulk_actions['szeducate_activate'] = 'Tömeges Aktiválás (Határidővel is)';
-		$bulk_actions['szeducate_deactivate'] = 'Tömeges Passziválás';
+		$bulk_actions['szeducate_deactivate'] = 'Tömeges Inaktiválás';
 		
-		// Ha a Mátrix kifejezetten engedi
 		$can_delete = isset($actions['delete']) ? (bool) $actions['delete'] : true;
 
 		if ( $can_delete && current_user_can('edit_sz_courses') ) {
@@ -405,7 +447,7 @@ class SZEducate_Client {
 								executeBulkAction(action, '', currentPostIds);
 							}
 						} else {
-							if (confirm('Biztosan passziválod a kijelölt képzéseket?')) {
+							if (confirm('Biztosan inaktiválod a kijelölt képzéseket?')) {
 								executeBulkAction(action, '', currentPostIds);
 							}
 						}
@@ -448,7 +490,7 @@ class SZEducate_Client {
 		global $wpdb;
 		$table_name = $wpdb->prefix . 'szeducate_courses_data';
 
-		$status_val = ($bulk_action === 'szeducate_activate') ? 'Aktív' : 'Passzív';
+		$status_val = ($bulk_action === 'szeducate_activate') ? 'Aktív' : 'Inaktív';
 		$updated_count = 0;
 
 		foreach ( $post_ids as $pid ) {
@@ -763,7 +805,7 @@ class SZEducate_Client {
 			if ( isset( $data['meghirdetes_allapota'] ) && $data['meghirdetes_allapota'] === 'Aktív' ) {
 				if ( ! empty( $data['passziv_ettol'] ) && $data['passziv_ettol'] < $today ) {
 					
-					$data['meghirdetes_allapota'] = 'Passzív';
+					$data['meghirdetes_allapota'] = 'Inaktív';
 					$data['passziv_ettol'] = '';
 
 					$wpdb->update(

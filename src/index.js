@@ -97,11 +97,15 @@ const WysiwygControl = ({
   const editorId = useRef(
     `wysiwyg_${fieldKey}_${Math.random().toString(36).substr(2, 9)}`,
   ).current;
+
   useEffect(() => {
     if (window.wp && window.wp.editor) {
       window.wp.editor.initialize(editorId, {
         tinymce: {
           readonly: isReadonly ? 1 : 0,
+          plugins: "paste,lists,link,textcolor,colorpicker,table",
+          toolbar1:
+            "formatselect,bold,italic,underline,bullist,numlist,link,unlink,forecolor,backcolor,table",
           setup: function (editor) {
             editor.on("Change KeyUp", function () {
               if (!isReadonly) onChange(fieldKey, editor.getContent());
@@ -116,6 +120,7 @@ const WysiwygControl = ({
       if (window.wp && window.wp.editor) window.wp.editor.remove(editorId);
     };
   }, []);
+
   return (
     <div
       style={{

@@ -23,7 +23,7 @@ class SZEducate_Status_Widget extends \Elementor\Widget_Base {
 		$this->add_control(
 			'status_key',
 			[
-				'label' => 'Állapot (Aktív/Passzív) Mező Kulcsa',
+				'label' => 'Állapot (Aktív/Inaktív) Mező Kulcsa',
 				'type' => \Elementor\Controls_Manager::TEXT,
 				'default' => 'meghirdetes_allapota',
 			]
@@ -177,22 +177,22 @@ class SZEducate_Status_Widget extends \Elementor\Widget_Base {
 		);
 
 		$this->add_control(
-			'color_passive_bg',
+			'color_inactive_bg',
 			[
-				'label' => 'Passzív - Fő Háttérszín',
+				'label' => 'Inaktív - Fő Háttérszín',
 				'type' => \Elementor\Controls_Manager::COLOR,
 				'default' => '#D9D9D9',
-				'selectors' => [ '{{WRAPPER}} .sz-state-passive .sz-status-main' => 'background-color: {{VALUE}};' ],
+				'selectors' => [ '{{WRAPPER}} .sz-state-inactive .sz-status-main' => 'background-color: {{VALUE}};' ],
 			]
 		);
 
 		$this->add_control(
-			'color_passive_text',
+			'color_inactive_text',
 			[
-				'label' => 'Passzív - Fő Szövegszín',
+				'label' => 'Inaktív - Fő Szövegszín',
 				'type' => \Elementor\Controls_Manager::COLOR,
 				'default' => '#242943',
-				'selectors' => [ '{{WRAPPER}} .sz-state-passive .sz-status-main' => 'color: {{VALUE}}; fill: {{VALUE}};' ],
+				'selectors' => [ '{{WRAPPER}} .sz-state-inactive .sz-status-main' => 'color: {{VALUE}}; fill: {{VALUE}};' ],
 			]
 		);
 
@@ -288,7 +288,7 @@ class SZEducate_Status_Widget extends \Elementor\Widget_Base {
 			$state_class = 'sz-state-active';
 		} else {
 			$main_text = $is_expired ? 'JELENTKEZÉS LEZÁRULT' : 'JELENLEG NEM INDUL';
-			$state_class = 'sz-state-passive';
+			$state_class = 'sz-state-inactive';
 		}
 
 		echo "<div class='sz-status-group {$state_class}' style='{$css_group}'>";
