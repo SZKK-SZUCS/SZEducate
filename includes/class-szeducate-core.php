@@ -18,6 +18,16 @@ class SZEducate_Core {
 
 		$this->settings = get_option( 'szeducate_settings', array() );
 
+		// Adatbázis-migráció futtatása, ha a plugin verziója változott azóta, hogy a tábla
+		// szerkezete utoljára frissült - ez teszi lehetővé, hogy egy már aktív (nem újonnan
+		// aktivált) telepítés is automatikusan megkapja az új rendszer-oszlopokat (pl.
+		// owner_client_id) anélkül, hogy manuálisan újra kellene aktiválni a plugint.
+		if ( get_option( 'szeducate_db_version' ) !== SZEDUCATE_VERSION ) {
+			require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-activator.php';
+			SZEducate_Activator::update_database_schema();
+			update_option( 'szeducate_db_version', SZEDUCATE_VERSION );
+		}
+
 		if ( is_admin() ) {
 			require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-settings.php';
 			$settings_page = new SZEducate_Settings();

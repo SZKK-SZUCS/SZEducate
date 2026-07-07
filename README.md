@@ -151,6 +151,19 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.12
+
+Enhance database schema and caching mechanisms
+
+- Added `owner_client_id` column to the `szeducate_courses_data` table and updated related indexes.
+- Implemented caching for table columns to reduce database queries during course operations.
+- Refactored backup manager to utilize cached column data and improved client data retrieval with API token authentication.
+- Updated client API to verify webhook signatures using existing API tokens for enhanced security.
+- Introduced parallel request handling for client notifications to improve performance during sync operations.
+- Added methods for caching course data and invalidating the cache upon updates or deletions.
+- Improved error handling and logging for webhook dispatches and client notifications.
+- Ensured database migrations run automatically on plugin version changes to maintain schema consistency.
+
 ### 0.9.11
 
 -Add new features for course synchronization and management, including full resync and orphaned course cleanup

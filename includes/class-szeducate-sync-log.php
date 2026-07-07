@@ -77,4 +77,71 @@ class SZEducate_Sync_Log {
 	public static function clear_abort( $key ) {
 		delete_transient( 'szeducate_restore_abort_' . $key );
 	}
+
+	// --- Több kliens egyidejű (párhuzamos) értesítése egyetlen, a leglassabb válasszal
+	// arányos várakozással, ahelyett hogy klienenként sorban, összeadódó várakozással
+	// futnának le a kérések. $requests: assoc tömb kulcsonként ['url','method','body',
+	// 'headers','timeout']. Visszaadja ugyanazokkal a kulcsokkal: ['code','error'].
+	public static function parallel_requests( array $requests ) {
+		$results = array();
+		if ( empty( $requests ) ) return $results;
+
+		if ( ! function_exists( 'curl_multi_init' ) ) {
+			foreach ( $requests as $key => $req ) {
+				$response = wp_remote_request( $req['url'], array(
+					'method'   => $req['method'] ?? 'POST',
+					'body'     => $req['body'] ?? null,
+					'headers'  => $req['headers'] ?? array(),
+					'timeout'  => $req['timeout'] ?? 8,
+					'blocking' => true,
+				) );
+				$results[ $key ] = is_wp_error( $response )
+					? array( 'code' => null, 'error' => $response->get_error_message() )
+					: array( 'code' => wp_remote_retrieve_response_code( $response ), 'error' => null );
+			}
+			return $results;
+		}
+
+		$multi = curl_multi_init();
+		$handles = array();
+
+		foreach ( $requests as $key => $req ) {
+			$headers_flat = array();
+			foreach ( ( $req['headers'] ?? array() ) as $h_key => $h_val ) {
+				$headers_flat[] = "$h_key: $h_val";
+			}
+
+			$ch = curl_init( $req['url'] );
+			curl_setopt_array( $ch, array(
+				CURLOPT_RETURNTRANSFER => true,
+				CURLOPT_CUSTOMREQUEST  => $req['method'] ?? 'POST',
+				CURLOPT_POSTFIELDS     => $req['body'] ?? null,
+				CURLOPT_HTTPHEADER     => $headers_flat,
+				CURLOPT_TIMEOUT        => $req['timeout'] ?? 8,
+				CURLOPT_SSL_VERIFYPEER => true,
+				CURLOPT_FOLLOWLOCATION => true,
+			) );
+			curl_multi_add_handle( $multi, $ch );
+			$handles[ $key ] = $ch;
+		}
+
+		$running = null;
+		do {
+			$status = curl_multi_exec( $multi, $running );
+			if ( $running > 0 ) curl_multi_select( $multi, 1 );
+		} while ( $running > 0 && $status === CURLM_OK );
+
+		foreach ( $handles as $key => $ch ) {
+			$errno = curl_errno( $ch );
+			$results[ $key ] = $errno
+				? array( 'code' => null, 'error' => curl_error( $ch ) )
+				: array( 'code' => curl_getinfo( $ch, CURLINFO_HTTP_CODE ), 'error' => null );
+
+			curl_multi_remove_handle( $multi, $ch );
+			curl_close( $ch );
+		}
+		curl_multi_close( $multi );
+
+		return $results;
+	}
 }

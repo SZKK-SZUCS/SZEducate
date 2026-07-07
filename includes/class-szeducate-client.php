@@ -105,9 +105,8 @@ class SZEducate_Client {
 		if ( empty($filterable_fields) ) return;
 
 		$perms = json_decode( get_option('szeducate_client_permissions', '{}'), true );
-		$table_name = $wpdb->prefix . 'szeducate_courses_data';
-		$all_courses = $wpdb->get_results("SELECT course_data FROM $table_name", ARRAY_A);
-		
+		$all_courses = self::get_cached_courses_data();
+
 		$permitted_data = array();
 		
 		foreach ( $all_courses as $c ) {
@@ -273,10 +272,8 @@ class SZEducate_Client {
 				}
 			}
 
-			global $wpdb;
-			$table_name = $wpdb->prefix . 'szeducate_courses_data';
-			$all_courses = $wpdb->get_results("SELECT local_post_id, course_data FROM $table_name", ARRAY_A);
-			
+			$all_courses = self::get_cached_courses_data();
+
 			$allowed_ids = array();
 			foreach ( $all_courses as $c ) {
 				$data = json_decode( $c['course_data'], true );
@@ -589,6 +586,27 @@ class SZEducate_Client {
 			'map_meta_cap'       => true,
 		);
 		register_post_type( 'sz_course', $args );
+	}
+
+	// Az összes Képzés (local_post_id, title, course_data) rövid ideig gyorsítótárazott
+	// listája. Több különböző funkció (publikus keresés, publikus lista widget, admin
+	// szűrőpanel, jogosultság szerinti szűrés) korábban egymástól függetlenül futtatta le
+	// UGYANAZT a teljes tábla-beolvasást minden egyes kérésnél/oldalbetöltésnél - innentől
+	// egyet olvasunk be, és csak akkor frissítjük, ha tényleg változott valami.
+	public static function get_cached_courses_data() {
+		$cached = get_transient( 'szeducate_courses_cache' );
+		if ( is_array( $cached ) ) return $cached;
+
+		global $wpdb;
+		$table_name = $wpdb->prefix . 'szeducate_courses_data';
+		$rows = $wpdb->get_results( "SELECT local_post_id, title, course_data FROM $table_name", ARRAY_A );
+
+		set_transient( 'szeducate_courses_cache', $rows, 5 * MINUTE_IN_SECONDS );
+		return $rows;
+	}
+
+	public static function invalidate_courses_cache() {
+		delete_transient( 'szeducate_courses_cache' );
 	}
 
 	// Azon 'sz_course' bejegyzések ID-jai, amik már NEM tartoznak egyetlen sorhoz sem a
@@ -958,9 +976,10 @@ class SZEducate_Client {
 		}
 
 		$wpdb->delete( $table_name, array( 'local_post_id' => $post_id ) );
+		self::invalidate_courses_cache();
 
 		global $szeducate_is_local_deleting;
-		$szeducate_is_local_deleting = true; 
+		$szeducate_is_local_deleting = true;
 	}
 
 	public function ajax_search_courses( \WP_REST_Request $request ) {
@@ -988,8 +1007,8 @@ class SZEducate_Client {
 			}
 		}
 
-		$courses = $wpdb->get_results( "SELECT local_post_id, title, course_data FROM $table_name", ARRAY_A );
-		
+		$courses = self::get_cached_courses_data();
+
 		$course_results = array();
 		$category_results = array();
 		

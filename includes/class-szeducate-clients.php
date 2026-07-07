@@ -97,12 +97,13 @@ class SZEducate_Clients {
 				array( 'id' => $client_id )
 			);
 
-			$client = $wpdb->get_row( $wpdb->prepare( "SELECT client_url FROM {$this->table_name} WHERE id = %d", $client_id ) );
+			$client = $wpdb->get_row( $wpdb->prepare( "SELECT client_url, api_token FROM {$this->table_name} WHERE id = %d", $client_id ) );
 			if ( $client && ! empty( $client->client_url ) ) {
 				$webhook_url = rtrim( $client->client_url, '/' ) . '/wp-json/szeducate/v1/client/sync';
 				wp_remote_post( $webhook_url, array(
 					'blocking' => false,
-					'timeout'  => 5
+					'timeout'  => 5,
+					'headers'  => array( 'X-SZEducate-Auth' => $client->api_token ),
 				) );
 			}
 
@@ -124,7 +125,14 @@ class SZEducate_Clients {
 
 		global $wpdb;
 		$clients = $wpdb->get_results( "SELECT * FROM {$this->table_name} ORDER BY id DESC" );
-		$schema_json = get_option( 'szeducate_schema', '[]' );
+
+		// A sémát nem a nyers, tárolt string formájában adjuk tovább a JS-nek: az a böngésző
+		// JSON.stringify()-jából jön, ami NEM escapeli a "/" jelet, így egy mezőnévbe/opcióba
+		// írt "</script>" kitörhetne az inline <script> tag-ből. Dekódolva, majd PHP-vel
+		// újrakódolva (ami alapértelmezetten escapeli a "/"-t) ez biztonságosan beágyazható.
+		$schema_array = json_decode( get_option( 'szeducate_schema', '[]' ), true );
+		if ( ! is_array( $schema_array ) ) $schema_array = array();
+		$schema_json = wp_json_encode( $schema_array, JSON_UNESCAPED_UNICODE );
 		
 		$new_token = get_transient( 'szeducate_new_client_token' );
 
@@ -272,7 +280,7 @@ class SZEducate_Clients {
 		</div>
 
 		<script>
-			const szSchemaData = <?php echo $schema_json; ?>;
+			const szSchemaData = <?php echo str_replace( '</script', '<\/script', $schema_json ); ?>;
 		</script>
 
 		<style>

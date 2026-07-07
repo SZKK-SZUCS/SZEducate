@@ -594,9 +594,8 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 			$display_filter_text = sprintf( 'Szűrés: %s - %s', $f_label, $f_val_display );
 		}
 
-		global $wpdb;
-		$table_name = $wpdb->prefix . 'szeducate_courses_data';
-		$courses = $wpdb->get_results( "SELECT local_post_id, title, course_data FROM $table_name", ARRAY_A );
+		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-client.php';
+		$courses = SZEducate_Client::get_cached_courses_data();
 
 		$grouped_data = array();
 		$today_time = strtotime( current_time( 'Y-m-d' ) );

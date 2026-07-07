@@ -19,21 +19,21 @@ class SZEducate_Client_API {
 		) );
 
 		register_rest_route( 'szeducate/v1/client', '/sync', array(
-			'methods'             => WP_REST_Server::CREATABLE, 
+			'methods'             => WP_REST_Server::CREATABLE,
 			'callback'            => array( $this, 'webhook_sync_schema' ),
-			'permission_callback' => '__return_true', 
+			'permission_callback' => array( $this, 'verify_webhook_signature' ),
 		) );
 
 		register_rest_route( 'szeducate/v1/client', '/sync-course', array(
 			'methods'             => WP_REST_Server::CREATABLE,
 			'callback'            => array( $this, 'webhook_sync_course' ),
-			'permission_callback' => '__return_true',
+			'permission_callback' => array( $this, 'verify_webhook_signature' ),
 		) );
 
 		register_rest_route( 'szeducate/v1/client', '/sync-course/(?P<id>\d+)', array(
 			'methods'             => WP_REST_Server::DELETABLE,
 			'callback'            => array( $this, 'webhook_delete_course' ),
-			'permission_callback' => '__return_true',
+			'permission_callback' => array( $this, 'verify_webhook_signature' ),
 		) );
 
 		// Egyetlen kérésben több Képzés átadására (pl. teljes visszaállításnál),
@@ -41,8 +41,34 @@ class SZEducate_Client_API {
 		register_rest_route( 'szeducate/v1/client', '/sync-course-batch', array(
 			'methods'             => WP_REST_Server::CREATABLE,
 			'callback'            => array( $this, 'webhook_sync_course_batch' ),
-			'permission_callback' => '__return_true',
+			'permission_callback' => array( $this, 'verify_webhook_signature' ),
 		) );
+	}
+
+	// A Hub -> Kliens webhookokat a Kliens saját (a Hub felé is használt) API tokenjének
+	// hash-ével hitelesítjük. A Hub ezt a hash-et MÁR ismeri (ő tárolja, a bejövő kérések
+	// ellenőrzésére is ezt használja), így nem kell egy újabb, külön megosztott titkot
+	// bevezetni és karbantartani - a meglévő token bármelyik irányban ugyanazt bizonyítja.
+	public function verify_webhook_signature( WP_REST_Request $request ) {
+		$options = get_option( 'szeducate_settings', array() );
+		$configured_token = isset( $options['api_token'] ) ? $options['api_token'] : '';
+
+		if ( empty( $configured_token ) ) {
+			return new WP_Error( 'not_configured', 'A Kliens nincs beállítva a Hubhoz.', array( 'status' => 401 ) );
+		}
+
+		$incoming_hash = $request->get_header( 'x-szeducate-auth' );
+		if ( empty( $incoming_hash ) ) {
+			return new WP_Error( 'missing_auth', 'Hiányzó hitelesítés.', array( 'status' => 401 ) );
+		}
+
+		$expected_hash = hash( 'sha256', $configured_token );
+
+		if ( ! hash_equals( $expected_hash, $incoming_hash ) ) {
+			return new WP_Error( 'invalid_auth', 'Érvénytelen hitelesítés.', array( 'status' => 403 ) );
+		}
+
+		return true;
 	}
 
 	private function flatten_dynamic_columns( $course_data, $table_name ) {
@@ -51,7 +77,8 @@ class SZEducate_Client_API {
 		$schema = json_decode( $schema_json, true );
 		if ( ! is_array( $schema ) ) return array();
 
-		$existing_columns = $wpdb->get_col( "DESCRIBE $table_name", 0 );
+		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-activator.php';
+		$existing_columns = SZEducate_Activator::get_cached_table_columns( $table_name );
 		$db_data = array();
 
 		foreach ( $schema as $group ) {
@@ -216,6 +243,9 @@ class SZEducate_Client_API {
 		}
 		$wpdb->delete( $table_name, array( 'hub_id' => $hub_id ) );
 
+		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-client.php';
+		SZEducate_Client::invalidate_courses_cache();
+
 		return true;
 	}
 
@@ -314,6 +344,9 @@ class SZEducate_Client_API {
 				}
 			}
 		}
+
+		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-client.php';
+		SZEducate_Client::invalidate_courses_cache();
 	}
 
 	public function save_course_data( WP_REST_Request $request ) {
@@ -394,6 +427,9 @@ class SZEducate_Client_API {
 			}
 
 			$wpdb->query( 'COMMIT' );
+
+			require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-client.php';
+			SZEducate_Client::invalidate_courses_cache();
 
 			$settings = get_option( 'szeducate_settings', array() );
 			$hub_url = rtrim( $settings['hub_url'], '/' );

@@ -63,6 +63,7 @@ class SZEducate_Activator {
 			$sql = "CREATE TABLE `{$table_name}` (
 				`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
 				`hub_id` bigint(20) unsigned DEFAULT NULL,
+				`owner_client_id` bigint(20) unsigned DEFAULT NULL,
 				`local_post_id` bigint(20) unsigned DEFAULT NULL,
 				`title` varchar(255) NOT NULL,
 				`course_data` longtext DEFAULT NULL,
@@ -70,16 +71,18 @@ class SZEducate_Activator {
 				`updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
 				PRIMARY KEY (`id`),
 				KEY `hub_id` (`hub_id`),
-				KEY `local_post_id` (`local_post_id`)
+				KEY `owner_client_id` (`owner_client_id`),
+				KEY `local_post_id` (`local_post_id`),
+				KEY `title` (`title`)
 			) $charset_collate;";
-			
+
 			$wpdb->query( $sql );
 		}
 
 		// 2. Oszlopok és Indexek "sebészi" hozzáadása egyesével (Védett kulcsszavak kezelésével)
 		if ( $wpdb->get_var( "SHOW TABLES LIKE '{$table_name}'" ) == $table_name ) {
 			$existing_cols = $wpdb->get_col( "DESCRIBE `{$table_name}`", 0 );
-			
+
 			$existing_indexes_raw = $wpdb->get_results( "SHOW INDEX FROM `{$table_name}`", ARRAY_A );
 			$existing_indexes = array();
 			if ( $existing_indexes_raw ) {
@@ -88,17 +91,53 @@ class SZEducate_Activator {
 				}
 			}
 
+			// Rendszer-szintű oszlopok, amiknek MINDIG léteznie kell, függetlenül a sémától -
+			// régebbi, e módosítás előtt létrehozott táblákon is pótoljuk őket.
+			$system_columns = array(
+				'owner_client_id' => "bigint(20) unsigned DEFAULT NULL",
+				'title'           => null, // már kötelezően létezik a CREATE TABLE óta, csak az indexét pótoljuk itt
+			);
+
+			foreach ( $system_columns as $col_name => $col_type ) {
+				if ( $col_type && ! in_array( $col_name, $existing_cols ) ) {
+					$wpdb->query( "ALTER TABLE `{$table_name}` ADD COLUMN `$col_name` $col_type" );
+				}
+				if ( ! in_array( $col_name, $existing_indexes ) ) {
+					$wpdb->query( "ALTER TABLE `{$table_name}` ADD INDEX `$col_name` (`$col_name`)" );
+				}
+			}
+
 			foreach ( $dynamic_columns as $col_name => $col_type ) {
 				// Oszlop hozzáadása, ha hiányzik
 				if ( ! in_array( $col_name, $existing_cols ) ) {
 					$wpdb->query( "ALTER TABLE `{$table_name}` ADD COLUMN `$col_name` $col_type" );
 				}
-				
+
 				// Index hozzáadása, ha hiányzik
 				if ( ! in_array( $col_name, $existing_indexes ) ) {
 					$wpdb->query( "ALTER TABLE `{$table_name}` ADD INDEX `$col_name` (`$col_name`)" );
 				}
 			}
+
+			self::invalidate_table_columns_cache( $table_name );
 		}
+	}
+
+	// --- DESCRIBE-eredmény rövid gyorsítótárazása, hogy ne kelljen minden egyes Képzés-írásnál
+	// (Hub és Kliens oldalon egyaránt) újra lekérdezni az oszlopneveket - csak séma-mentéskor
+	// (update_database_schema() lefutásakor) érvénytelenítjük.
+	public static function get_cached_table_columns( $table_name ) {
+		$cache_key = 'szeducate_columns_' . md5( $table_name );
+		$cached = get_transient( $cache_key );
+		if ( is_array( $cached ) ) return $cached;
+
+		global $wpdb;
+		$columns = $wpdb->get_col( "DESCRIBE `{$table_name}`", 0 );
+		set_transient( $cache_key, $columns, HOUR_IN_SECONDS );
+		return $columns;
+	}
+
+	public static function invalidate_table_columns_cache( $table_name ) {
+		delete_transient( 'szeducate_columns_' . md5( $table_name ) );
 	}
 }

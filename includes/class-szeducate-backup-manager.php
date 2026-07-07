@@ -794,7 +794,7 @@ class SZEducate_Backup_Manager {
 
 		$hub_ids_to_sync = [];
 		$hub_ids_to_delete = [];
-		$existing_columns = $wpdb->get_col( "DESCRIBE $courses_table", 0 );
+		$existing_columns = SZEducate_Activator::get_cached_table_columns( $courses_table );
 
 		SZEducate_Sync_Log::progress_log( $progress_key, sprintf( 'Képzések feldolgozása (%d törlés, %d újrafelvétel, %d módosítás)...', count($courses_to_delete), count($courses_to_insert), count($courses_to_update) ) );
 		$this->abort_restore_if_requested( $progress_key );
@@ -953,7 +953,7 @@ class SZEducate_Backup_Manager {
 
 		if ( $wpdb->get_var( "SHOW TABLES LIKE '{$clients_table}'" ) != $clients_table ) return;
 
-		$all_clients = $wpdb->get_results( "SELECT client_name, client_url, permissions FROM {$clients_table} WHERE client_url != ''" );
+		$all_clients = $wpdb->get_results( "SELECT id, client_name, client_url, api_token, permissions FROM {$clients_table} WHERE client_url != ''" );
 
 		// Az imént szinkronizált képzések teljes adatát egyben lekérjük, hogy a batch
 		// kérésbe a Hub egyből a kész adatot tudja betenni - a kliensnek nem kell
@@ -971,12 +971,17 @@ class SZEducate_Backup_Manager {
 			}
 		}
 
-		SZEducate_Sync_Log::progress_log( $progress_key, sprintf( 'Kliensek kötegelt (batch) értesítése megkezdve a háttérben (%d kliens)...', count( $all_clients ) ) );
+		SZEducate_Sync_Log::progress_log( $progress_key, sprintf( 'Kliensek kötegelt (batch) értesítése megkezdve, PÁRHUZAMOSAN, a háttérben (%d kliens)...', count( $all_clients ) ) );
+
+		// Először minden klienshez összeállítjuk a saját (jogosultság szerint szűrt)
+		// kötegét, majd MIND egyszerre küldjük ki - nem egymás után várva meg őket.
+		$requests = array();
+		$client_by_key = array();
+		$payload_counts = array();
 
 		foreach ( $all_clients as $c ) {
 			$c_perms = json_decode( $c->permissions, true );
 			$c_conditions = isset( $c_perms['conditions'] ) ? $c_perms['conditions'] : array();
-			$batch_url = rtrim( $c->client_url, '/' ) . '/wp-json/szeducate/v1/client/sync-course-batch';
 
 			// Csak azokat a képzéseket tesszük a kötegbe, amikhez a kliens jogosultsági feltételei szerint hozzáférhet.
 			$courses_payload = array();
@@ -1002,31 +1007,37 @@ class SZEducate_Backup_Manager {
 
 			if ( empty( $courses_payload ) && empty( $hub_ids_to_delete ) ) continue;
 
-			$response = wp_remote_post( $batch_url, array(
-				'blocking' => true,
-				'timeout'  => 60,
-				'body'     => wp_json_encode( array( 'courses' => $courses_payload, 'deletes' => $hub_ids_to_delete ) ),
-				'headers'  => array( 'Content-Type' => 'application/json' ),
-			) );
+			$key = $c->id;
+			$client_by_key[ $key ] = $c;
+			$payload_counts[ $key ] = count( $courses_payload );
+			$requests[ $key ] = array(
+				'url'     => rtrim( $c->client_url, '/' ) . '/wp-json/szeducate/v1/client/sync-course-batch',
+				'method'  => 'POST',
+				'body'    => wp_json_encode( array( 'courses' => $courses_payload, 'deletes' => $hub_ids_to_delete ) ),
+				'headers' => array( 'Content-Type' => 'application/json', 'X-SZEducate-Auth' => $c->api_token ),
+				'timeout' => 60,
+			);
+		}
 
-			if ( is_wp_error( $response ) ) {
-				$msg = sprintf( 'Sikertelen kötegelt küldés ("%s", %d képzés): %s', $c->client_name, count( $courses_payload ), $response->get_error_message() );
+		$results = SZEducate_Sync_Log::parallel_requests( $requests );
+
+		foreach ( $results as $key => $res ) {
+			$c = $client_by_key[ $key ];
+			$count = $payload_counts[ $key ];
+
+			if ( $res['error'] ) {
+				$msg = sprintf( 'Sikertelen kötegelt küldés ("%s", %d képzés): %s', $c->client_name, $count, $res['error'] );
 				SZEducate_Sync_Log::add( 'restore-push', $msg, false );
 				SZEducate_Sync_Log::progress_log( $progress_key, $msg );
-				continue;
-			}
-
-			$code = wp_remote_retrieve_response_code( $response );
-			if ( $code < 200 || $code >= 300 ) {
-				$msg = sprintf( 'Hiba a kötegelt küldésnél ("%s"): HTTP %d', $c->client_name, $code );
+			} elseif ( $res['code'] < 200 || $res['code'] >= 300 ) {
+				$msg = sprintf( 'Hiba a kötegelt küldésnél ("%s"): HTTP %d', $c->client_name, $res['code'] );
 				SZEducate_Sync_Log::add( 'restore-push', $msg, false );
 				SZEducate_Sync_Log::progress_log( $progress_key, $msg );
-				continue;
+			} else {
+				$msg = sprintf( 'Kötegelt küldés kész ("%s"): %d képzés elküldve, %d törlés.', $c->client_name, $count, count( $hub_ids_to_delete ) );
+				SZEducate_Sync_Log::add( 'restore-push', $msg, true );
+				SZEducate_Sync_Log::progress_log( $progress_key, $msg );
 			}
-
-			$msg = sprintf( 'Kötegelt küldés kész ("%s"): %d képzés elküldve, %d törlés.', $c->client_name, count( $courses_payload ), count( $hub_ids_to_delete ) );
-			SZEducate_Sync_Log::add( 'restore-push', $msg, true );
-			SZEducate_Sync_Log::progress_log( $progress_key, $msg );
 		}
 
 		SZEducate_Sync_Log::progress_log( $progress_key, 'Kliensek háttérbeli értesítése befejeződött.' );
