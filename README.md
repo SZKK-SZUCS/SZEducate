@@ -151,6 +151,19 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.13
+
+Enhance SZEducate plugin functionality and performance
+
+- Added 'enabled' column to clients table to manage client activation status.
+- Updated client queries to filter out disabled clients.
+- Introduced AJAX endpoints for pinging clients and hub for connection testing.
+- Implemented size limit checks for course data to prevent oversized payloads.
+- Enhanced admin interface for managing clients, including token regeneration and status toggling.
+- Added uninstall script to clean up plugin data based on admin settings.
+- Improved user permissions by allowing Editors to manage courses.
+- Added localization support for plugin strings.
+
 ### 0.9.12
 
 Enhance database schema and caching mechanisms

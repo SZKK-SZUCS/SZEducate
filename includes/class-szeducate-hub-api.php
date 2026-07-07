@@ -96,6 +96,10 @@ class SZEducate_Hub_API {
 		
 		$client = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table_name WHERE api_token = %s", $incoming_hash ), ARRAY_A );
 
+		if ( $client && isset( $client['enabled'] ) && intval( $client['enabled'] ) === 0 ) {
+			return new WP_Error( 'client_suspended', 'A kliens hozzáférése fel van függesztve.', array( 'status' => 403 ) );
+		}
+
 		if ( $client ) {
 			$this->current_client = $client;
 			return true;
@@ -227,6 +231,10 @@ class SZEducate_Hub_API {
 		$local_post_id = isset( $params['local_post_id'] ) ? intval( $params['local_post_id'] ) : 0;
 		$hub_id_param = isset( $params['hub_id'] ) ? intval( $params['hub_id'] ) : 0;
 		$course_data = isset( $params['course_data'] ) && is_array( $params['course_data'] ) ? $params['course_data'] : array();
+
+		if ( strlen( wp_json_encode( $course_data ) ) > SZEDUCATE_MAX_COURSE_DATA_SIZE ) {
+			return new WP_Error( 'payload_too_large', 'A beküldött Képzés adata túl nagy (max. ' . size_format( SZEDUCATE_MAX_COURSE_DATA_SIZE ) . ').', array( 'status' => 413 ) );
+		}
 
 		$existing_row = null;
 
@@ -377,7 +385,7 @@ class SZEducate_Hub_API {
 		$course_data = json_decode( $course['course_data'], true );
 		if ( ! is_array( $course_data ) ) $course_data = array();
 
-		$all_clients = $wpdb->get_results( "SELECT id, client_name, client_url, api_token, permissions FROM {$clients_table} WHERE client_url != ''" );
+		$all_clients = $wpdb->get_results( "SELECT id, client_name, client_url, api_token, permissions FROM {$clients_table} WHERE client_url != '' AND enabled = 1" );
 
 		$requests = array();
 		$client_by_key = array();
@@ -467,7 +475,7 @@ class SZEducate_Hub_API {
 		$clients_table = $wpdb->prefix . 'szeducate_clients';
 
 		$all_clients = $wpdb->get_results( $wpdb->prepare(
-			"SELECT id, client_name, client_url, api_token FROM {$clients_table} WHERE client_url != '' AND id != %d",
+			"SELECT id, client_name, client_url, api_token FROM {$clients_table} WHERE client_url != '' AND enabled = 1 AND id != %d",
 			$exclude_client_id
 		) );
 

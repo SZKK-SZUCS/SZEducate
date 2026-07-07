@@ -35,7 +35,7 @@ class SZEducate_Schema {
 				$table_name = $wpdb->prefix . 'szeducate_clients';
 				
 				if ( $wpdb->get_var( "SHOW TABLES LIKE '{$table_name}'" ) == $table_name ) {
-					$clients = $wpdb->get_results( "SELECT client_url, api_token FROM {$table_name} WHERE client_url != ''" );
+					$clients = $wpdb->get_results( "SELECT client_url, api_token FROM {$table_name} WHERE client_url != '' AND enabled = 1" );
 					foreach ( $clients as $client ) {
 						$webhook_url = rtrim( $client->client_url, '/' ) . '/wp-json/szeducate/v1/client/sync';
 						wp_remote_post( $webhook_url, array(

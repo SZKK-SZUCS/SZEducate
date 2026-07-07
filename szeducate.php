@@ -3,19 +3,29 @@
  * Plugin Name:       SZEducate
  * Plugin URI:        https://github.com/SZKK-SZUCS/SZEducate
  * Description:       Hub-Kliens architektúrájú képzésmenedzsment és szinkronizációs rendszer a Széchenyi István Egyetem számára.
- * Version:           0.9.12
+ * Version:           0.9.13
  * Author:            Szurofka Márton, MFÜI
  * Author URI:        https://www.uni.sze.hu/
  * Text Domain:       szeducate
+ * Domain Path:       /languages
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SZEDUCATE_VERSION', '0.9.12' );
+define( 'SZEDUCATE_VERSION', '0.9.13' );
 define( 'SZEDUCATE_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'SZEDUCATE_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
+
+// Egy Képzés course_data JSON-jának maximális mérete - elég nagybőkezű bármilyen valós
+// tartalomhoz (gazdag HTML leírások, több mező), de gátat szab a korlátlan méretű
+// beküldéseknek.
+define( 'SZEDUCATE_MAX_COURSE_DATA_SIZE', 2 * 1024 * 1024 ); // 2 MB
+
+add_action( 'init', function() {
+	load_plugin_textdomain( 'szeducate', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
+} );
 
 // 1. COMPOSER AUTOLOADER BETÖLTÉSE (Kritikus az Excel és a Frissítő miatt!)
 $composer_autoload = SZEDUCATE_PLUGIN_DIR . 'vendor/autoload.php';

@@ -43,6 +43,22 @@ class SZEducate_Client_API {
 			'callback'            => array( $this, 'webhook_sync_course_batch' ),
 			'permission_callback' => array( $this, 'verify_webhook_signature' ),
 		) );
+
+		// Könnyű "életjel" végpont a Hub -> Kliens kapcsolat teszteléséhez, adatírás nélkül.
+		register_rest_route( 'szeducate/v1/client', '/ping', array(
+			'methods'             => WP_REST_Server::READABLE,
+			'callback'            => array( $this, 'handle_ping' ),
+			'permission_callback' => array( $this, 'verify_webhook_signature' ),
+		) );
+	}
+
+	public function handle_ping( WP_REST_Request $request ) {
+		return new WP_REST_Response( array(
+			'success' => true,
+			'message' => 'pong',
+			'site'    => get_bloginfo( 'name' ),
+			'time'    => current_time( 'mysql' ),
+		), 200 );
 	}
 
 	// A Hub -> Kliens webhookokat a Kliens saját (a Hub felé is használt) API tokenjének
@@ -260,12 +276,12 @@ class SZEducate_Client_API {
 		foreach ( $courses as $c ) {
 			if ( empty( $c['hub_id'] ) || ! isset( $c['title'] ) || ! isset( $c['course_data'] ) ) continue;
 
-			$this->update_local_course_from_hub(
+			$ok = $this->update_local_course_from_hub(
 				intval( $c['hub_id'] ),
 				sanitize_text_field( $c['title'] ),
 				is_array( $c['course_data'] ) ? $c['course_data'] : array()
 			);
-			$synced++;
+			if ( $ok ) $synced++;
 		}
 
 		$deleted = 0;
@@ -284,14 +300,19 @@ class SZEducate_Client_API {
 	public function update_local_course_from_hub( $hub_id, $title, $course_data ) {
 		global $wpdb;
 		$table_name = $wpdb->prefix . 'szeducate_courses_data';
-		
+
+		$json_blob = wp_json_encode( $course_data, JSON_UNESCAPED_UNICODE );
+		if ( strlen( $json_blob ) > SZEDUCATE_MAX_COURSE_DATA_SIZE ) {
+			SZEducate_Sync_Log::add( 'sync-course', sprintf( 'Kihagyva (Hub ID: %d, "%s"): a Képzés adata túl nagy.', $hub_id, $title ), false );
+			return false;
+		}
+
 		$existing = $wpdb->get_row( $wpdb->prepare( "SELECT id, local_post_id FROM $table_name WHERE hub_id = %d", $hub_id ), ARRAY_A );
-		
+
 		if ( ! $existing ) {
 			$existing = $wpdb->get_row( $wpdb->prepare( "SELECT id, local_post_id FROM $table_name WHERE title = %s LIMIT 1", $title ), ARRAY_A );
 		}
-		
-		$json_blob = wp_json_encode( $course_data, JSON_UNESCAPED_UNICODE );
+
 		$dynamic_columns = $this->flatten_dynamic_columns( $course_data, $table_name );
 
 		$local_post_id = 0;
@@ -347,6 +368,8 @@ class SZEducate_Client_API {
 
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-client.php';
 		SZEducate_Client::invalidate_courses_cache();
+
+		return true;
 	}
 
 	public function save_course_data( WP_REST_Request $request ) {
@@ -359,8 +382,12 @@ class SZEducate_Client_API {
 
 		$post_id = ! empty( $params['local_post_id'] ) ? intval( $params['local_post_id'] ) : 0;
 		$title = sanitize_text_field( $params['title'] );
-		
+
 		$dynamic_data = isset( $params['course_data'] ) ? $params['course_data'] : array();
+
+		if ( strlen( wp_json_encode( $dynamic_data ) ) > SZEDUCATE_MAX_COURSE_DATA_SIZE ) {
+			return new WP_Error( 'payload_too_large', 'A Képzés adata túl nagy (max. ' . size_format( SZEDUCATE_MAX_COURSE_DATA_SIZE ) . ').', array( 'status' => 413 ) );
+		}
 
 		$wpdb->query( 'START TRANSACTION' );
 

@@ -953,7 +953,7 @@ class SZEducate_Backup_Manager {
 
 		if ( $wpdb->get_var( "SHOW TABLES LIKE '{$clients_table}'" ) != $clients_table ) return;
 
-		$all_clients = $wpdb->get_results( "SELECT id, client_name, client_url, api_token, permissions FROM {$clients_table} WHERE client_url != ''" );
+		$all_clients = $wpdb->get_results( "SELECT id, client_name, client_url, api_token, permissions FROM {$clients_table} WHERE client_url != '' AND enabled = 1" );
 
 		// Az imént szinkronizált képzések teljes adatát egyben lekérjük, hogy a batch
 		// kérésbe a Hub egyből a kész adatot tudja betenni - a kliensnek nem kell

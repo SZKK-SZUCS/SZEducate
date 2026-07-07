@@ -15,7 +15,42 @@ class SZEducate_Clients {
 	public function init() {
 		add_action( 'admin_menu', array( $this, 'add_clients_page' ) );
 		add_action( 'admin_init', array( $this, 'handle_actions' ) );
+		add_action( 'wp_ajax_szeducate_ping_client', array( $this, 'ajax_ping_client' ) );
 		$this->check_table();
+	}
+
+	// A Hub oldalról egy adott Kliens felé küld egy hitelesített, adatírás nélküli
+	// "életjel" kérést, hogy az admin gyorsan ellenőrizhesse a kapcsolatot anélkül,
+	// hogy meg kellene várnia egy valós szinkronizációt/mentést.
+	public function ajax_ping_client() {
+		if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( 'Nincs jogosultságod.' );
+		check_ajax_referer( 'szeducate_ping_client', 'nonce' );
+
+		global $wpdb;
+		$client_id = isset( $_POST['client_id'] ) ? intval( $_POST['client_id'] ) : 0;
+		$client = $wpdb->get_row( $wpdb->prepare( "SELECT client_url, api_token FROM {$this->table_name} WHERE id = %d", $client_id ) );
+
+		if ( ! $client || empty( $client->client_url ) ) {
+			wp_send_json_error( 'A kliensnek nincs beállítva webcíme.' );
+		}
+
+		$start = microtime( true );
+		$response = wp_remote_get( rtrim( $client->client_url, '/' ) . '/wp-json/szeducate/v1/client/ping', array(
+			'headers' => array( 'X-SZEducate-Auth' => $client->api_token ),
+			'timeout' => 10,
+		) );
+		$elapsed_ms = round( ( microtime( true ) - $start ) * 1000 );
+
+		if ( is_wp_error( $response ) ) {
+			wp_send_json_error( sprintf( 'Nem elérhető (%s)', $response->get_error_message() ) );
+		}
+
+		$code = wp_remote_retrieve_response_code( $response );
+		if ( $code === 200 ) {
+			wp_send_json_success( sprintf( 'Elérhető - %d ms', $elapsed_ms ) );
+		}
+
+		wp_send_json_error( sprintf( 'HTTP %d (%d ms)', $code, $elapsed_ms ) );
 	}
 
 	private function check_table() {
@@ -28,6 +63,7 @@ class SZEducate_Clients {
 				client_url varchar(255) NOT NULL DEFAULT '',
 				api_token varchar(64) NOT NULL,
 				permissions longtext NOT NULL,
+				enabled tinyint(1) NOT NULL DEFAULT 1,
 				created_at datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
 				PRIMARY KEY  (id),
 				UNIQUE KEY api_token (api_token)
@@ -38,6 +74,11 @@ class SZEducate_Clients {
 			$column = $wpdb->get_results( "SHOW COLUMNS FROM {$this->table_name} LIKE 'client_url'" );
 			if ( empty( $column ) ) {
 				$wpdb->query( "ALTER TABLE {$this->table_name} ADD client_url varchar(255) NOT NULL DEFAULT '' AFTER client_name" );
+			}
+
+			$enabled_column = $wpdb->get_results( "SHOW COLUMNS FROM {$this->table_name} LIKE 'enabled'" );
+			if ( empty( $enabled_column ) ) {
+				$wpdb->query( "ALTER TABLE {$this->table_name} ADD enabled tinyint(1) NOT NULL DEFAULT 1" );
 			}
 		}
 	}
@@ -57,13 +98,30 @@ class SZEducate_Clients {
 		if ( isset( $_POST['szeducate_add_client'] ) && check_admin_referer( 'szeducate_client_action' ) ) {
 			$client_name = sanitize_text_field( wp_unslash( $_POST['client_name'] ) );
 			$client_url  = esc_url_raw( wp_unslash( $_POST['client_url'] ) );
-			
+			$allow_duplicate_host = ! empty( $_POST['allow_duplicate_host'] );
+
 			if ( ! empty( $client_name ) ) {
 				global $wpdb;
-				
-				$raw_token = bin2hex( random_bytes( 24 ) ); 
+
+				// Egy domainhez (host) alapértelmezetten csak egy kliens/token tartozhat -
+				// ez elkerüli, hogy véletlen dupla regisztráció két érvényes tokent hozzon
+				// létre ugyanahhoz a site-hoz. Staging/aldomain esetekhez (pl. ugyanaz a host,
+				// más útvonal) az admin explicit bejelölheti a felülbírálást.
+				$host = wp_parse_url( $client_url, PHP_URL_HOST );
+				if ( $host && ! $allow_duplicate_host ) {
+					$existing_hosts = $wpdb->get_results( "SELECT id, client_name, client_url FROM {$this->table_name}" );
+					foreach ( $existing_hosts as $existing ) {
+						if ( strcasecmp( wp_parse_url( $existing->client_url, PHP_URL_HOST ), $host ) === 0 ) {
+							set_transient( 'szeducate_host_conflict', array( 'host' => $host, 'existing_name' => $existing->client_name ), 60 );
+							wp_redirect( admin_url( 'admin.php?page=szeducate-clients&message=host_conflict' ) );
+							exit;
+						}
+					}
+				}
+
+				$raw_token = bin2hex( random_bytes( 24 ) );
 				$hashed_token = hash( 'sha256', $raw_token );
-				
+
 				$default_permissions = wp_json_encode( array(
 					'actions' => array( 'create' => true, 'edit' => true, 'delete' => false ),
 					'conditions' => array( 'logical_operator' => 'AND', 'rules' => array() ),
@@ -76,7 +134,8 @@ class SZEducate_Clients {
 						'client_name' => $client_name,
 						'client_url'  => rtrim($client_url, '/'),
 						'api_token'   => $hashed_token,
-						'permissions' => $default_permissions
+						'permissions' => $default_permissions,
+						'enabled'     => 1,
 					)
 				);
 
@@ -84,6 +143,33 @@ class SZEducate_Clients {
 				wp_redirect( admin_url( 'admin.php?page=szeducate-clients&message=added' ) );
 				exit;
 			}
+		}
+
+		if ( isset( $_GET['action'] ) && $_GET['action'] === 'regenerate_token' && isset( $_GET['client_id'] ) ) {
+			$client_id = intval( $_GET['client_id'] );
+			check_admin_referer( 'regenerate_token_' . $client_id );
+
+			global $wpdb;
+			$raw_token = bin2hex( random_bytes( 24 ) );
+			$hashed_token = hash( 'sha256', $raw_token );
+
+			$wpdb->update( $this->table_name, array( 'api_token' => $hashed_token ), array( 'id' => $client_id ) );
+
+			set_transient( 'szeducate_new_client_token', $raw_token, 60 );
+			wp_redirect( admin_url( 'admin.php?page=szeducate-clients&message=token_regenerated' ) );
+			exit;
+		}
+
+		if ( isset( $_GET['action'] ) && $_GET['action'] === 'toggle_client' && isset( $_GET['client_id'] ) ) {
+			$client_id = intval( $_GET['client_id'] );
+			check_admin_referer( 'toggle_client_' . $client_id );
+
+			global $wpdb;
+			$current = $wpdb->get_var( $wpdb->prepare( "SELECT enabled FROM {$this->table_name} WHERE id = %d", $client_id ) );
+			$wpdb->update( $this->table_name, array( 'enabled' => $current ? 0 : 1 ), array( 'id' => $client_id ) );
+
+			wp_redirect( admin_url( 'admin.php?page=szeducate-clients&message=' . ( $current ? 'suspended' : 'reactivated' ) ) );
+			exit;
 		}
 
 		if ( isset( $_POST['szeducate_save_permissions'] ) && check_admin_referer( 'szeducate_permissions_action' ) ) {
@@ -141,9 +227,12 @@ class SZEducate_Clients {
 			<h1>Kliensek és Jogosultságok</h1>
 			<p>Kezeld a hálózathoz csatlakozó karokat és állítsd be, hogy pontosan mikhez férhetnek hozzá a Hub-on lévő adatokból.</p>
 
-			<?php 
+			<?php
 			if ( $new_token ) {
-				echo '<div class="notice notice-success is-dismissible" style="border-left-color: #46b450; padding: 15px;"><p style="font-size: 16px; margin-top: 0;"><strong>ÚJ TOKEN GENERÁLVA!</strong></p><p>Kérlek, másold ki most ezt a titkos kulcsot a Kliens oldal számára, mert biztonsági okokból többé nem lesz látható:</p><p><code style="font-size: 20px; background: #e5f5fa; padding: 10px; display: inline-block; border: 1px solid #007cba; user-select: all;">' . esc_html( $new_token ) . '</code></p></div>';
+				$is_regenerated = isset( $_GET['message'] ) && $_GET['message'] === 'token_regenerated';
+				$title = $is_regenerated ? 'TOKEN ÚJRAGENERÁLVA!' : 'ÚJ TOKEN GENERÁLVA!';
+				$extra = $is_regenerated ? '<p style="color:#d63638;"><strong>A régi token azonnal érvénytelenné vált</strong> - a kliens oldalon is frissítsd az API Tokent, különben megszakad a kapcsolat!</p>' : '';
+				echo '<div class="notice notice-success is-dismissible" style="border-left-color: #46b450; padding: 15px;"><p style="font-size: 16px; margin-top: 0;"><strong>' . esc_html( $title ) . '</strong></p><p>Kérlek, másold ki most ezt a titkos kulcsot a Kliens oldal számára, mert biztonsági okokból többé nem lesz látható:</p><p><code style="font-size: 20px; background: #e5f5fa; padding: 10px; display: inline-block; border: 1px solid #007cba; user-select: all;">' . esc_html( $new_token ) . '</code></p>' . $extra . '</div>';
 				delete_transient( 'szeducate_new_client_token' );
 			}
 
@@ -151,6 +240,15 @@ class SZEducate_Clients {
 				if ( $_GET['message'] === 'added' && !$new_token ) echo '<div class="notice notice-success is-dismissible"><p>Kliens sikeresen hozzáadva.</p></div>';
 				if ( $_GET['message'] === 'deleted' ) echo '<div class="notice notice-success is-dismissible"><p>Kliens és a hozzá tartozó hozzáférés véglegesen törölve.</p></div>';
 				if ( $_GET['message'] === 'permissions_saved' ) echo '<div class="notice notice-success is-dismissible"><p>Jogosultsági Mátrix sikeresen frissítve. (A Kliens automatikusan szinkronizált a háttérben).</p></div>';
+				if ( $_GET['message'] === 'suspended' ) echo '<div class="notice notice-warning is-dismissible"><p>Kliens felfüggesztve - a tokene átmenetileg nem fogadható el, amíg vissza nem állítod.</p></div>';
+				if ( $_GET['message'] === 'reactivated' ) echo '<div class="notice notice-success is-dismissible"><p>Kliens hozzáférése visszaállítva.</p></div>';
+				if ( $_GET['message'] === 'host_conflict' ) {
+					$conflict = get_transient( 'szeducate_host_conflict' );
+					delete_transient( 'szeducate_host_conflict' );
+					if ( $conflict ) {
+						echo '<div class="notice notice-error is-dismissible"><p><strong>Nem hoztam létre az új klienst:</strong> a(z) <code>' . esc_html( $conflict['host'] ) . '</code> domain már használatban van ("' . esc_html( $conflict['existing_name'] ) . '" kliensnél). Ha ez szándékos (pl. staging környezet ugyanazon a domainen), jelöld be az "Engedélyezem az azonos domaint" opciót és próbáld újra.</p></div>';
+					}
+				}
 			}
 			?>
 
@@ -175,6 +273,13 @@ class SZEducate_Clients {
 										<p class="description">Ide küldjük az automatikus szinkronizációs jelet.</p>
 									</td>
 								</tr>
+								<tr>
+									<th scope="row"><label for="allow_duplicate_host">Domain ütközés</label></th>
+									<td>
+										<label><input type="checkbox" name="allow_duplicate_host" id="allow_duplicate_host" value="1"> Engedélyezem az azonos domaint</label>
+										<p class="description">Alapból egy domainhez (pl. <code>kgk.sze.hu</code>) csak egy kliens tartozhat. Csak akkor jelöld be, ha ez szándékos - pl. egy staging útvonal (<code>kgk.sze.hu/stage1-example</code>) ugyanazon a domainen egy már regisztrált klienshez képest.</p>
+									</td>
+								</tr>
 							</tbody>
 						</table>
 						<p class="submit">
@@ -189,7 +294,7 @@ class SZEducate_Clients {
 							<tr>
 								<th style="width: 50px;">ID</th>
 								<th>Kliens Neve</th>
-								<th>API Token</th>
+								<th>Állapot</th>
 								<th style="text-align: right;">Műveletek</th>
 							</tr>
 						</thead>
@@ -197,16 +302,31 @@ class SZEducate_Clients {
 							<?php if ( empty( $clients ) ) : ?>
 								<tr><td colspan="4">Nincsenek regisztrált kliensek a rendszerben.</td></tr>
 							<?php else : ?>
-								<?php foreach ( $clients as $client ) : ?>
+								<?php foreach ( $clients as $client ) :
+									$is_enabled = ! isset( $client->enabled ) || intval( $client->enabled ) === 1;
+									$regen_url = wp_nonce_url( admin_url( 'admin.php?page=szeducate-clients&action=regenerate_token&client_id=' . $client->id ), 'regenerate_token_' . $client->id );
+									$toggle_url = wp_nonce_url( admin_url( 'admin.php?page=szeducate-clients&action=toggle_client&client_id=' . $client->id ), 'toggle_client_' . $client->id );
+								?>
 									<tr>
 										<td>#<?php echo esc_html( $client->id ); ?></td>
 										<td>
 											<strong><?php echo esc_html( $client->client_name ); ?></strong><br>
 											<a href="<?php echo esc_attr( $client->client_url ); ?>" target="_blank" style="font-size: 11px; text-decoration: none; color: #666;"><?php echo esc_html( $client->client_url ); ?></a>
 										</td>
-										<td><code style="color: #888; background: transparent;">&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull; (Rejtett)</code></td>
+										<td>
+											<?php if ( $is_enabled ) : ?>
+												<span style="color:#46b450; font-weight:600;">&#9679; Aktív</span>
+											<?php else : ?>
+												<span style="color:#d63638; font-weight:600;">&#9679; Felfüggesztve</span>
+											<?php endif; ?>
+											<br>
+											<span class="sz-ping-result" data-client-id="<?php echo esc_attr( $client->id ); ?>" style="font-size:11px; color:#888;"></span>
+										</td>
 										<td style="text-align: right;">
+											<button type="button" class="button button-small sz-ping-btn" data-id="<?php echo esc_attr( $client->id ); ?>" style="margin-right: 5px;">Ping</button>
 											<button type="button" class="button button-small open-permissions-btn" data-id="<?php echo esc_attr( $client->id ); ?>" data-name="<?php echo esc_attr( $client->client_name ); ?>" data-permissions="<?php echo esc_attr( $client->permissions ); ?>" style="margin-right: 5px;">Jogosultságok (Mátrix)</button>
+											<a href="<?php echo esc_url( $regen_url ); ?>" class="button button-small" style="margin-right: 5px;" onclick="return confirm('Biztosan újragenerálod a tokent? A JELENLEGI token AZONNAL érvénytelenné válik, a kliens oldalon is frissíteni kell, különben megszakad a kapcsolat!');">Token újragenerálása</a>
+											<a href="<?php echo esc_url( $toggle_url ); ?>" class="button button-small" style="margin-right: 5px;" onclick="return confirm('<?php echo $is_enabled ? 'Biztosan felfüggeszted? A kliens tokenje átmenetileg elutasításra kerül.' : 'Biztosan visszaállítod a hozzáférést?'; ?>');"><?php echo $is_enabled ? 'Felfüggesztés' : 'Visszaállítás'; ?></a>
 											<a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin.php?page=szeducate-clients&action=delete_client&client_id=' . $client->id ), 'delete_client_' . $client->id ) ); ?>" class="button button-small button-link-delete" style="color: #d63638;" onclick="return confirm('Biztosan törlöd ezt a klienst? Ezzel a tokenje érvénytelenné válik!');">Törlés</a>
 										</td>
 									</tr>
@@ -552,6 +672,36 @@ class SZEducate_Clients {
 
 				document.getElementById('modal-permissions-json').value = JSON.stringify(finalPerms);
 				form.submit();
+			});
+
+			const szPingAjaxUrl = '<?php echo esc_js( admin_url( 'admin-ajax.php' ) ); ?>';
+			const szPingNonce = '<?php echo esc_js( wp_create_nonce( 'szeducate_ping_client' ) ); ?>';
+
+			document.querySelectorAll('.sz-ping-btn').forEach(btn => {
+				btn.addEventListener('click', function() {
+					const clientId = this.dataset.id;
+					const resultEl = document.querySelector('.sz-ping-result[data-client-id="' + clientId + '"]');
+					this.disabled = true;
+					resultEl.style.color = '#888';
+					resultEl.textContent = 'Pingelés...';
+
+					const body = new URLSearchParams();
+					body.set('action', 'szeducate_ping_client');
+					body.set('client_id', clientId);
+					body.set('nonce', szPingNonce);
+
+					fetch(szPingAjaxUrl, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
+						.then(r => r.json())
+						.then(res => {
+							resultEl.style.color = res.success ? '#46b450' : '#d63638';
+							resultEl.textContent = res.data || (res.success ? 'OK' : 'Hiba');
+						})
+						.catch(() => {
+							resultEl.style.color = '#d63638';
+							resultEl.textContent = 'Hálózati hiba';
+						})
+						.finally(() => { btn.disabled = false; });
+				});
 			});
 		});
 		</script>

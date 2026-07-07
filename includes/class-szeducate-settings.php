@@ -14,6 +14,37 @@ class SZEducate_Settings {
 		add_action( 'admin_post_szeducate_sync_schema', array( $this, 'sync_schema_from_hub' ) );
 		add_action( 'admin_post_szeducate_full_resync', array( $this, 'handle_full_resync' ) );
 		add_action( 'admin_post_szeducate_cleanup_orphaned_courses', array( $this, 'handle_cleanup_orphaned_courses' ) );
+		add_action( 'wp_ajax_szeducate_ping_hub', array( $this, 'ajax_ping_hub' ) );
+	}
+
+	// A Kliens oldalról egy hitelesített, adatírás nélküli kérést küld a Hub felé, hogy
+	// gyorsan ellenőrizhető legyen a hub_url/api_token pár érvényessége és elérhetősége.
+	public function ajax_ping_hub() {
+		if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( 'Nincs jogosultságod.' );
+		check_ajax_referer( 'szeducate_ping_hub', 'nonce' );
+
+		$options = get_option( $this->option_name, array() );
+		if ( empty( $options['hub_url'] ) || empty( $options['api_token'] ) ) {
+			wp_send_json_error( 'A Hub URL vagy Token nincs beállítva.' );
+		}
+
+		$start = microtime( true );
+		$response = wp_remote_get( rtrim( $options['hub_url'], '/' ) . '/wp-json/szeducate/v1/hub/schema', array(
+			'headers' => array( 'Authorization' => 'Bearer ' . $options['api_token'] ),
+			'timeout' => 10,
+		) );
+		$elapsed_ms = round( ( microtime( true ) - $start ) * 1000 );
+
+		if ( is_wp_error( $response ) ) {
+			wp_send_json_error( sprintf( 'Nem elérhető (%s)', $response->get_error_message() ) );
+		}
+
+		$code = wp_remote_retrieve_response_code( $response );
+		if ( $code === 200 ) {
+			wp_send_json_success( sprintf( 'Elérhető - %d ms', $elapsed_ms ) );
+		}
+
+		wp_send_json_error( sprintf( 'HTTP %d (%d ms)', $code, $elapsed_ms ) );
 	}
 
 	public function add_plugin_page() {
@@ -65,6 +96,37 @@ class SZEducate_Settings {
 				</form>
 
 				<hr>
+				<h2>Kapcsolat Tesztelése</h2>
+				<p>Gyorsan ellenőrizheted, hogy a beállított Hub URL és API Token érvényes és elérhető-e, anélkül hogy bármit szinkronizálnál.</p>
+				<button type="button" id="sz-ping-hub-btn" class="button">Kapcsolat Tesztelése</button>
+				<span id="sz-ping-hub-result" style="margin-left:10px; font-weight:600;"></span>
+				<script>
+					document.getElementById('sz-ping-hub-btn').addEventListener('click', function() {
+						const btn = this;
+						const resultEl = document.getElementById('sz-ping-hub-result');
+						btn.disabled = true;
+						resultEl.style.color = '#888';
+						resultEl.textContent = 'Tesztelés...';
+
+						const body = new URLSearchParams();
+						body.set('action', 'szeducate_ping_hub');
+						body.set('nonce', '<?php echo esc_js( wp_create_nonce( 'szeducate_ping_hub' ) ); ?>');
+
+						fetch('<?php echo esc_js( admin_url( 'admin-ajax.php' ) ); ?>', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
+							.then(r => r.json())
+							.then(res => {
+								resultEl.style.color = res.success ? '#46b450' : '#d63638';
+								resultEl.textContent = res.data || (res.success ? 'OK' : 'Hiba');
+							})
+							.catch(() => {
+								resultEl.style.color = '#d63638';
+								resultEl.textContent = 'Hálózati hiba';
+							})
+							.finally(() => { btn.disabled = false; });
+					});
+				</script>
+
+				<hr>
 				<h2>Teljes Szinkronizáció</h2>
 				<p>Ha úgy érzed, hogy a Kliens elmaradt a Hub-tól (pl. egy webhook nem érkezett meg), itt manuálisan is lekérheted a Hub-tól a sémát, a jogosultságokat, és minden olyan Képzést, amihez ez a Kliens hozzáférhet.</p>
 				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" onsubmit="return confirm('Ez lekéri és felülírja a helyi Képzés-adatokat a Hub aktuális állapotával. Biztosan folytatod?');">
@@ -101,6 +163,9 @@ class SZEducate_Settings {
 		add_settings_field( 'mode', 'Futási mód (Node típus)', array( $this, 'mode_callback' ), 'szeducate-settings', 'szeducate_main_section' );
 		add_settings_field( 'hub_url', 'Hub URL (Kliens esetén)', array( $this, 'hub_url_callback' ), 'szeducate-settings', 'szeducate_main_section' );
 		add_settings_field( 'api_token', 'API Token (Kliens esetén)', array( $this, 'api_token_callback' ), 'szeducate-settings', 'szeducate_main_section' );
+
+		add_settings_section( 'szeducate_uninstall_section', 'Eltávolítás', null, 'szeducate-settings' );
+		add_settings_field( 'purge_on_uninstall', 'Adatok törlése a plugin eltávolításakor', array( $this, 'purge_on_uninstall_callback' ), 'szeducate-settings', 'szeducate_uninstall_section' );
 	}
 
 	public function sanitize( $input ) {
@@ -108,6 +173,7 @@ class SZEducate_Settings {
 		if ( isset( $input['mode'] ) ) $sanitized['mode'] = sanitize_text_field( $input['mode'] );
 		if ( isset( $input['hub_url'] ) ) $sanitized['hub_url'] = esc_url_raw( rtrim($input['hub_url'], '/') );
 		if ( isset( $input['api_token'] ) ) $sanitized['api_token'] = sanitize_text_field( $input['api_token'] );
+		$sanitized['purge_on_uninstall'] = ! empty( $input['purge_on_uninstall'] );
 		return $sanitized;
 	}
 
@@ -129,6 +195,18 @@ class SZEducate_Settings {
 	public function api_token_callback() {
 		$api_token = isset( $this->options['api_token'] ) ? $this->options['api_token'] : '';
 		printf( '<input type="password" id="api_token" name="szeducate_settings[api_token]" value="%s" class="regular-text" />', esc_attr( $api_token ) );
+	}
+
+	public function purge_on_uninstall_callback() {
+		$checked = ! empty( $this->options['purge_on_uninstall'] );
+		?>
+		<label>
+			<input type="checkbox" name="szeducate_settings[purge_on_uninstall]" value="1" <?php checked( $checked ); ?>
+				onclick="if (this.checked && !confirm('Biztosan bekapcsolod? Ha ez be van jelölve MENTÉSKOR, akkor a plugin törlésekor (Beépülő modulok > Törlés) MINDEN SZEducate adat véglegesen törlődik: az egyedi adatbázis-táblák (Képzések, Kliensek), és minden beállítás. Ez nem vonható vissza.')) { this.checked = false; }">
+			Törléskor az egyedi táblák (Képzések, Kliensek) és az összes beállítás véglegesen törlődjön
+		</label>
+		<p class="description">Alapértelmezetten (kikapcsolva) a plugin eltávolítása megőrzi az adatokat - így egy véletlen törlés/újratelepítés nem okoz adatvesztést. Csak akkor kapcsold be, ha ezt a telepítést véglegesen le akarod bontani.</p>
+		<?php
 	}
 
 	public function sync_schema_from_hub() {

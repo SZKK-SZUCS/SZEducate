@@ -47,18 +47,26 @@ class SZEducate_Client {
 		add_action( 'before_delete_post', array( $this, 'process_course_deletion' ), 10, 1 );
 	}
 
+	// Az 'edit_sz_courses' jogosultság korábban KIZÁRÓLAG az Adminisztrátor szerepkörhöz
+	// lett hozzáadva - ezáltal a kód több helyen ellenőrzi ugyan a szűkebb jogosultságot,
+	// a gyakorlatban mégis csak a teljes site-adminisztrátor tudta valaha ténylegesen
+	// elérni. Az Editor (Szerkesztő) szerepkör innentől szintén megkapja, hogy a Képzések
+	// kezelése átadható legyen anélkül, hogy valakinek teljes manage_options jogot kellene adni.
 	public function assign_admin_caps() {
-		$admin_role = get_role( 'administrator' );
-		if ( $admin_role && ! $admin_role->has_cap( 'edit_sz_courses' ) ) {
-			$caps = array(
-				'edit_sz_course', 'read_sz_course', 'delete_sz_course',
-				'edit_sz_courses', 'edit_others_sz_courses', 'publish_sz_courses',
-				'read_private_sz_courses', 'delete_sz_courses', 'delete_private_sz_courses',
-				'delete_published_sz_courses', 'delete_others_sz_courses',
-				'edit_private_sz_courses', 'edit_published_sz_courses'
-			);
-			foreach ( $caps as $cap ) {
-				$admin_role->add_cap( $cap );
+		$caps = array(
+			'edit_sz_course', 'read_sz_course', 'delete_sz_course',
+			'edit_sz_courses', 'edit_others_sz_courses', 'publish_sz_courses',
+			'read_private_sz_courses', 'delete_sz_courses', 'delete_private_sz_courses',
+			'delete_published_sz_courses', 'delete_others_sz_courses',
+			'edit_private_sz_courses', 'edit_published_sz_courses'
+		);
+
+		foreach ( array( 'administrator', 'editor' ) as $role_name ) {
+			$role = get_role( $role_name );
+			if ( $role && ! $role->has_cap( 'edit_sz_courses' ) ) {
+				foreach ( $caps as $cap ) {
+					$role->add_cap( $cap );
+				}
 			}
 		}
 	}
