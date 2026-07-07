@@ -44,6 +44,41 @@ class SZEducate_Hub_API {
 			'callback'            => array( $this, 'generate_backup' ),
 			'permission_callback' => '__return_true',
 		) );
+
+		// A hívó kliens saját, jogosultsági feltételei szerint szűrt teljes képzés-listája -
+		// a Kliens ezt használja a manuális "Teljes szinkronizáció" gombnál.
+		register_rest_route( 'szeducate/v1/hub', '/courses-mine', array(
+			'methods'             => WP_REST_Server::READABLE,
+			'callback'            => array( $this, 'get_my_courses' ),
+			'permission_callback' => array( $this, 'verify_bearer_token' ),
+		) );
+	}
+
+	public function get_my_courses( WP_REST_Request $request ) {
+		global $wpdb;
+		$table_name = $wpdb->prefix . 'szeducate_courses_data';
+
+		$client = $this->current_client;
+		$permissions = json_decode( $client['permissions'], true );
+		$conditions = isset( $permissions['conditions'] ) ? $permissions['conditions'] : array();
+
+		$rows = $wpdb->get_results( "SELECT id, title, course_data FROM $table_name", ARRAY_A );
+		$courses = array();
+
+		foreach ( $rows as $row ) {
+			$course_data = json_decode( $row['course_data'], true );
+			if ( ! is_array( $course_data ) ) $course_data = array();
+
+			if ( ! $this->evaluate_conditions( $conditions, $course_data ) ) continue;
+
+			$courses[] = array(
+				'hub_id'      => intval( $row['id'] ),
+				'title'       => $row['title'],
+				'course_data' => $course_data,
+			);
+		}
+
+		return new WP_REST_Response( array( 'success' => true, 'courses' => $courses ), 200 );
 	}
 
 	public function verify_bearer_token( WP_REST_Request $request ) {

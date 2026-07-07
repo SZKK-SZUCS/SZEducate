@@ -591,6 +591,28 @@ class SZEducate_Client {
 		register_post_type( 'sz_course', $args );
 	}
 
+	// Azon 'sz_course' bejegyzések ID-jai, amik már NEM tartoznak egyetlen sorhoz sem a
+	// wp_szeducate_courses_data táblában (pl. sikertelen cím-párosítás miatt egy korábbi
+	// szinkronizáció/visszaállítás során új bejegyzést hozott létre a régi helyett).
+	public function get_orphaned_course_post_ids() {
+		global $wpdb;
+		$table_name = $wpdb->prefix . 'szeducate_courses_data';
+
+		if ( $wpdb->get_var( "SHOW TABLES LIKE '{$table_name}'" ) != $table_name ) return array();
+
+		$linked_post_ids = $wpdb->get_col( "SELECT local_post_id FROM {$table_name} WHERE local_post_id IS NOT NULL AND local_post_id != 0" );
+		$linked_post_ids = array_map( 'intval', $linked_post_ids );
+
+		$all_course_post_ids = get_posts( array(
+			'post_type'      => 'sz_course',
+			'post_status'    => 'any',
+			'posts_per_page' => -1,
+			'fields'         => 'ids',
+		) );
+
+		return array_values( array_diff( $all_course_post_ids, $linked_post_ids ) );
+	}
+
 	public function register_dynamic_taxonomies() {
 		$schema_json = get_option( 'szeducate_local_schema', '[]' );
 		$schema = json_decode( $schema_json, true );

@@ -251,7 +251,7 @@ class SZEducate_Client_API {
 		), 200 );
 	}
 
-	private function update_local_course_from_hub( $hub_id, $title, $course_data ) {
+	public function update_local_course_from_hub( $hub_id, $title, $course_data ) {
 		global $wpdb;
 		$table_name = $wpdb->prefix . 'szeducate_courses_data';
 		

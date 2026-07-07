@@ -151,6 +151,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.11
+
+-Add new features for course synchronization and management, including full resync and orphaned course cleanup
+
 ### 0.9.10
 
 - Enhance SZEducate Client API with batch sync and dynamic column handling
