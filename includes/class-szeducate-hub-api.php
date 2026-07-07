@@ -9,6 +9,8 @@ class SZEducate_Hub_API {
 
 	public function init() {
 		add_action( 'rest_api_init', array( $this, 'register_endpoints' ) );
+		add_action( 'szeducate_dispatch_course_webhook', array( $this, 'dispatch_course_webhook' ) );
+		add_action( 'szeducate_dispatch_delete_webhook', array( $this, 'dispatch_delete_webhook' ), 10, 2 );
 	}
 
 	public function register_endpoints() {
@@ -291,25 +293,64 @@ class SZEducate_Hub_API {
 			$message = 'Sikeresen létrehozva a Hub-on!';
 		}
 
+		// A kliensek értesítése a HÁTTÉRBEN (cronon keresztül) történik, hogy egy lassan válaszoló
+		// vagy elérhetetlen kliens ne lassítsa/akassza meg minden egyes Képzés mentését a Hub-on.
 		$clients_table = $wpdb->prefix . 'szeducate_clients';
 		if ( $wpdb->get_var( "SHOW TABLES LIKE '{$clients_table}'" ) == $clients_table ) {
-			$all_clients = $wpdb->get_results( "SELECT client_url FROM {$clients_table} WHERE client_url != ''" );
-			foreach ( $all_clients as $c ) {
-				$webhook_url = rtrim( $c->client_url, '/' ) . '/wp-json/szeducate/v1/client/sync-course';
-				wp_remote_post( $webhook_url, array(
-					'blocking' => false,
-					'timeout'  => 5,
-					'body'     => wp_json_encode( array( 'hub_id' => $hub_id ) ),
-					'headers'  => array( 'Content-Type' => 'application/json' )
-				) );
-			}
+			wp_schedule_single_event( time(), 'szeducate_dispatch_course_webhook', array( $hub_id ) );
 		}
 
-		return new WP_REST_Response( array( 
-			'success' => true, 
+		return new WP_REST_Response( array(
+			'success' => true,
 			'message' => $message,
 			'hub_id'  => $hub_id
 		), 200 );
+	}
+
+	// --- Kliens-webhook kiküldése a HÁTTÉRBEN (WP-Cron), a kérésen kívül ---
+	public function dispatch_course_webhook( $hub_id ) {
+		global $wpdb;
+		$table_name = $wpdb->prefix . 'szeducate_courses_data';
+		$clients_table = $wpdb->prefix . 'szeducate_clients';
+
+		$course = $wpdb->get_row( $wpdb->prepare( "SELECT course_data FROM $table_name WHERE id = %d", $hub_id ), ARRAY_A );
+		if ( ! $course ) return;
+
+		$course_data = json_decode( $course['course_data'], true );
+		if ( ! is_array( $course_data ) ) $course_data = array();
+
+		$all_clients = $wpdb->get_results( "SELECT client_name, client_url, permissions FROM {$clients_table} WHERE client_url != ''" );
+
+		foreach ( $all_clients as $c ) {
+			// A jogosultsági szabályokat MINDIG a webhook kiküldése előtt ellenőrizzük,
+			// hogy a kliens ne kapjon (és ne is próbáljon visszahúzni) számára tiltott képzést.
+			$c_perms = json_decode( $c->permissions, true );
+			$c_conditions = isset( $c_perms['conditions'] ) ? $c_perms['conditions'] : array();
+
+			if ( ! $this->evaluate_conditions( $c_conditions, $course_data ) ) {
+				SZEducate_Sync_Log::add( 'push-course', sprintf( 'Kihagyva ("%s", Hub ID: %d): a kliens jogosultsági feltételei nem engedik.', $c->client_name, $hub_id ), true );
+				continue;
+			}
+
+			$webhook_url = rtrim( $c->client_url, '/' ) . '/wp-json/szeducate/v1/client/sync-course';
+			$response = wp_remote_post( $webhook_url, array(
+				'blocking' => true,
+				'timeout'  => 8,
+				'body'     => wp_json_encode( array( 'hub_id' => $hub_id ) ),
+				'headers'  => array( 'Content-Type' => 'application/json' )
+			) );
+
+			if ( is_wp_error( $response ) ) {
+				SZEducate_Sync_Log::add( 'push-course', sprintf( 'Sikertelen küldés ("%s", Hub ID: %d): %s', $c->client_name, $hub_id, $response->get_error_message() ), false );
+			} else {
+				$resp_code = wp_remote_retrieve_response_code( $response );
+				if ( $resp_code >= 200 && $resp_code < 300 ) {
+					SZEducate_Sync_Log::add( 'push-course', sprintf( 'Sikeres küldés ("%s", Hub ID: %d).', $c->client_name, $hub_id ), true );
+				} else {
+					SZEducate_Sync_Log::add( 'push-course', sprintf( 'Hiba ("%s", Hub ID: %d): HTTP %d', $c->client_name, $hub_id, $resp_code ), false );
+				}
+			}
+		}
 	}
 
 	public function delete_course( WP_REST_Request $request ) {
@@ -333,28 +374,45 @@ class SZEducate_Hub_API {
 		$deleted = $wpdb->delete( $table_name, array( 'id' => $hub_id ) );
 
 		if ( $deleted !== false ) {
+			// A törlés-értesítés is a HÁTTÉRBEN megy ki, ugyanazon okból, mint a mentésnél.
 			$clients_table = $wpdb->prefix . 'szeducate_clients';
 			if ( $wpdb->get_var( "SHOW TABLES LIKE '{$clients_table}'" ) == $clients_table ) {
-				
-				$all_clients = $wpdb->get_results( $wpdb->prepare( 
-					"SELECT client_url FROM {$clients_table} WHERE client_url != '' AND id != %d", 
-					$client['id'] 
-				) );
-				
-				foreach ( $all_clients as $c ) {
-					$webhook_url = rtrim( $c->client_url, '/' ) . '/wp-json/szeducate/v1/client/sync-course/' . $hub_id;
-					wp_remote_request( $webhook_url, array(
-						'method'   => 'DELETE',
-						'blocking' => false,
-						'timeout'  => 5,
-						'headers'  => array( 'Content-Type' => 'application/json' )
-					) );
-				}
+				wp_schedule_single_event( time(), 'szeducate_dispatch_delete_webhook', array( $hub_id, $client['id'] ) );
 			}
 			return new WP_REST_Response( array( 'success' => true, 'message' => 'Sikeresen törölve a Hub-ról és értesítés kiküldve a TÖBBI kliensnek.' ), 200 );
 		}
 
 		return new WP_Error( 'db_error', 'Sikertelen törlés az adatbázisból.', array( 'status' => 500 ) );
+	}
+
+	// --- Kliens törlés-webhook kiküldése a HÁTTÉRBEN (WP-Cron), a kérésen kívül ---
+	public function dispatch_delete_webhook( $hub_id, $exclude_client_id ) {
+		global $wpdb;
+		$clients_table = $wpdb->prefix . 'szeducate_clients';
+
+		$all_clients = $wpdb->get_results( $wpdb->prepare(
+			"SELECT client_name, client_url FROM {$clients_table} WHERE client_url != '' AND id != %d",
+			$exclude_client_id
+		) );
+
+		foreach ( $all_clients as $c ) {
+			$webhook_url = rtrim( $c->client_url, '/' ) . '/wp-json/szeducate/v1/client/sync-course/' . $hub_id;
+			$response = wp_remote_request( $webhook_url, array(
+				'method'   => 'DELETE',
+				'blocking' => true,
+				'timeout'  => 8,
+				'headers'  => array( 'Content-Type' => 'application/json' )
+			) );
+
+			if ( is_wp_error( $response ) ) {
+				SZEducate_Sync_Log::add( 'delete-course', sprintf( 'Sikertelen törlés-értesítés ("%s", Hub ID: %d): %s', $c->client_name, $hub_id, $response->get_error_message() ), false );
+			} else {
+				$resp_code = wp_remote_retrieve_response_code( $response );
+				if ( $resp_code < 200 || $resp_code >= 300 ) {
+					SZEducate_Sync_Log::add( 'delete-course', sprintf( 'Hiba a törlés-értesítésnél ("%s", Hub ID: %d): HTTP %d', $c->client_name, $hub_id, $resp_code ), false );
+				}
+			}
+		}
 	}
 
 	public function generate_backup( WP_REST_Request $request ) {

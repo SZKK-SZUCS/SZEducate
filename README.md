@@ -151,6 +151,19 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.10
+
+- Enhance SZEducate Client API with batch sync and dynamic column handling
+- Added a new endpoint for batch course synchronization in SZEducate_Client_API.
+- Implemented flatten_dynamic_columns method to handle dynamic fields in course data.
+- Updated webhook_sync_course_batch method to process multiple courses and deletions in a single request.
+- Improved delete_local_course_by_hub_id method for better handling of course deletions.
+- Introduced SZEducate_Sync_Log class for logging sync operations and errors.
+- Enhanced the Hub API to dispatch webhooks for course creation and deletion asynchronously via WP-Cron.
+- Updated client-side JavaScript to dynamically build input controls based on field types.
+- Fixed input placeholder for options to use semicolons for separation.
+- Included sync log functionality for better tracking of sync operations.
+
 ### 0.9.9
 
 - Localization fixage

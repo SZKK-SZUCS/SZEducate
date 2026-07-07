@@ -331,11 +331,46 @@ class SZEducate_Clients {
 				}
 			});
 
+			function escAttr(str) {
+				return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+			}
+
+			function getFieldDef(key) {
+				return allFields.find(f => f.key === key);
+			}
+
+			// A séma mezőjének típusától függően vagy egy legördülő listát adunk vissza
+			// (a mező pontos, meglévő opcióival feltöltve), vagy - ha a mezőnek nincsenek
+			// előre definiált opciói - egy szabad szöveges mezőt, mint eddig.
+			function buildValueControl(fieldKey, currentValue) {
+				const fieldDef = getFieldDef(fieldKey);
+				currentValue = currentValue || '';
+
+				if (fieldDef && ['select', 'radio', 'checkbox'].includes(fieldDef.type) && fieldDef.options) {
+					const opts = fieldDef.options.split(';').map(o => o.trim()).filter(o => o !== '');
+					let optionsHtml = '<option value="">-- válassz értéket --</option>';
+					opts.forEach(o => {
+						optionsHtml += `<option value="${escAttr(o)}" ${o === currentValue ? 'selected' : ''}>${escAttr(o)}</option>`;
+					});
+					return `<select class="c-val" style="flex: 2;">${optionsHtml}</select>`;
+				}
+
+				if (fieldDef && (fieldDef.type === 'boolean' || fieldDef.type === 'true_false')) {
+					return `<select class="c-val" style="flex: 2;">
+						<option value="">-- válassz értéket --</option>
+						<option value="1" ${currentValue === '1' ? 'selected' : ''}>Igen</option>
+						<option value="0" ${currentValue === '0' ? 'selected' : ''}>Nem</option>
+					</select>`;
+				}
+
+				return `<input type="text" class="c-val" placeholder="Érték..." value="${escAttr(currentValue)}" style="flex: 2;">`;
+			}
+
 			function buildRuleUI(ruleData = {}) {
 				const row = document.createElement('div');
 				row.className = 'cond-row';
 				row.dataset.type = 'rule';
-				
+
 				let fieldOpts = '<option value="">Válassz mezőt...</option>';
 				allFields.forEach(f => {
 					fieldOpts += `<option value="${f.key}" ${ruleData.field === f.key ? 'selected' : ''}>${f.label} (${f.key})</option>`;
@@ -348,9 +383,18 @@ class SZEducate_Clients {
 						<option value="!=" ${ruleData.operator === '!=' ? 'selected' : ''}>Nem egyenlő</option>
 						<option value="contains" ${ruleData.operator === 'contains' ? 'selected' : ''}>Tartalmazza</option>
 					</select>
-					<input type="text" class="c-val" placeholder="Érték..." value="${ruleData.value || ''}" style="flex: 2;">
+					${buildValueControl(ruleData.field, ruleData.value)}
 					<button type="button" class="button button-small delete-cond-btn" style="color: #d63638;">Törlés</button>
 				`;
+
+				// Ha az admin más mezőt választ, az érték-mezőt is újraépítjük az új mező típusához illően.
+				row.querySelector('.c-field').addEventListener('change', (e) => {
+					const oldValEl = row.querySelector('.c-val');
+					const temp = document.createElement('div');
+					temp.innerHTML = buildValueControl(e.target.value, '');
+					oldValEl.replaceWith(temp.firstElementChild);
+				});
+
 				row.querySelector('.delete-cond-btn').addEventListener('click', () => row.remove());
 				return row;
 			}

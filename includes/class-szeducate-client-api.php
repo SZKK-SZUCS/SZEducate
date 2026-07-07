@@ -27,14 +27,57 @@ class SZEducate_Client_API {
 		register_rest_route( 'szeducate/v1/client', '/sync-course', array(
 			'methods'             => WP_REST_Server::CREATABLE,
 			'callback'            => array( $this, 'webhook_sync_course' ),
-			'permission_callback' => '__return_true', 
+			'permission_callback' => '__return_true',
 		) );
 
 		register_rest_route( 'szeducate/v1/client', '/sync-course/(?P<id>\d+)', array(
 			'methods'             => WP_REST_Server::DELETABLE,
 			'callback'            => array( $this, 'webhook_delete_course' ),
-			'permission_callback' => '__return_true', 
+			'permission_callback' => '__return_true',
 		) );
+
+		// Egyetlen kérésben több Képzés átadására (pl. teljes visszaállításnál),
+		// hogy ne kelljen soronként külön HTTP kört futtatni a Hub-bal.
+		register_rest_route( 'szeducate/v1/client', '/sync-course-batch', array(
+			'methods'             => WP_REST_Server::CREATABLE,
+			'callback'            => array( $this, 'webhook_sync_course_batch' ),
+			'permission_callback' => '__return_true',
+		) );
+	}
+
+	private function flatten_dynamic_columns( $course_data, $table_name ) {
+		global $wpdb;
+		$schema_json = get_option( 'szeducate_local_schema', '[]' );
+		$schema = json_decode( $schema_json, true );
+		if ( ! is_array( $schema ) ) return array();
+
+		$existing_columns = $wpdb->get_col( "DESCRIBE $table_name", 0 );
+		$db_data = array();
+
+		foreach ( $schema as $group ) {
+			if ( empty( $group['fields'] ) ) continue;
+			foreach ( $group['fields'] as $field ) {
+				if ( empty( $field['is_filterable'] ) ) continue;
+
+				$key = preg_replace( '/[^a-z0-9_]/', '', strtolower( $field['key'] ) );
+				if ( empty( $key ) || ! in_array( $key, $existing_columns ) ) continue;
+
+				$val = isset( $course_data[ $field['key'] ] ) ? $course_data[ $field['key'] ] : '';
+
+				if ( $field['type'] === 'number' ) {
+					$db_data[$key] = $val !== '' ? intval( $val ) : null;
+				} elseif ( $field['type'] === 'boolean' || $field['type'] === 'true_false' ) {
+					$db_data[$key] = $val ? 1 : 0;
+				} elseif ( $field['type'] === 'date' ) {
+					$db_data[$key] = ( $val !== '' ) ? date( 'Y-m-d H:i:s', strtotime( $val ) ) : null;
+				} else {
+					if ( is_array( $val ) ) $val = implode( '; ', $val );
+					$db_data[$key] = sanitize_text_field( $val );
+				}
+			}
+		}
+
+		return $db_data;
 	}
 
 	private function set_featured_image_from_data( $post_id, $course_data ) {
@@ -85,6 +128,9 @@ class SZEducate_Client_API {
 			
 			if ( isset( $data['schema'] ) ) {
 				update_option( 'szeducate_local_schema', wp_json_encode( $data['schema'], JSON_UNESCAPED_UNICODE ) );
+
+				require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-activator.php';
+				SZEducate_Activator::update_database_schema();
 			}
 			if ( isset( $data['permissions'] ) ) {
 				update_option( 'szeducate_client_permissions', wp_json_encode( $data['permissions'], JSON_UNESCAPED_UNICODE ) );
@@ -147,22 +193,62 @@ class SZEducate_Client_API {
 		$hub_id = intval( $request['id'] );
 		if ( ! $hub_id ) return new WP_Error( 'missing_id', 'Hiányzó hub_id.', array( 'status' => 400 ) );
 
+		$deleted = $this->delete_local_course_by_hub_id( $hub_id );
+
+		return new WP_REST_Response( array(
+			'success' => true,
+			'message' => $deleted ? 'Sikeresen törölve a Kliens gépéről.' : 'Helyben már nem létezett a képzés.'
+		), 200 );
+	}
+
+	private function delete_local_course_by_hub_id( $hub_id ) {
 		global $wpdb;
 		$table_name = $wpdb->prefix . 'szeducate_courses_data';
 
 		$course = $wpdb->get_row( $wpdb->prepare( "SELECT local_post_id FROM $table_name WHERE hub_id = %d", $hub_id ), ARRAY_A );
-		
-		if ( $course ) {
-			if ( ! empty( $course['local_post_id'] ) ) {
-				global $szeducate_is_sync_deleting;
-				$szeducate_is_sync_deleting = true; 
-				wp_delete_post( $course['local_post_id'], true );
-			}
-			$wpdb->delete( $table_name, array( 'hub_id' => $hub_id ) );
-			return new WP_REST_Response( array( 'success' => true, 'message' => 'Sikeresen törölve a Kliens gépéről.' ), 200 );
+
+		if ( ! $course ) return false;
+
+		if ( ! empty( $course['local_post_id'] ) ) {
+			global $szeducate_is_sync_deleting;
+			$szeducate_is_sync_deleting = true;
+			wp_delete_post( $course['local_post_id'], true );
+		}
+		$wpdb->delete( $table_name, array( 'hub_id' => $hub_id ) );
+
+		return true;
+	}
+
+	// --- Több Képzés fogadása és törlése EGY kérésben (pl. teljes visszaállítás esetén) ---
+	public function webhook_sync_course_batch( WP_REST_Request $request ) {
+		@set_time_limit( 0 );
+		$params = $request->get_json_params();
+		$courses = isset( $params['courses'] ) && is_array( $params['courses'] ) ? $params['courses'] : array();
+		$deletes = isset( $params['deletes'] ) && is_array( $params['deletes'] ) ? $params['deletes'] : array();
+
+		$synced = 0;
+		foreach ( $courses as $c ) {
+			if ( empty( $c['hub_id'] ) || ! isset( $c['title'] ) || ! isset( $c['course_data'] ) ) continue;
+
+			$this->update_local_course_from_hub(
+				intval( $c['hub_id'] ),
+				sanitize_text_field( $c['title'] ),
+				is_array( $c['course_data'] ) ? $c['course_data'] : array()
+			);
+			$synced++;
 		}
 
-		return new WP_REST_Response( array( 'success' => true, 'message' => 'Helyben már nem létezett a képzés.' ), 200 );
+		$deleted = 0;
+		foreach ( $deletes as $hub_id ) {
+			if ( $this->delete_local_course_by_hub_id( intval( $hub_id ) ) ) $deleted++;
+		}
+
+		return new WP_REST_Response( array(
+			'success' => true,
+			'message' => sprintf( '%d képzés szinkronizálva, %d törölve.', $synced, $deleted ),
+			'synced'  => $synced,
+			'deleted' => $deleted
+		), 200 );
 	}
 
 	private function update_local_course_from_hub( $hub_id, $title, $course_data ) {
@@ -176,6 +262,7 @@ class SZEducate_Client_API {
 		}
 		
 		$json_blob = wp_json_encode( $course_data, JSON_UNESCAPED_UNICODE );
+		$dynamic_columns = $this->flatten_dynamic_columns( $course_data, $table_name );
 
 		$local_post_id = 0;
 		if ( $existing ) {
@@ -186,10 +273,10 @@ class SZEducate_Client_API {
 					'post_title' => $title
 				) );
 			}
-			$wpdb->update( 
-				$table_name, 
-				array( 'title' => $title, 'course_data' => $json_blob, 'hub_id' => $hub_id ), 
-				array( 'id' => $existing['id'] ) 
+			$wpdb->update(
+				$table_name,
+				array_merge( array( 'title' => $title, 'course_data' => $json_blob, 'hub_id' => $hub_id ), $dynamic_columns ),
+				array( 'id' => $existing['id'] )
 			);
 		} else {
 			$local_post_id = wp_insert_post( array(
@@ -197,13 +284,13 @@ class SZEducate_Client_API {
 				'post_type'   => 'sz_course',
 				'post_status' => 'publish'
 			) );
-			
-			$wpdb->insert( $table_name, array(
+
+			$wpdb->insert( $table_name, array_merge( array(
 				'local_post_id' => $local_post_id,
 				'hub_id'        => $hub_id,
 				'title'         => $title,
 				'course_data'   => $json_blob
-			) );
+			), $dynamic_columns ) );
 		}
 
 		$this->set_featured_image_from_data( $local_post_id, $course_data );
@@ -266,21 +353,20 @@ class SZEducate_Client_API {
 			
 			$json_blob = wp_json_encode( $dynamic_data, JSON_UNESCAPED_UNICODE );
 
-			$db_data = array(
+			$db_data = array_merge( array(
 				'local_post_id' => $saved_post_id,
 				'title'         => $title,
 				'course_data'   => $json_blob,
-			);
-			$db_formats = array( '%d', '%s', '%s' );
+			), $this->flatten_dynamic_columns( $dynamic_data, $table_name ) );
 
 			$existing = $wpdb->get_row( $wpdb->prepare( "SELECT id, hub_id FROM $table_name WHERE local_post_id = %d", $saved_post_id ), ARRAY_A );
-			
+
 			$current_hub_id = 0;
 			if ( $existing ) {
 				$current_hub_id = intval($existing['hub_id']);
-				$result = $wpdb->update( $table_name, $db_data, array( 'id' => $existing['id'] ), $db_formats, array( '%d' ) );
+				$result = $wpdb->update( $table_name, $db_data, array( 'id' => $existing['id'] ) );
 			} else {
-				$result = $wpdb->insert( $table_name, $db_data, $db_formats );
+				$result = $wpdb->insert( $table_name, $db_data );
 			}
 
 			if ( false === $result ) {

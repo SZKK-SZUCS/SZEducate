@@ -379,7 +379,7 @@ class SZEducate_Schema {
 						
 						<div class="sz-field-col f-options-wrapper" style="flex: 3; display: ${showOptions};">
 							<label>Opciók (Pontosvesszővel elválasztva)</label>
-							<input type="text" class="sz-input f-options" placeholder="pl. Nappali, Levelező" value="${field.options || ''}" ${isReadonly}>
+							<input type="text" class="sz-input f-options" placeholder="pl. Nappali; Levelező" value="${field.options || ''}" ${isReadonly}>
 						</div>
 						
 						<div class="sz-field-col" style="flex: 0 0 auto; padding-top: 18px;">

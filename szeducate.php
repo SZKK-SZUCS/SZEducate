@@ -3,7 +3,7 @@
  * Plugin Name:       SZEducate
  * Plugin URI:        https://github.com/SZKK-SZUCS/SZEducate
  * Description:       Hub-Kliens architektúrájú képzésmenedzsment és szinkronizációs rendszer a Széchenyi István Egyetem számára.
- * Version:           0.9.9
+ * Version:           0.9.10
  * Author:            Szurofka Márton, MFÜI
  * Author URI:        https://www.uni.sze.hu/
  * Text Domain:       szeducate
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SZEDUCATE_VERSION', '0.9.9' );
+define( 'SZEDUCATE_VERSION', '0.9.10' );
 define( 'SZEDUCATE_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'SZEDUCATE_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
@@ -23,6 +23,7 @@ if ( file_exists( $composer_autoload ) ) {
 	require_once $composer_autoload;
 }
 
+require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-sync-log.php';
 require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-core.php';
 require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-activator.php';
 require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-settings.php';

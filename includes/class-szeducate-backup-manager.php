@@ -26,6 +26,47 @@ class SZEducate_Backup_Manager {
 		add_action( 'admin_post_szeducate_delete_backup', array( $this, 'handle_delete_backup' ) );
 		add_action( 'admin_post_szeducate_download_backup', array( $this, 'handle_download_backup' ) );
 		add_action( 'admin_post_szeducate_upload_backup', array( $this, 'handle_upload_backup' ) );
+		add_action( 'wp_ajax_szeducate_restore_progress', array( $this, 'ajax_get_restore_progress' ) );
+		add_action( 'wp_ajax_szeducate_abort_restore', array( $this, 'ajax_abort_restore' ) );
+		add_action( 'szeducate_process_restore_webhooks', array( $this, 'process_restore_webhooks' ), 10, 3 );
+	}
+
+	public function ajax_get_restore_progress() {
+		if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( 'Nincs jogosultságod.', 403 );
+		check_ajax_referer( 'szeducate_restore_progress', 'nonce' );
+
+		$key = isset( $_GET['key'] ) ? preg_replace( '/[^a-zA-Z0-9_\-]/', '', $_GET['key'] ) : '';
+		if ( empty( $key ) ) wp_send_json_error( 'Hiányzó kulcs.' );
+
+		wp_send_json_success( SZEducate_Sync_Log::progress_get( $key ) );
+	}
+
+	// --- Vészleállítás gomb: csak egy jelzőzászlót állít be, amit a futó visszaállítás ciklusai olvasnak ---
+	public function ajax_abort_restore() {
+		if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( 'Nincs jogosultságod.', 403 );
+		check_ajax_referer( 'szeducate_restore_progress', 'nonce' );
+
+		$key = isset( $_POST['key'] ) ? preg_replace( '/[^a-zA-Z0-9_\-]/', '', $_POST['key'] ) : '';
+		if ( empty( $key ) ) wp_send_json_error( 'Hiányzó kulcs.' );
+
+		SZEducate_Sync_Log::request_abort( $key );
+		SZEducate_Sync_Log::progress_log( $key, 'Vészleállítás kérve - a folyamat a legközelebbi ellenőrzési pontnál megszakad és visszavonásra kerül...' );
+
+		wp_send_json_success();
+	}
+
+	// --- Ha vészleállítást kértek, azonnal visszavonjuk a tranzakciót és leállunk ---
+	private function abort_restore_if_requested( $progress_key ) {
+		if ( ! SZEducate_Sync_Log::abort_requested( $progress_key ) ) return;
+
+		global $wpdb;
+		$wpdb->query( 'ROLLBACK' );
+		SZEducate_Sync_Log::clear_abort( $progress_key );
+		SZEducate_Sync_Log::progress_log( $progress_key, 'VÉSZLEÁLLÍTÁS VÉGREHAJTVA: a visszaállítás megszakadt, minden eddigi adatbázis-változás visszavonva.' );
+		SZEducate_Sync_Log::progress_finish( $progress_key, true );
+
+		wp_safe_redirect( add_query_arg( array( 'page' => 'szeducate-backups', 'backup_msg' => 'aborted_restore' ), admin_url( 'admin.php' ) ) );
+		exit;
 	}
 
 	public function add_backup_menu() {
@@ -84,6 +125,18 @@ class SZEducate_Backup_Manager {
 				if ( $_GET['backup_msg'] === 'success_restore' ) echo '<div class="notice notice-success is-dismissible"><p><strong>Siker:</strong> A kiválasztott elemek tökéletesen visszaállítva, és a kliensek frissítése megkezdődött!</p></div>';
 				if ( $_GET['backup_msg'] === 'success_delete' ) echo '<div class="notice notice-info is-dismissible"><p>A kiválasztott fájl véglegesen törölve.</p></div>';
 				if ( $_GET['backup_msg'] === 'success_upload' ) echo '<div class="notice notice-success is-dismissible"><p>A mentés feltöltve a szerverre. Kattints az Ellenőrzés gombra a tartalom megtekintéséhez.</p></div>';
+				if ( $_GET['backup_msg'] === 'partial_restore' ) {
+					$restore_errors = get_transient( 'szeducate_restore_errors' );
+					delete_transient( 'szeducate_restore_errors' );
+					echo '<div class="notice notice-error is-dismissible"><p><strong>Figyelem:</strong> A visszaállítás részben sikertelen volt. Az alábbi elemeket nem sikerült visszaírni az adatbázisba:</p><ul style="list-style:disc; margin-left:20px;">';
+					if ( is_array( $restore_errors ) ) {
+						foreach ( $restore_errors as $err ) {
+							echo '<li>' . esc_html( $err ) . '</li>';
+						}
+					}
+					echo '</ul></div>';
+				}
+				if ( $_GET['backup_msg'] === 'aborted_restore' ) echo '<div class="notice notice-warning is-dismissible"><p><strong>Megszakítva:</strong> A visszaállítást vészleállítással megszakítottad, minden addigi adatbázis-változás vissza lett vonva. A rendszer a mentés előtti állapotban maradt.</p></div>';
 			}
 			?>
 
@@ -148,8 +201,38 @@ class SZEducate_Backup_Manager {
 								</table>
 							</div>
 						</div>
-					</div>
 
+						<?php $sync_log = SZEducate_Sync_Log::get_recent( 30 ); ?>
+						<div class="postbox">
+							<div class="postbox-header"><h2 class="hndle"><span><span class="dashicons dashicons-clock"></span> Kliens-szinkronizáció napló (legutóbbi 30 esemény)</span></h2></div>
+							<div class="inside">
+								<p class="description">Itt látod, hogy a Hub sikeresen küldte-e ki a Képzés-frissítéseket/törléseket a Klienseknek (élő mentés, szerkesztés vagy visszaállítás során), és ha nem, miért.</p>
+								<?php if ( empty( $sync_log ) ) : ?>
+									<p>Még nem történt naplózott szinkronizációs esemény.</p>
+								<?php else : ?>
+									<table class="wp-list-table widefat fixed striped">
+										<thead><tr><th style="width:140px;">Időpont</th><th style="width:110px;">Típus</th><th style="width:70px;">Eredmény</th><th>Üzenet</th></tr></thead>
+										<tbody>
+											<?php foreach ( $sync_log as $entry ) : ?>
+												<tr>
+													<td><?php echo esc_html( $entry['time'] ); ?></td>
+													<td><code style="background:none; padding:0;"><?php echo esc_html( $entry['type'] ); ?></code></td>
+													<td>
+														<?php if ( ! empty( $entry['success'] ) ) : ?>
+															<span style="color:#46b450;">OK</span>
+														<?php else : ?>
+															<span style="color:#d63638; font-weight:600;">Hiba</span>
+														<?php endif; ?>
+													</td>
+													<td><?php echo esc_html( $entry['message'] ); ?></td>
+												</tr>
+											<?php endforeach; ?>
+										</tbody>
+									</table>
+								<?php endif; ?>
+							</div>
+						</div>
+					</div>
 					<div id="postbox-container-1" class="postbox-container">
 						<div class="postbox">
 							<div class="postbox-header"><h2 class="hndle"><span><span class="dashicons dashicons-admin-settings"></span> Mentési Beállítások</span></h2></div>
@@ -373,10 +456,17 @@ class SZEducate_Backup_Manager {
 		?>
 
 		<!-- Töltőképernyő -->
-		<div id="sz-restore-loader" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(240,246,252,0.9); z-index:999999; flex-direction:column; align-items:center; justify-content:center;">
+		<div id="sz-restore-loader" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(240,246,252,0.95); z-index:999999; flex-direction:column; align-items:center; justify-content:center;">
 			<span class="dashicons dashicons-update" style="font-size: 60px; width: 60px; height: 60px; color: #2271b1; animation: sz-spin 2s linear infinite;"></span>
 			<h2 style="margin-top: 30px; color: #1d2327;">Visszaállítás és Szinkronizáció folyamatban...</h2>
 			<p style="font-size: 16px; color: #50575e;">Kérjük, ne zárd be és ne frissítsd az oldalt!</p>
+			<div id="sz-restore-log-wrap" style="width: 600px; max-width: 90vw; margin-top: 15px;">
+				<div id="sz-restore-log-status" style="font-size: 13px; color: #646970; margin-bottom: 6px; text-align:center;">Kapcsolódás a folyamatjelzőhöz...</div>
+				<pre id="sz-restore-log" style="background:#1d2327; color:#c3e6cb; font-size:12px; line-height:1.6; padding:15px; border-radius:4px; height:220px; overflow-y:auto; text-align:left; white-space:pre-wrap; box-shadow: 0 2px 8px rgba(0,0,0,0.15);"></pre>
+			</div>
+			<button type="button" id="sz-restore-abort-btn" class="button" style="margin-top: 15px; background:#fff; border-color:#d63638; color:#d63638; font-weight:600;" onclick="szAbortRestore();">
+				<span class="dashicons dashicons-dismiss" style="margin-top:4px;"></span> Vészleállítás (minden változás visszavonása)
+			</button>
 			<style>@keyframes sz-spin { 100% { transform: rotate(360deg); } }</style>
 		</div>
 
@@ -390,6 +480,7 @@ class SZEducate_Backup_Manager {
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="sz-restore-form">
 				<input type="hidden" name="action" value="szeducate_restore_backup">
 				<input type="hidden" name="file" value="<?php echo esc_attr( basename($filename) ); ?>">
+				<input type="hidden" name="progress_key" id="sz-progress-key" value="">
 				<?php wp_nonce_field( 'szeducate_restore_backup' ); ?>
 
 				<!-- 1. Rendszer beállítások -->
@@ -516,7 +607,7 @@ class SZEducate_Backup_Manager {
 					</div>
 
 					<div style="margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
-						<button type="submit" class="button button-primary button-large" style="background: #d63638; border-color: #d63638;" onclick="if(confirm('Biztosan végrehajtod a visszaállítást a kiválasztott adatokkal?')) { document.getElementById('sz-restore-loader').style.display='flex'; return true; } else { return false; }">
+						<button type="submit" class="button button-primary button-large" style="background: #d63638; border-color: #d63638;" onclick="return szStartRestore();">
 							<span class="dashicons dashicons-warning" style="margin-top: 4px;"></span> Kijelölt Elemek Visszaállítása
 						</button>
 					</div>
@@ -531,6 +622,69 @@ class SZEducate_Backup_Manager {
 				checkboxes.forEach(function(cb) { if (!cb.checked) allChecked = false; });
 				checkboxes.forEach(function(cb) { cb.checked = !allChecked; });
 			}
+
+			// A visszaállítás egyetlen, blokkoló admin-post kérésként fut le a szerveren,
+			// ezért a folyamat közben egy külön, párhuzamos AJAX lekérdezéssel olvassuk ki
+			// a valós idejű naplót - így látszik, hogy a folyamat nem állt le, hanem dolgozik.
+			var szProgressPollTimer = null;
+			var szCurrentProgressKey = null;
+			var szAjaxUrl = '<?php echo esc_js( admin_url( 'admin-ajax.php' ) ); ?>';
+			var szProgressNonce = '<?php echo esc_js( wp_create_nonce( 'szeducate_restore_progress' ) ); ?>';
+
+			function szStartRestore() {
+				if ( ! confirm('Biztosan végrehajtod a visszaállítást a kiválasztott adatokkal?') ) return false;
+
+				szCurrentProgressKey = 'sz_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
+				document.getElementById('sz-progress-key').value = szCurrentProgressKey;
+				document.getElementById('sz-restore-loader').style.display = 'flex';
+
+				var logEl = document.getElementById('sz-restore-log');
+				var statusEl = document.getElementById('sz-restore-log-status');
+				var shownLines = 0;
+
+				szProgressPollTimer = setInterval(function() {
+					fetch(szAjaxUrl + '?action=szeducate_restore_progress&key=' + encodeURIComponent(szCurrentProgressKey) + '&nonce=' + szProgressNonce)
+						.then(function(r) { return r.json(); })
+						.then(function(res) {
+							if (!res || !res.success || !res.data) return;
+							var state = res.data;
+							statusEl.textContent = state.done ? (state.error ? 'Befejezve, hibákkal - az oldal mindjárt frissül...' : 'Befejezve, az oldal mindjárt frissül...') : 'Folyamatban, él a kapcsolat a szerverrel...';
+
+							if (state.lines && state.lines.length > shownLines) {
+								for (var i = shownLines; i < state.lines.length; i++) {
+									logEl.textContent += '[' + state.lines[i].time + '] ' + state.lines[i].message + '\n';
+								}
+								shownLines = state.lines.length;
+								logEl.scrollTop = logEl.scrollHeight;
+							}
+
+							if (state.done) {
+								clearInterval(szProgressPollTimer);
+							}
+						})
+						.catch(function() {
+							statusEl.textContent = 'A folyamatjelző pillanatnyilag nem érhető el, de a visszaállítás a háttérben tovább fut...';
+						});
+				}, 1200);
+
+				return true;
+			}
+
+			function szAbortRestore() {
+				if ( ! szCurrentProgressKey ) return;
+				if ( ! confirm('Biztosan megszakítod a visszaállítást? Az eddig elvégzett adatbázis-változtatások VISSZAVONÁSRA kerülnek!') ) return;
+
+				var btn = document.getElementById('sz-restore-abort-btn');
+				btn.disabled = true;
+				btn.textContent = 'Megszakítás kérve, kérlek várj...';
+
+				var body = new URLSearchParams();
+				body.set('action', 'szeducate_abort_restore');
+				body.set('key', szCurrentProgressKey);
+				body.set('nonce', szProgressNonce);
+
+				fetch(szAjaxUrl, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() });
+			}
 		</script>
 
 		<style>
@@ -543,42 +697,89 @@ class SZEducate_Backup_Manager {
 		<?php
 	}
 
+	private function record_restore_error( $progress_key, array &$restore_errors, $message ) {
+		$restore_errors[] = $message;
+		SZEducate_Sync_Log::progress_log( $progress_key, 'HIBA: ' . $message );
+	}
+
 	// --- RÉSZLEGES VISSZAÁLLÍTÁS FELDOLGOZÁSA ---
 	public function handle_restore_backup() {
 		if ( ! current_user_can( 'manage_options' ) || ! wp_verify_nonce( $_POST['_wpnonce'], 'szeducate_restore_backup' ) ) wp_die( 'Nincs jogosultságod.' );
-		
+
+		$progress_key = ! empty( $_POST['progress_key'] ) ? preg_replace( '/[^a-zA-Z0-9_\-]/', '', $_POST['progress_key'] ) : 'sz_' . uniqid();
+		SZEducate_Sync_Log::clear_abort( $progress_key );
+		SZEducate_Sync_Log::progress_reset( $progress_key );
+		SZEducate_Sync_Log::progress_log( $progress_key, 'Visszaállítás elindítva...' );
+
 		$filename = basename( sanitize_text_field( $_POST['file'] ) );
 		$filepath = $this->backup_dir . $filename;
-		if ( ! file_exists( $filepath ) ) wp_die( 'A fájl nem található.' );
+		if ( ! file_exists( $filepath ) ) {
+			SZEducate_Sync_Log::progress_log( $progress_key, 'HIBA: A mentési fájl nem található.' );
+			SZEducate_Sync_Log::progress_finish( $progress_key, true );
+			wp_die( 'A fájl nem található.' );
+		}
 
 		$content = file_get_contents( $filepath );
 		$data = json_decode( $content, true );
-		if ( ! is_array( $data ) || ! isset( $data['schema'], $data['clients'], $data['courses'] ) ) wp_die( 'Érvénytelen fájl.' );
+		if ( ! is_array( $data ) || ! isset( $data['schema'], $data['clients'], $data['courses'] ) ) {
+			SZEducate_Sync_Log::progress_log( $progress_key, 'HIBA: Érvénytelen mentési fájl formátum.' );
+			SZEducate_Sync_Log::progress_finish( $progress_key, true );
+			wp_die( 'Érvénytelen fájl.' );
+		}
 
 		@ini_set( 'memory_limit', '256M' );
+		@set_time_limit( 0 );
 		global $wpdb;
 		$courses_table = $wpdb->prefix . 'szeducate_courses_data';
 		$clients_table = $wpdb->prefix . 'szeducate_clients';
+		$restore_errors = [];
+
+		// Minden adatbázis-írás egyetlen tranzakcióban fut. Ha vészleállítást kérnek,
+		// a teljes tranzakciót visszavonjuk (ROLLBACK) - a webhook-küldés emiatt is a
+		// legvégén, egy külön háttérfolyamatban történik, sosem a tranzakción belül.
+		$wpdb->query( 'START TRANSACTION' );
+
+		SZEducate_Sync_Log::progress_log( $progress_key, 'Fájl beolvasva és ellenőrizve. Rendszerbeállítások feldolgozása...' );
+		$this->abort_restore_if_requested( $progress_key );
 
 		// 1. Rendszer beállítások
 		if ( !empty($_POST['restore_schema']) ) {
 			update_option( 'szeducate_local_schema', wp_json_encode( $data['schema'], JSON_UNESCAPED_UNICODE ) );
+			SZEducate_Sync_Log::progress_log( $progress_key, 'Séma visszaállítva.' );
 		}
 		if ( !empty($_POST['restore_permissions']) ) {
 			update_option( 'szeducate_client_permissions', wp_json_encode( $data['permissions'], JSON_UNESCAPED_UNICODE ) );
+			SZEducate_Sync_Log::progress_log( $progress_key, 'Hálózati jogosultságok visszaállítva.' );
 		}
+
+		$this->abort_restore_if_requested( $progress_key );
 
 		// 2. Kliensek
 		$backup_clients_assoc = []; foreach($data['clients'] as $c) $backup_clients_assoc[$c['id']] = $c;
-		
+		SZEducate_Sync_Log::progress_log( $progress_key, 'Kliensek feldolgozása...' );
+
 		if ( !empty($_POST['restore_clients']['insert']) ) {
 			foreach ( $_POST['restore_clients']['insert'] as $cid ) {
-				if ( isset($backup_clients_assoc[$cid]) ) $wpdb->insert( $clients_table, $backup_clients_assoc[$cid] );
+				if ( isset($backup_clients_assoc[$cid]) ) {
+					$result = $wpdb->insert( $clients_table, $backup_clients_assoc[$cid] );
+					if ( $result === false ) {
+						$this->record_restore_error( $progress_key, $restore_errors, sprintf( 'Kliens létrehozása sikertelen ("%s"): %s', $backup_clients_assoc[$cid]['client_name'] ?? $cid, $wpdb->last_error ) );
+					} else {
+						SZEducate_Sync_Log::progress_log( $progress_key, sprintf( 'Kliens létrehozva: "%s".', $backup_clients_assoc[$cid]['client_name'] ?? $cid ) );
+					}
+				}
 			}
 		}
 		if ( !empty($_POST['restore_clients']['update']) ) {
 			foreach ( $_POST['restore_clients']['update'] as $cid ) {
-				if ( isset($backup_clients_assoc[$cid]) ) $wpdb->update( $clients_table, $backup_clients_assoc[$cid], ['id' => $cid] );
+				if ( isset($backup_clients_assoc[$cid]) ) {
+					$result = $wpdb->update( $clients_table, $backup_clients_assoc[$cid], ['id' => $cid] );
+					if ( $result === false && $wpdb->last_error ) {
+						$this->record_restore_error( $progress_key, $restore_errors, sprintf( 'Kliens frissítése sikertelen ("%s"): %s', $backup_clients_assoc[$cid]['client_name'] ?? $cid, $wpdb->last_error ) );
+					} else {
+						SZEducate_Sync_Log::progress_log( $progress_key, sprintf( 'Kliens frissítve: "%s".', $backup_clients_assoc[$cid]['client_name'] ?? $cid ) );
+					}
+				}
 			}
 		}
 
@@ -593,22 +794,42 @@ class SZEducate_Backup_Manager {
 
 		$hub_ids_to_sync = [];
 		$hub_ids_to_delete = [];
+		$existing_columns = $wpdb->get_col( "DESCRIBE $courses_table", 0 );
+
+		SZEducate_Sync_Log::progress_log( $progress_key, sprintf( 'Képzések feldolgozása (%d törlés, %d újrafelvétel, %d módosítás)...', count($courses_to_delete), count($courses_to_insert), count($courses_to_update) ) );
+		$this->abort_restore_if_requested( $progress_key );
 
 		// Törlés (A jelenlegi Élő ID-t használja)
 		foreach ( $courses_to_delete as $cid ) {
+			$this->abort_restore_if_requested( $progress_key );
 			$cid = intval($cid);
-			$wpdb->delete( $courses_table, ['id' => $cid] );
+			$result = $wpdb->delete( $courses_table, ['id' => $cid] );
+			if ( $result === false ) {
+				$this->record_restore_error( $progress_key, $restore_errors, sprintf( 'Törlés sikertelen (ID: %d): %s', $cid, $wpdb->last_error ) );
+				continue;
+			}
+			SZEducate_Sync_Log::progress_log( $progress_key, sprintf( 'Törölve: ID %d.', $cid ) );
 			$hub_ids_to_delete[] = $cid;
 		}
 
 		// Újrafelvétel (A Mentés ID-jét kapjuk meg)
 		foreach ( $courses_to_insert as $backup_id ) {
+			$this->abort_restore_if_requested( $progress_key );
 			$backup_id = intval($backup_id);
 			if ( isset($backup_courses_assoc[$backup_id]) ) {
 				$insert_data = $backup_courses_assoc[$backup_id];
 				unset($insert_data['id']); // Fontos! Töröljük a régi ID-t, és hagyjuk, hogy a MySQL generáljon egy újat, így elkerüljük a konfliktusokat!
-				
-				$wpdb->insert( $courses_table, $insert_data );
+
+				// Csak azokat az oszlopokat tartjuk meg, amik ténylegesen léteznek az élő táblában.
+				// A mentés óta a séma (dinamikus oszlopok) megváltozhatott, ezért a nyers sor nem illeszthető be közvetlenül.
+				$insert_data = array_intersect_key( $insert_data, array_flip( $existing_columns ) );
+
+				$result = $wpdb->insert( $courses_table, $insert_data );
+				if ( $result === false ) {
+					$this->record_restore_error( $progress_key, $restore_errors, sprintf( 'Újrafelvétel sikertelen ("%s"): %s', $insert_data['title'] ?? ( 'mentés ID ' . $backup_id ), $wpdb->last_error ) );
+					continue;
+				}
+				SZEducate_Sync_Log::progress_log( $progress_key, sprintf( 'Újra felvéve: "%s".', $insert_data['title'] ?? $backup_id ) );
 				$hub_ids_to_sync[] = $wpdb->insert_id;
 			}
 		}
@@ -617,9 +838,9 @@ class SZEducate_Backup_Manager {
 		if ( !empty($courses_to_update) ) {
 			$schema_json = get_option( 'szeducate_local_schema', '[]' );
 			$schema = json_decode( $schema_json, true );
-			$existing_columns = $wpdb->get_col( "DESCRIBE $courses_table", 0 );
 
 			foreach ( $courses_to_update as $combined_id => $fields ) {
+				$this->abort_restore_if_requested( $progress_key );
 				$ids = explode('|', $combined_id);
 				$current_id = intval($ids[0]);
 				$backup_id = intval($ids[1]);
@@ -680,40 +901,173 @@ class SZEducate_Backup_Manager {
 						}
 					}
 
-					$wpdb->update( $courses_table, $db_data, ['id' => $current_id] );
+					$result = $wpdb->update( $courses_table, $db_data, ['id' => $current_id] );
+					if ( $result === false ) {
+						$this->record_restore_error( $progress_key, $restore_errors, sprintf( 'Módosítás sikertelen ("%s"): %s', $new_title, $wpdb->last_error ) );
+						continue;
+					}
+					SZEducate_Sync_Log::progress_log( $progress_key, sprintf( 'Módosítva: "%s".', $new_title ) );
 					$hub_ids_to_sync[] = $current_id;
 				}
 			}
 		}
 
-		// 4. Webhookok kiküldése a Klienseknek
-		if ( $wpdb->get_var( "SHOW TABLES LIKE '{$clients_table}'" ) == $clients_table ) {
-			$all_clients = $wpdb->get_results( "SELECT client_url FROM {$clients_table} WHERE client_url != ''" );
-			
-			foreach ( $all_clients as $c ) {
-				$base_webhook_url = rtrim( $c->client_url, '/' ) . '/wp-json/szeducate/v1/client/sync-course';
-				
-				// Újak és módosítottak
-				foreach ( $hub_ids_to_sync as $h_id ) {
-					wp_remote_post( $base_webhook_url, [
-						'blocking' => false, 'timeout' => 5,
-						'body' => wp_json_encode( ['hub_id' => $h_id] ),
-						'headers' => ['Content-Type' => 'application/json']
-					] );
-				}
-				
-				// Töröltek
-				foreach ( $hub_ids_to_delete as $h_id ) {
-					wp_remote_request( $base_webhook_url . '/' . $h_id, [
-						'method' => 'DELETE', 'blocking' => false, 'timeout' => 5,
-						'headers' => ['Content-Type' => 'application/json']
-					] );
-				}
+		$this->abort_restore_if_requested( $progress_key );
+
+		// Minden adatbázis-írás rendben lezajlott - a tranzakciót itt véglegesítjük.
+		// A kliens-webhookok kiküldése ezután, egy külön háttérfolyamatban indul, tehát
+		// vészleállítás esetén sosem küldünk ki (már véglegesített) adatokra épülő értesítést.
+		$wpdb->query( 'COMMIT' );
+		SZEducate_Sync_Log::progress_log( $progress_key, 'Adatbázis-változások véglegesítve.' );
+
+		// 4. Webhookok kiküldése a Klienseknek - a HÁTTÉRBEN (cronon keresztül), hogy egy lassan
+		// válaszoló vagy elérhetetlen kliens ne akassza meg (és ne is futtassa időtúllépésbe) magát
+		// a visszaállítási kérést. A tényleges küldés/naplózás a process_restore_webhooks()-ban történik.
+		if ( ( ! empty( $hub_ids_to_sync ) || ! empty( $hub_ids_to_delete ) ) && $wpdb->get_var( "SHOW TABLES LIKE '{$clients_table}'" ) == $clients_table ) {
+			wp_schedule_single_event( time(), 'szeducate_process_restore_webhooks', array( $hub_ids_to_sync, $hub_ids_to_delete, $progress_key ) );
+			SZEducate_Sync_Log::progress_log( $progress_key, sprintf( 'Kliensek értesítése a háttérben elindítva (%d frissítés/új, %d törlés). A részletes eredmény a Kliens-szinkronizáció naplóban követhető.', count( $hub_ids_to_sync ), count( $hub_ids_to_delete ) ) );
+		}
+
+		if ( ! empty( $restore_errors ) ) {
+			set_transient( 'szeducate_restore_errors', $restore_errors, 5 * MINUTE_IN_SECONDS );
+			SZEducate_Sync_Log::progress_log( $progress_key, sprintf( 'Visszaállítás befejezve, %d hibával.', count( $restore_errors ) ) );
+			SZEducate_Sync_Log::progress_finish( $progress_key, true );
+			wp_safe_redirect( add_query_arg( array( 'page' => 'szeducate-backups', 'backup_msg' => 'partial_restore' ), admin_url( 'admin.php' ) ) );
+			exit;
+		}
+
+		SZEducate_Sync_Log::progress_log( $progress_key, 'Visszaállítás sikeresen befejeződött.' );
+		SZEducate_Sync_Log::progress_finish( $progress_key, false );
+		wp_safe_redirect( add_query_arg( array( 'page' => 'szeducate-backups', 'backup_msg' => 'success_restore' ), admin_url( 'admin.php' ) ) );
+		exit;
+	}
+
+	// --- Kliens-webhookok kiküldése a HÁTTÉRBEN (WP-Cron), a visszaállítási kérésen kívül.
+	// Klienenként EGYETLEN kötegelt (batch) kérést küldünk, ahelyett hogy képzésenként
+	// külön HTTP kört futtatnánk - így 98 képzés is másodpercek alatt célba ér, nem percek/órák alatt.
+	public function process_restore_webhooks( $hub_ids_to_sync, $hub_ids_to_delete, $progress_key ) {
+		@set_time_limit( 0 );
+		global $wpdb;
+		$courses_table = $wpdb->prefix . 'szeducate_courses_data';
+		$clients_table = $wpdb->prefix . 'szeducate_clients';
+
+		if ( $wpdb->get_var( "SHOW TABLES LIKE '{$clients_table}'" ) != $clients_table ) return;
+
+		$all_clients = $wpdb->get_results( "SELECT client_name, client_url, permissions FROM {$clients_table} WHERE client_url != ''" );
+
+		// Az imént szinkronizált képzések teljes adatát egyben lekérjük, hogy a batch
+		// kérésbe a Hub egyből a kész adatot tudja betenni - a kliensnek nem kell
+		// visszakérdeznie soronként a Hub-tól.
+		$synced_courses = array();
+		if ( ! empty( $hub_ids_to_sync ) ) {
+			$placeholders = implode( ',', array_fill( 0, count( $hub_ids_to_sync ), '%d' ) );
+			$rows = $wpdb->get_results( $wpdb->prepare( "SELECT id, title, course_data FROM $courses_table WHERE id IN ($placeholders)", $hub_ids_to_sync ), ARRAY_A );
+			foreach ( $rows as $row ) {
+				$decoded = json_decode( $row['course_data'], true );
+				$synced_courses[ $row['id'] ] = array(
+					'title'       => $row['title'],
+					'course_data' => is_array( $decoded ) ? $decoded : array(),
+				);
 			}
 		}
 
-		wp_safe_redirect( add_query_arg( array( 'page' => 'szeducate-backups', 'backup_msg' => 'success_restore' ), admin_url( 'admin.php' ) ) );
-		exit;
+		SZEducate_Sync_Log::progress_log( $progress_key, sprintf( 'Kliensek kötegelt (batch) értesítése megkezdve a háttérben (%d kliens)...', count( $all_clients ) ) );
+
+		foreach ( $all_clients as $c ) {
+			$c_perms = json_decode( $c->permissions, true );
+			$c_conditions = isset( $c_perms['conditions'] ) ? $c_perms['conditions'] : array();
+			$batch_url = rtrim( $c->client_url, '/' ) . '/wp-json/szeducate/v1/client/sync-course-batch';
+
+			// Csak azokat a képzéseket tesszük a kötegbe, amikhez a kliens jogosultsági feltételei szerint hozzáférhet.
+			$courses_payload = array();
+			$skipped = 0;
+			foreach ( $hub_ids_to_sync as $h_id ) {
+				if ( ! isset( $synced_courses[ $h_id ] ) ) continue;
+
+				if ( ! $this->evaluate_conditions( $c_conditions, $synced_courses[ $h_id ]['course_data'] ) ) {
+					$skipped++;
+					continue;
+				}
+
+				$courses_payload[] = array(
+					'hub_id'      => $h_id,
+					'title'       => $synced_courses[ $h_id ]['title'],
+					'course_data' => $synced_courses[ $h_id ]['course_data'],
+				);
+			}
+
+			if ( $skipped > 0 ) {
+				SZEducate_Sync_Log::progress_log( $progress_key, sprintf( 'Kihagyva: "%s" nem jogosult %d képzésre.', $c->client_name, $skipped ) );
+			}
+
+			if ( empty( $courses_payload ) && empty( $hub_ids_to_delete ) ) continue;
+
+			$response = wp_remote_post( $batch_url, array(
+				'blocking' => true,
+				'timeout'  => 60,
+				'body'     => wp_json_encode( array( 'courses' => $courses_payload, 'deletes' => $hub_ids_to_delete ) ),
+				'headers'  => array( 'Content-Type' => 'application/json' ),
+			) );
+
+			if ( is_wp_error( $response ) ) {
+				$msg = sprintf( 'Sikertelen kötegelt küldés ("%s", %d képzés): %s', $c->client_name, count( $courses_payload ), $response->get_error_message() );
+				SZEducate_Sync_Log::add( 'restore-push', $msg, false );
+				SZEducate_Sync_Log::progress_log( $progress_key, $msg );
+				continue;
+			}
+
+			$code = wp_remote_retrieve_response_code( $response );
+			if ( $code < 200 || $code >= 300 ) {
+				$msg = sprintf( 'Hiba a kötegelt küldésnél ("%s"): HTTP %d', $c->client_name, $code );
+				SZEducate_Sync_Log::add( 'restore-push', $msg, false );
+				SZEducate_Sync_Log::progress_log( $progress_key, $msg );
+				continue;
+			}
+
+			$msg = sprintf( 'Kötegelt küldés kész ("%s"): %d képzés elküldve, %d törlés.', $c->client_name, count( $courses_payload ), count( $hub_ids_to_delete ) );
+			SZEducate_Sync_Log::add( 'restore-push', $msg, true );
+			SZEducate_Sync_Log::progress_log( $progress_key, $msg );
+		}
+
+		SZEducate_Sync_Log::progress_log( $progress_key, 'Kliensek háttérbeli értesítése befejeződött.' );
+	}
+
+	private function evaluate_conditions( $conditions, $course_data ) {
+		if ( empty( $conditions ) || empty( $conditions['rules'] ) ) {
+			return true;
+		}
+
+		$logical_operator = isset( $conditions['logical_operator'] ) ? $conditions['logical_operator'] : 'AND';
+		$results = array();
+
+		foreach ( $conditions['rules'] as $rule ) {
+			if ( isset( $rule['logical_operator'] ) ) {
+				$results[] = $this->evaluate_conditions( $rule, $course_data );
+			} else {
+				$field = isset( $rule['field'] ) ? $rule['field'] : '';
+				$operator = isset( $rule['operator'] ) ? $rule['operator'] : '==';
+				$target_value = isset( $rule['value'] ) ? $rule['value'] : '';
+
+				$actual_value = isset( $course_data[ $field ] ) ? $course_data[ $field ] : '';
+				$actual_string = is_array( $actual_value ) ? implode( ';', $actual_value ) : (string) $actual_value;
+
+				$rule_result = true;
+				switch ( $operator ) {
+					case '==':
+						$rule_result = ( $actual_string === $target_value );
+						break;
+					case '!=':
+						$rule_result = ( $actual_string !== $target_value );
+						break;
+					case 'contains':
+						$rule_result = ( strpos( $actual_string, $target_value ) !== false );
+						break;
+				}
+				$results[] = $rule_result;
+			}
+		}
+
+		return $logical_operator === 'AND' ? ! in_array( false, $results, true ) : in_array( true, $results, true );
 	}
 
 	public function handle_delete_backup() {
