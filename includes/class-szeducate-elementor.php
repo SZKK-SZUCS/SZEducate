@@ -22,8 +22,10 @@ class SZEducate_Elementor {
 
 	public function register_dynamic_tags( $dynamic_tags_manager ) {
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-dynamic-tag.php';
+		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-image-dynamic-tag.php';
 		$dynamic_tags_manager->register_group( 'szeducate', array( 'title' => 'SZEducate Adatok' ) );
 		$dynamic_tags_manager->register( new SZEducate_Dynamic_Tag() );
+		$dynamic_tags_manager->register( new SZEducate_Image_Dynamic_Tag() );
 	}
 
 	public function register_widgets( $widgets_manager ) {
@@ -32,12 +34,14 @@ class SZEducate_Elementor {
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/widgets/class-szeducate-listing-widget.php';
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/widgets/class-szeducate-keywords-widget.php';
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/widgets/class-szeducate-search-widget.php';
-		
+		require_once SZEDUCATE_PLUGIN_DIR . 'includes/widgets/class-szeducate-repeater-widget.php';
+
 		$widgets_manager->register( new SZEducate_Search_Widget() );
 		$widgets_manager->register( new SZEducate_Links_Widget() );
 		$widgets_manager->register( new SZEducate_Status_Widget() );
 		$widgets_manager->register( new SZEducate_Listing_Widget() );
 		$widgets_manager->register( new SZEducate_Keywords_Widget() );
+		$widgets_manager->register( new SZEducate_Repeater_Widget() );
 	}
 
 	public function add_visibility_controls( $element, $args ) {
@@ -138,15 +142,12 @@ class SZEducate_Elementor {
 		}
 
 		$post_id = get_the_ID();
-		if ( ! $post_id || get_post_type( $post_id ) !== 'sz_course' ) return false; 
+		if ( ! $post_id || get_post_type( $post_id ) !== 'sz_course' ) return false;
 
-		global $wpdb;
-		$table_name = $wpdb->prefix . 'szeducate_courses_data';
-		$course = $wpdb->get_row( $wpdb->prepare( "SELECT course_data FROM $table_name WHERE local_post_id = %d LIMIT 1", $post_id ), ARRAY_A );
+		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-client.php';
+		$data = SZEducate_Client::get_course_data_for_post( $post_id );
+		if ( ! is_array( $data ) ) return false;
 
-		if ( ! $course ) return false;
-
-		$data = json_decode( $course['course_data'], true );
 		$keys_to_check = $settings['szeducate_hide_if_empty_keys'];
 		$rule = isset( $settings['szeducate_hide_rule'] ) ? $settings['szeducate_hide_rule'] : 'empty';
 		$target_val = isset( $settings['szeducate_hide_value'] ) ? $settings['szeducate_hide_value'] : '';

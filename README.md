@@ -151,6 +151,17 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.18
+
+feat: Widget audit - fix broken Style controls, add caching, new Repeater widget
+
+- Fixed several Elementor Style controls that silently did nothing because the widgets baked the same CSS properties into inline `style` attributes (which always win over stylesheet rules): Státusz widget typography section, Szaklista widget category-title border/typography and item typography, Linkek widget button typography.
+- Added a per-request course-data cache (`SZEducate_Client::get_course_data_for_post()`) and wired it into the Linkek/Státusz/Kulcsszavak widgets, the Dynamic Tag, and the visibility ("hide if empty") filter - a single course page could previously fire the same `course_data` query 4-6+ times per load.
+- Fixed the "Képzés Adat" Dynamic Tag producing literal "Array, Array" output when a repeater/links-type field was selected.
+- Added `rel="noopener noreferrer"` to the Linkek widget's `target="_blank"` links.
+- Added a new **SZEducate Ismétlődő Lista (Repeater)** widget to display repeater-type schema fields (table or card layout, fully styleable).
+- Added a new **Képzés Kép** Image Data Dynamic Tag so image-type schema fields can be used as the source for Elementor's native Image widget.
+
 ### 0.9.17
 
 - Fixing the realtime editing lock on cross-client mode.

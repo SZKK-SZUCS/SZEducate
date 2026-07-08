@@ -119,6 +119,17 @@ class SZEducate_Status_Widget extends \Elementor\Widget_Base {
 			[
 				'name' => 'badge_typography',
 				'selector' => '{{WRAPPER}} .sz-status-part',
+				// A widget korábban a betűtípust/méretet/vastagságot/sortávot közvetlenül a
+				// kimenetbe ("style" attribútum) sütötte, ami a beépített CSS-specificitási
+				// szabályok miatt LEHETETLENNÉ tette ennek a szekciónak a tényleges
+				// felülírását - az alap kinézet mostantól ITT, a vezérlő alapértékeként él,
+				// hogy tényleg szerkeszthető maradjon.
+				'fields_options' => [
+					'font_family'    => [ 'default' => '' ],
+					'font_size'      => [ 'default' => [ 'unit' => 'px', 'size' => 12 ] ],
+					'font_weight'    => [ 'default' => '600' ],
+					'line_height'    => [ 'default' => [ 'unit' => 'px', 'size' => 1 ] ],
+				],
 			]
 		);
 
@@ -250,13 +261,10 @@ class SZEducate_Status_Widget extends \Elementor\Widget_Base {
 			return;
 		}
 
-		global $wpdb;
-		$table_name = $wpdb->prefix . 'szeducate_courses_data';
-		$course = $wpdb->get_row( $wpdb->prepare( "SELECT course_data FROM $table_name WHERE local_post_id = %d LIMIT 1", $post_id ), ARRAY_A );
+		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-client.php';
+		$data = SZEducate_Client::get_course_data_for_post( $post_id );
+		if ( ! is_array( $data ) ) return;
 
-		if ( ! $course ) return;
-
-		$data = json_decode( $course['course_data'], true );
 		$status = isset( $data[ $settings['status_key'] ] ) ? $data[ $settings['status_key'] ] : '';
 		$expiry = isset( $data[ $settings['date_key'] ] ) ? trim((string)$data[ $settings['date_key'] ]) : '';
 		$start_period = isset( $data[ $settings['start_period_key'] ] ) ? $data[ $settings['start_period_key'] ] : '';
@@ -278,7 +286,10 @@ class SZEducate_Status_Widget extends \Elementor\Widget_Base {
 		$icon_calendar = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" style="margin-right:6px;"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z"/></svg>';
 		$icon_info = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" style="margin-right:6px;"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>';
 
-		$css_group = "display:inline-flex; align-items:stretch; overflow:hidden; font-family:sans-serif; font-size:12px; font-weight:600; line-height:1;";
+		// A betűtípus/méret/vastagság/sortáv szándékosan NEM itt, hanem a "badge_typography"
+		// Stílus-vezérlőn keresztül kerül beállításra (lásd register_controls) - ha ide
+		// visszakerülne inline "style" attribútumként, a vezérlő megint hatástalanná válna.
+		$css_group = "display:inline-flex; align-items:stretch; overflow:hidden;";
 		$css_part = "display:flex; align-items:center; padding:8px 14px;";
 
 		echo '<div class="szeducate-status-wrapper" style="display:flex; flex-wrap:wrap;">';

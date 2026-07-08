@@ -752,6 +752,34 @@ class SZEducate_Client {
 		delete_transient( 'szeducate_courses_cache' );
 	}
 
+	private static $course_data_request_cache = array();
+
+	// Egyetlen Képzés dekódolt course_data tömbje, KÉRÉSENKÉNT (nem a fenti transienthez
+	// hasonlóan percekig) memoizálva. Ez a Widgetek (Linkek, Kulcsszavak, Státusz), a
+	// Dynamic Tag és a láthatósági szűrő közös forrása - egyetlen oldalbetöltésen belül
+	// ugyanahhoz a post_id-hoz korábban ezek MIND külön-külön lekérdezték a táblát, akár
+	// 4-5 azonos SELECT-et is kiváltva egyetlen Képzés oldalán.
+	public static function get_course_data_for_post( $post_id ) {
+		$post_id = intval( $post_id );
+		if ( ! $post_id ) return null;
+		if ( array_key_exists( $post_id, self::$course_data_request_cache ) ) {
+			return self::$course_data_request_cache[ $post_id ];
+		}
+
+		global $wpdb;
+		$table_name = $wpdb->prefix . 'szeducate_courses_data';
+		$row = $wpdb->get_row( $wpdb->prepare( "SELECT course_data FROM $table_name WHERE local_post_id = %d LIMIT 1", $post_id ), ARRAY_A );
+
+		$data = null;
+		if ( $row ) {
+			$decoded = json_decode( $row['course_data'], true );
+			$data = is_array( $decoded ) ? $decoded : null;
+		}
+
+		self::$course_data_request_cache[ $post_id ] = $data;
+		return $data;
+	}
+
 	// Azon 'sz_course' bejegyzések ID-jai, amik már NEM tartoznak egyetlen sorhoz sem a
 	// wp_szeducate_courses_data táblában (pl. sikertelen cím-párosítás miatt egy korábbi
 	// szinkronizáció/visszaállítás során új bejegyzést hozott létre a régi helyett).

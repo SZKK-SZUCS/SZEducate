@@ -243,13 +243,10 @@ class SZEducate_Keywords_Widget extends \Elementor\Widget_Base {
 		$post_id = get_the_ID();
 		if ( get_post_type( $post_id ) !== 'sz_course' ) return;
 
-		global $wpdb;
-		$table_name = $wpdb->prefix . 'szeducate_courses_data';
-		$course = $wpdb->get_row( $wpdb->prepare( "SELECT course_data FROM $table_name WHERE local_post_id = %d LIMIT 1", $post_id ), ARRAY_A );
+		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-client.php';
+		$data = SZEducate_Client::get_course_data_for_post( $post_id );
+		if ( ! is_array( $data ) ) return;
 
-		if ( ! $course ) return;
-
-		$data = json_decode( $course['course_data'], true );
 		$keywords_raw = isset( $data[ $field_key ] ) ? $data[ $field_key ] : '';
 
 		if ( empty( $keywords_raw ) ) return;

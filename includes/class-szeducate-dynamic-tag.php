@@ -27,10 +27,14 @@ class SZEducate_Dynamic_Tag extends \Elementor\Core\DynamicTags\Tag {
 		
 		$options = array( '' => 'Válassz mezőt...' );
 
+		// A "repeater" és "links" típusú mezők strukturált (tömb-a-tömbben) adatok - ezeknek
+		// dedikált Widget kell (Repeater Widget, Linkek Widget), egy sima szöveges Dynamic
+		// Tag-ben nincs értelmes, egysoros megjelenítésük, ezért itt nem is választhatók.
 		if ( is_array( $schema ) ) {
 			foreach ( $schema as $group ) {
 				if ( ! empty( $group['fields'] ) ) {
 					foreach ( $group['fields'] as $field ) {
+						if ( isset( $field['type'] ) && in_array( $field['type'], array( 'repeater', 'links' ), true ) ) continue;
 						$options[ $field['key'] ] = $field['label'];
 					}
 				}
@@ -65,20 +69,25 @@ class SZEducate_Dynamic_Tag extends \Elementor\Core\DynamicTags\Tag {
 		$post_id = get_the_ID();
 		if ( ! $post_id || get_post_type( $post_id ) !== 'sz_course' ) return;
 
-		global $wpdb;
-		$table_name = $wpdb->prefix . 'szeducate_courses_data';
-		
-		$course = $wpdb->get_row( $wpdb->prepare( "SELECT course_data FROM $table_name WHERE local_post_id = %d LIMIT 1", $post_id ), ARRAY_A );
+		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-client.php';
+		$data = SZEducate_Client::get_course_data_for_post( $post_id );
+		if ( ! is_array( $data ) ) return;
 
-		if ( ! $course ) return;
-
-		$data = json_decode( $course['course_data'], true );
-		
 		if ( ! isset( $data[ $field_key ] ) || $data[ $field_key ] === '' ) return;
 
 		$value = $data[ $field_key ];
 
 		if ( is_array( $value ) ) {
+			// Struktúrált (repeater / links) mezőknél a tömb elemei maguk is tömbök -
+			// ezekre a "Repeater" ill. "Linkek" Widget való, itt (sima szöveges Dynamic
+			// Tag-ként) csak egyszerű, lapos listákat tudunk értelmesen megjeleníteni.
+			// Enélkül az implode() "Array"-t írt volna ki minden elemre.
+			$is_flat = true;
+			foreach ( $value as $v ) {
+				if ( is_array( $v ) ) { $is_flat = false; break; }
+			}
+			if ( ! $is_flat ) return;
+
 			$separator = $this->get_settings( 'array_separator' );
 			echo esc_html( implode( $separator, $value ) );
 		} elseif ( is_bool( $value ) ) {

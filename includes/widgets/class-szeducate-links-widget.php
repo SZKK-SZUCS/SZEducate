@@ -128,6 +128,13 @@ class SZEducate_Links_Widget extends \Elementor\Widget_Base {
 			[
 				'name'     => 'button_typography',
 				'selector' => '{{WRAPPER}} .sz-link-item',
+				// A sortáv és az aláhúzás korábban a kimenetbe sütött "style" attribútumból
+				// jött, ami miatt ez a vezérlő (pl. hover alá­húzás bekapcsolása) nem tudott
+				// hatni rá.
+				'fields_options' => [
+					'line_height'     => [ 'default' => [ 'unit' => 'px', 'size' => 1.2 ] ],
+					'text_decoration' => [ 'default' => 'none' ],
+				],
 			]
 		);
 
@@ -336,13 +343,10 @@ class SZEducate_Links_Widget extends \Elementor\Widget_Base {
 		$post_id = get_the_ID();
 		if ( get_post_type( $post_id ) !== 'sz_course' ) return;
 
-		global $wpdb;
-		$table_name = $wpdb->prefix . 'szeducate_courses_data';
-		$course = $wpdb->get_row( $wpdb->prepare( "SELECT course_data FROM $table_name WHERE local_post_id = %d LIMIT 1", $post_id ), ARRAY_A );
+		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-client.php';
+		$data = SZEducate_Client::get_course_data_for_post( $post_id );
+		if ( ! is_array( $data ) ) return;
 
-		if ( ! $course ) return;
-
-		$data = json_decode( $course['course_data'], true );
 		$links = isset( $data[ $settings['link_field_key'] ] ) ? $data[ $settings['link_field_key'] ] : array();
 
 		if ( ! is_array( $links ) || empty( $links ) ) return;
@@ -374,7 +378,7 @@ class SZEducate_Links_Widget extends \Elementor\Widget_Base {
 			$url = esc_url( $link['url'] );
 			$title = esc_html( $link['title'] );
 			
-			echo "<a href=\"{$url}\" class=\"sz-link-item{$hover_class}\" style=\"display:inline-flex; align-items:center; text-decoration:none; transition:all 0.3s ease; line-height:1.2; box-sizing:border-box;\" target=\"_blank\">";
+			echo "<a href=\"{$url}\" class=\"sz-link-item{$hover_class}\" style=\"display:inline-flex; align-items:center; transition:all 0.3s ease; box-sizing:border-box;\" target=\"_blank\" rel=\"noopener noreferrer\">";
 			if ( ! empty( $icon_html ) ) {
 				echo $icon_html;
 			}

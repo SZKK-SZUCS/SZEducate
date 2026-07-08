@@ -192,6 +192,9 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 			[
 				'name'     => 'active_filter_typography',
 				'selector' => '{{WRAPPER}} .sz-active-filter-badge',
+				'fields_options' => [
+					'font_weight' => [ 'default' => '600' ],
+				],
 			]
 		);
 
@@ -377,6 +380,14 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 			[
 				'name'     => 'group_title_typography',
 				'selector' => '{{WRAPPER}} .sz-group-title',
+				// A vastagság/kis-nagybetű/betűköz korábban a kimenetbe sütött "style"
+				// attribútumból jött, ami miatt ez a vezérlő nem tudta felülírni azokat -
+				// az alapértéket most a vezérlő adja, hogy tényleg szerkeszthető maradjon.
+				'fields_options' => [
+					'font_weight'    => [ 'default' => '700' ],
+					'text_transform' => [ 'default' => 'uppercase' ],
+					'letter_spacing' => [ 'default' => [ 'unit' => 'px', 'size' => 0.5 ] ],
+				],
 			]
 		);
 
@@ -482,6 +493,12 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 				'label'     => 'Tipográfia',
 				'selector'  => '{{WRAPPER}} .sz-course-link',
 				'separator' => 'before',
+				// A sortáv és az aláhúzás korábban a kimenetbe sütött "style" attribútumból
+				// jött, ami miatt ez a vezérlő nem tudta felülírni azokat.
+				'fields_options' => [
+					'line_height'     => [ 'default' => [ 'unit' => 'px', 'size' => 1.2 ] ],
+					'text_decoration' => [ 'default' => 'none' ],
+				],
 			]
 		);
 
@@ -706,7 +723,7 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 				echo '<p style="color:#666; font-style:italic;">A beállított szűrőknek megfelelő képzés jelenleg nem található.</p>';
 			} else {
 				if ( ! empty( $display_filter_text ) ) {
-					echo '<div class="sz-active-filter-badge" style="font-weight:600; margin-bottom:20px;">' . esc_html( $display_filter_text ) . '</div>';
+					echo '<div class="sz-active-filter-badge">' . esc_html( $display_filter_text ) . '</div>';
 				}
 				echo '<p style="color:#888; font-style:italic; padding:20px; text-align:center;">Sajnos nem találtunk a keresésnek megfelelő képzést.</p>';
 			}
@@ -743,7 +760,7 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 		}
 
 		if ( ! empty( $display_filter_text ) ) {
-			echo '<div class="sz-active-filter-badge" style="font-weight:600;">' . esc_html( $display_filter_text ) . '</div>';
+			echo '<div class="sz-active-filter-badge">' . esc_html( $display_filter_text ) . '</div>';
 		}
 
 		$grid_class = ! empty( $group_key ) ? 'sz-listing-grid' : 'sz-listing-single';
@@ -755,7 +772,7 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 			echo '<div class="sz-group-block" style="display:flex; flex-direction:column; overflow:hidden;">';
 			
 			if ( ! empty( $group_key ) ) {
-				echo '<h3 class="sz-group-title" style="margin-top:0; border-bottom:2px solid; padding-bottom:10px; width:100%; font-weight:700; letter-spacing:0.5px; text-transform:uppercase;">' . esc_html( $group_name ) . '</h3>';
+				echo '<h3 class="sz-group-title" style="margin-top:0; border-bottom-style:solid; border-bottom-width:2px; padding-bottom:10px; width:100%;">' . esc_html( $group_name ) . '</h3>';
 			}
 			
 			echo '<ul class="sz-course-list" style="list-style:none; padding:0; margin:0; width:100%;">';
@@ -764,7 +781,7 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 				$current_icon = $item['is_active'] ? $active_icon_html : $inactive_icon_html;
 				
 				echo '<li style="display:flex; align-items:flex-start;">';
-				echo '<a href="' . esc_url( $item['url'] ) . '" class="sz-course-link ' . $state_class . '" style="display:inline-flex; align-items:center; text-decoration:none; transition:all 0.3s ease; line-height:1.2; width:100%; box-sizing:border-box;">';
+				echo '<a href="' . esc_url( $item['url'] ) . '" class="sz-course-link ' . $state_class . '" style="display:inline-flex; align-items:center; transition:all 0.3s ease; width:100%; box-sizing:border-box;">';
 				
 				if ( ! empty( $current_icon ) ) {
 					echo $current_icon;
