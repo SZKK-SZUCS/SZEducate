@@ -151,6 +151,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.15
+
+- Refactor code structure for improved readability and maintainability
+
 ### 0.9.13
 
 Enhance SZEducate plugin functionality and performance

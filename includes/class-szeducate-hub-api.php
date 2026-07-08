@@ -295,7 +295,8 @@ class SZEducate_Hub_API {
 			'title'         => $title,
 			'local_post_id' => $local_post_id,
 			'course_data'   => wp_json_encode( $course_data, JSON_UNESCAPED_UNICODE ),
-			'status'        => 'publish'
+			'status'        => 'publish',
+			'updated_by'    => 'Kliens: ' . $client['client_name'],
 		);
 
 		$schema_json = get_option( 'szeducate_schema', '[]' );

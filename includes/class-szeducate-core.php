@@ -9,8 +9,9 @@ class SZEducate_Core {
 
 	public function init() {
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-schema.php';
-		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-clients.php'; 
+		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-clients.php';
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-hub-api.php';
+		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-courses-overview.php';
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-client.php';
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-client-api.php';
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-import-export.php';
@@ -52,6 +53,9 @@ class SZEducate_Core {
 
 		$api = new SZEducate_Hub_API();
 		$api->init();
+
+		$courses_overview = new SZEducate_Courses_Overview();
+		$courses_overview->init();
 
 		$backup_manager = new SZEducate_Backup_Manager();
 		$backup_manager->init();

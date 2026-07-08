@@ -50,6 +50,126 @@ class SZEducate_Client_API {
 			'callback'            => array( $this, 'handle_ping' ),
 			'permission_callback' => array( $this, 'verify_webhook_signature' ),
 		) );
+
+		// Verzió-előzmények egy Képzéshez (ki, mikor, mit módosított) + egy korábbi verzió
+		// teljes tartalmának lekérése visszaállításhoz.
+		register_rest_route( 'szeducate/v1/client', '/course-versions', array(
+			'methods'             => WP_REST_Server::READABLE,
+			'callback'            => array( $this, 'get_course_versions' ),
+			'permission_callback' => function() {
+				return current_user_can( 'edit_sz_courses' );
+			}
+		) );
+
+		register_rest_route( 'szeducate/v1/client', '/course-versions/(?P<id>\d+)', array(
+			'methods'             => WP_REST_Server::READABLE,
+			'callback'            => array( $this, 'get_course_version_detail' ),
+			'permission_callback' => function() {
+				return current_user_can( 'edit_sz_courses' );
+			}
+		) );
+	}
+
+	public function get_course_versions( WP_REST_Request $request ) {
+		global $wpdb;
+		$post_id = intval( $request->get_param( 'post_id' ) );
+		if ( ! $post_id ) {
+			return new WP_Error( 'missing_post_id', 'Hiányzó post_id.', array( 'status' => 400 ) );
+		}
+
+		$table = $wpdb->prefix . 'szeducate_course_versions';
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			"SELECT id, title, changed_fields, edited_by, edited_at FROM $table WHERE local_post_id = %d ORDER BY edited_at DESC, id DESC LIMIT 50",
+			$post_id
+		), ARRAY_A );
+
+		$versions = array();
+		foreach ( $rows as $r ) {
+			$changed = json_decode( $r['changed_fields'], true );
+			$versions[] = array(
+				'id'             => intval( $r['id'] ),
+				'title'          => $r['title'],
+				'changed_fields' => is_array( $changed ) ? $changed : array(),
+				'edited_by'      => $r['edited_by'] ? $r['edited_by'] : 'Ismeretlen',
+				'edited_at'      => $r['edited_at'],
+			);
+		}
+
+		return new WP_REST_Response( array( 'success' => true, 'versions' => $versions ), 200 );
+	}
+
+	public function get_course_version_detail( WP_REST_Request $request ) {
+		global $wpdb;
+		$version_id = intval( $request['id'] );
+		$post_id = intval( $request->get_param( 'post_id' ) );
+
+		$table = $wpdb->prefix . 'szeducate_course_versions';
+		$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table WHERE id = %d", $version_id ), ARRAY_A );
+
+		if ( ! $row || ( $post_id && intval( $row['local_post_id'] ) !== $post_id ) ) {
+			return new WP_Error( 'not_found', 'A verzió nem található.', array( 'status' => 404 ) );
+		}
+
+		$course_data = json_decode( $row['course_data'], true );
+
+		return new WP_REST_Response( array(
+			'success'     => true,
+			'title'       => $row['title'],
+			'course_data' => is_array( $course_data ) ? $course_data : array(),
+			'edited_by'   => $row['edited_by'] ? $row['edited_by'] : 'Ismeretlen',
+			'edited_at'   => $row['edited_at'],
+		), 200 );
+	}
+
+	// Egy Képzés-mentés eredményét rögzíti a verzió-előzményekben: mit (mely mezőket)
+	// és ki módosított. Csak az ÚJ állapotot tároljuk el (a régi már benne van az előző
+	// verzió-sorban), a "changed_fields" a két állapot közti mező-szintű különbség.
+	private function record_course_version( $post_id, $title, $new_course_data, $old_title, $old_course_data, $json_blob ) {
+		global $wpdb;
+		$versions_table = $wpdb->prefix . 'szeducate_course_versions';
+
+		$changed_keys = array();
+		$is_first_version = ( $old_course_data === null );
+		$old_course_data = is_array( $old_course_data ) ? $old_course_data : array();
+
+		if ( $is_first_version ) {
+			$changed_keys[] = '__initial__';
+		} else {
+			$all_keys = array_unique( array_merge( array_keys( $old_course_data ), array_keys( $new_course_data ) ) );
+			foreach ( $all_keys as $k ) {
+				$old_val = isset( $old_course_data[ $k ] ) ? $old_course_data[ $k ] : null;
+				$new_val = isset( $new_course_data[ $k ] ) ? $new_course_data[ $k ] : null;
+				if ( wp_json_encode( $old_val ) !== wp_json_encode( $new_val ) ) {
+					$changed_keys[] = $k;
+				}
+			}
+			if ( $old_title !== null && $old_title !== $title ) {
+				array_unshift( $changed_keys, '__title__' );
+			}
+		}
+
+		$current_user = wp_get_current_user();
+		$editor_label = $current_user && $current_user->exists()
+			? ( $current_user->display_name ? $current_user->display_name : $current_user->user_login )
+			: 'Ismeretlen';
+
+		$wpdb->insert( $versions_table, array(
+			'local_post_id'  => $post_id,
+			'title'          => $title,
+			'course_data'    => $json_blob,
+			'changed_fields' => wp_json_encode( $changed_keys ),
+			'edited_by'      => $editor_label,
+			'edited_at'      => current_time( 'mysql' ),
+		) );
+
+		// Csak az utolsó 50 verziót őrizzük meg Képzésenként, hogy a tábla ne nőjön a végtelenségig.
+		$count = intval( $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $versions_table WHERE local_post_id = %d", $post_id ) ) );
+		if ( $count > 50 ) {
+			$wpdb->query( $wpdb->prepare(
+				"DELETE FROM $versions_table WHERE local_post_id = %d ORDER BY edited_at ASC LIMIT %d",
+				$post_id, $count - 50
+			) );
+		}
 	}
 
 	public function handle_ping( WP_REST_Request $request ) {
@@ -419,11 +539,15 @@ class SZEducate_Client_API {
 				'course_data'   => $json_blob,
 			), $this->flatten_dynamic_columns( $dynamic_data, $table_name ) );
 
-			$existing = $wpdb->get_row( $wpdb->prepare( "SELECT id, hub_id FROM $table_name WHERE local_post_id = %d", $saved_post_id ), ARRAY_A );
+			$existing = $wpdb->get_row( $wpdb->prepare( "SELECT id, hub_id, title, course_data FROM $table_name WHERE local_post_id = %d", $saved_post_id ), ARRAY_A );
 
 			$current_hub_id = 0;
+			$old_title = null;
+			$old_course_data = null;
 			if ( $existing ) {
 				$current_hub_id = intval($existing['hub_id']);
+				$old_title = $existing['title'];
+				$old_course_data = json_decode( $existing['course_data'], true );
 				$result = $wpdb->update( $table_name, $db_data, array( 'id' => $existing['id'] ) );
 			} else {
 				$result = $wpdb->insert( $table_name, $db_data );
@@ -452,6 +576,8 @@ class SZEducate_Client_API {
 					}
 				}
 			}
+
+			$this->record_course_version( $saved_post_id, $title, $dynamic_data, $old_title, $old_course_data, $json_blob );
 
 			$wpdb->query( 'COMMIT' );
 

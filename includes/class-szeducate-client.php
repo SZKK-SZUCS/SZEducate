@@ -774,8 +774,9 @@ class SZEducate_Client {
 
 				wp_localize_script( 'szeducate-react-app', 'szEducateData', array(
 					'postId'        => $post_id,
-					'nonce'         => wp_create_nonce( 'wp_rest' ), 
+					'nonce'         => wp_create_nonce( 'wp_rest' ),
 					'restUrl'       => esc_url_raw( rest_url( 'szeducate/v1/client/course' ) ),
+					'versionsUrl'   => esc_url_raw( rest_url( 'szeducate/v1/client/course-versions' ) ),
 					'schema'        => json_decode( get_option( 'szeducate_local_schema', '[]' ), true ),
 					'permissions'   => json_decode( get_option( 'szeducate_client_permissions', '{}' ), true ),
 					'existingTitle' => $existing_title,

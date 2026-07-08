@@ -69,6 +69,7 @@ class SZEducate_Activator {
 				`course_data` longtext DEFAULT NULL,
 				`status` varchar(20) DEFAULT 'publish',
 				`updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				`updated_by` varchar(191) DEFAULT NULL,
 				PRIMARY KEY (`id`),
 				KEY `hub_id` (`hub_id`),
 				KEY `owner_client_id` (`owner_client_id`),
@@ -107,6 +108,12 @@ class SZEducate_Activator {
 				}
 			}
 
+			// Ki (melyik kliens, vagy Hub admin) módosította utoljára a rekordot - csak
+			// megjelenítésre használt, nem indexelt oszlop.
+			if ( ! in_array( 'updated_by', $existing_cols ) ) {
+				$wpdb->query( "ALTER TABLE `{$table_name}` ADD COLUMN `updated_by` varchar(191) DEFAULT NULL" );
+			}
+
 			foreach ( $dynamic_columns as $col_name => $col_type ) {
 				// Oszlop hozzáadása, ha hiányzik
 				if ( ! in_array( $col_name, $existing_cols ) ) {
@@ -121,6 +128,32 @@ class SZEducate_Activator {
 
 			self::invalidate_table_columns_cache( $table_name );
 		}
+
+		self::ensure_versions_table();
+	}
+
+	// --- Kliens-oldali szerkesztési előzmények (ki, mikor, mit módosított egy Képzésen) -
+	// minden sikeres mentés egy új sort hoz létre itt, nem íródik felül semmi.
+	private static function ensure_versions_table() {
+		global $wpdb;
+		$table_name = $wpdb->prefix . 'szeducate_course_versions';
+
+		if ( $wpdb->get_var( "SHOW TABLES LIKE '{$table_name}'" ) == $table_name ) return;
+
+		$charset_collate = $wpdb->get_charset_collate();
+		$sql = "CREATE TABLE `{$table_name}` (
+			`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			`local_post_id` bigint(20) unsigned NOT NULL,
+			`title` varchar(255) NOT NULL,
+			`course_data` longtext DEFAULT NULL,
+			`changed_fields` longtext DEFAULT NULL,
+			`edited_by` varchar(191) DEFAULT NULL,
+			`edited_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (`id`),
+			KEY `local_post_id` (`local_post_id`)
+		) $charset_collate;";
+
+		$wpdb->query( $sql );
 	}
 
 	// --- DESCRIBE-eredmény rövid gyorsítótárazása, hogy ne kelljen minden egyes Képzés-írásnál
