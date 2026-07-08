@@ -151,6 +151,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.17
+
+- Fixing the realtime editing lock on cross-client mode.
+
 ### 0.9.16
 
 feat: Implement custom table plugin for TinyMCE editor

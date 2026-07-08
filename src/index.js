@@ -1328,12 +1328,48 @@ const SZEducateEditor = () => {
         .catch(() => {});
     };
 
+    // A zár elengedése kilépéskor, hogy a többi kliens AZONNAL lássa a
+    // felszabadulást, ne kelljen a Hub-oldali ~2,5 perces lejáratra várnia. Ez
+    // egy rendes post.php oldal (nem SPA), tehát "kilépés" itt valódi böngésző-
+    // navigáció/lapbezárás - ilyenkor a szokásos fetch() már nem biztos, hogy
+    // lefut/befejeződik, ezért navigator.sendBeacon-t használunk, ami kifejezetten
+    // erre az esetre való. A sendBeacon nem tud egyéni fejlécet (X-WP-Nonce)
+    // küldeni, ezért a nonce-ot lekérdezés-paraméterként adjuk át - a WP REST API
+    // a sütis hitelesítés nonce-ellenőrzésénél ezt is elfogadja, nem csak a fejlécet.
+    const releaseLock = () => {
+      const payload = JSON.stringify({
+        post_id: postId,
+        user: currentUser,
+        action: "release",
+      });
+      const url = `${lockUrl}${lockUrl.indexOf("?") === -1 ? "?" : "&"}_wpnonce=${encodeURIComponent(nonce)}`;
+
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(
+          url,
+          new Blob([payload], { type: "application/json" }),
+        );
+      } else {
+        fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-WP-Nonce": nonce },
+          body: payload,
+          keepalive: true,
+        }).catch(() => {});
+      }
+    };
+
     acquireLock();
     const interval = setInterval(acquireLock, 60000);
+    window.addEventListener("pagehide", releaseLock);
+    window.addEventListener("beforeunload", releaseLock);
 
     return () => {
       cancelled = true;
       clearInterval(interval);
+      window.removeEventListener("pagehide", releaseLock);
+      window.removeEventListener("beforeunload", releaseLock);
+      releaseLock();
     };
   }, [postId]);
 
