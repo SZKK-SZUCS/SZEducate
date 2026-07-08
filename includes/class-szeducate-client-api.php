@@ -68,15 +68,167 @@ class SZEducate_Client_API {
 				return current_user_can( 'edit_sz_courses' );
 			}
 		) );
+
+		// Kliensek közötti szerkesztési zár - a Hub felé továbbítjuk (proxy), hogy a MÁSIK
+		// kliensek is lássák, ha valaki éppen ezt a Képzést szerkeszti.
+		register_rest_route( 'szeducate/v1/client', '/course-lock', array(
+			'methods'             => WP_REST_Server::CREATABLE,
+			'callback'            => array( $this, 'course_lock' ),
+			'permission_callback' => function() {
+				return current_user_can( 'edit_sz_courses' );
+			}
+		) );
+
+		// Listanézethez: több Képzés zár-állapota egyszerre (helyi post ID-kkal, hogy a
+		// böngészőnek ne kelljen ismernie a hub_id-kat).
+		register_rest_route( 'szeducate/v1/client', '/course-locks-status', array(
+			'methods'             => WP_REST_Server::CREATABLE,
+			'callback'            => array( $this, 'course_locks_status' ),
+			'permission_callback' => function() {
+				return current_user_can( 'edit_sz_courses' );
+			}
+		) );
 	}
 
-	public function get_course_versions( WP_REST_Request $request ) {
+	public function course_locks_status( WP_REST_Request $request ) {
+		$params = $request->get_json_params();
+		$post_ids = isset( $params['post_ids'] ) && is_array( $params['post_ids'] ) ? array_map( 'intval', $params['post_ids'] ) : array();
+		$post_ids = array_slice( array_unique( array_filter( $post_ids ) ), 0, 200 );
+
+		if ( empty( $post_ids ) ) {
+			return new WP_REST_Response( array( 'success' => true, 'locks' => array() ), 200 );
+		}
+
 		global $wpdb;
+		$courses_table = $wpdb->prefix . 'szeducate_courses_data';
+		$placeholders = implode( ',', array_fill( 0, count( $post_ids ), '%d' ) );
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			"SELECT local_post_id, hub_id FROM $courses_table WHERE local_post_id IN ($placeholders) AND hub_id IS NOT NULL",
+			$post_ids
+		), ARRAY_A );
+
+		$hub_id_to_post_id = array();
+		$hub_ids = array();
+		foreach ( $rows as $r ) {
+			$hub_id_to_post_id[ intval( $r['hub_id'] ) ] = intval( $r['local_post_id'] );
+			$hub_ids[] = intval( $r['hub_id'] );
+		}
+
+		if ( empty( $hub_ids ) ) {
+			return new WP_REST_Response( array( 'success' => true, 'locks' => array() ), 200 );
+		}
+
+		$options = get_option( 'szeducate_settings', array() );
+		if ( empty( $options['hub_url'] ) || empty( $options['api_token'] ) ) {
+			return new WP_REST_Response( array( 'success' => true, 'locks' => array() ), 200 );
+		}
+
+		$endpoint = rtrim( $options['hub_url'], '/' ) . '/wp-json/szeducate/v1/hub/course-locks-status';
+		$response = wp_remote_post( $endpoint, array(
+			'headers' => array(
+				'Authorization' => 'Bearer ' . $options['api_token'],
+				'Content-Type'  => 'application/json',
+			),
+			'body'    => wp_json_encode( array( 'hub_ids' => $hub_ids ) ),
+			'timeout' => 8,
+		) );
+
+		if ( is_wp_error( $response ) || wp_remote_retrieve_response_code( $response ) !== 200 ) {
+			return new WP_REST_Response( array( 'success' => true, 'locks' => array() ), 200 );
+		}
+
+		$data = json_decode( wp_remote_retrieve_body( $response ), true );
+		$hub_locks = is_array( $data ) && isset( $data['locks'] ) && is_array( $data['locks'] ) ? $data['locks'] : array();
+
+		// hub_id-kulcsolt válasz átalakítása post_id-kulcsolttá, hogy a lista JS-nek ne
+		// kelljen ismernie a hub_id-kat, csak a saját (helyi) post ID-kat.
+		$post_locks = array();
+		foreach ( $hub_locks as $hub_id => $lock ) {
+			if ( isset( $hub_id_to_post_id[ intval( $hub_id ) ] ) ) {
+				$post_locks[ $hub_id_to_post_id[ intval( $hub_id ) ] ] = $lock;
+			}
+		}
+
+		return new WP_REST_Response( array( 'success' => true, 'locks' => $post_locks ), 200 );
+	}
+
+	private function resolve_hub_id( $post_id ) {
+		global $wpdb;
+		$courses_table = $wpdb->prefix . 'szeducate_courses_data';
+		return intval( $wpdb->get_var( $wpdb->prepare( "SELECT hub_id FROM $courses_table WHERE local_post_id = %d", $post_id ) ) );
+	}
+
+	private function current_user_label() {
+		$current_user = wp_get_current_user();
+		return $current_user && $current_user->exists()
+			? ( $current_user->display_name ? $current_user->display_name : $current_user->user_login )
+			: 'Ismeretlen';
+	}
+
+	// A Hub REST API-jának egy GET végpontját hívja meg a Kliens saját (Hub felé is
+	// használt) hitelesítésével. NULL-t ad vissza, ha a Hub nincs beállítva, nem
+	// elérhető, vagy hibát adott - ilyenkor a hívó fél a helyi tartalékra vált.
+	private function proxy_hub_get( $path_with_query ) {
+		$options = get_option( 'szeducate_settings', array() );
+		if ( empty( $options['hub_url'] ) || empty( $options['api_token'] ) ) return null;
+
+		$endpoint = rtrim( $options['hub_url'], '/' ) . '/wp-json/szeducate/v1' . $path_with_query;
+
+		$response = wp_remote_get( $endpoint, array(
+			'headers' => array( 'Authorization' => 'Bearer ' . $options['api_token'] ),
+			'timeout' => 10,
+		) );
+
+		if ( is_wp_error( $response ) || wp_remote_retrieve_response_code( $response ) !== 200 ) return null;
+
+		$data = json_decode( wp_remote_retrieve_body( $response ), true );
+		return is_array( $data ) ? $data : null;
+	}
+
+	// A szerkesztési előzmény ÁTFOGÓ (minden klienst látó) forrása a Hub - ha épp nem
+	// elérhető, a helyi (csak erről a kliensről ismert) előzményre esünk vissza, hogy a
+	// funkció akkor is működjön valamennyire, amíg a Hub-bal helyre nem áll a kapcsolat.
+	public function get_course_versions( WP_REST_Request $request ) {
 		$post_id = intval( $request->get_param( 'post_id' ) );
 		if ( ! $post_id ) {
 			return new WP_Error( 'missing_post_id', 'Hiányzó post_id.', array( 'status' => 400 ) );
 		}
 
+		$hub_id = $this->resolve_hub_id( $post_id );
+		if ( $hub_id ) {
+			$proxied = $this->proxy_hub_get( '/hub/course-versions?hub_id=' . $hub_id );
+			if ( $proxied !== null ) {
+				$proxied['source'] = 'hub';
+				return new WP_REST_Response( $proxied, 200 );
+			}
+		}
+
+		return $this->get_local_course_versions( $post_id );
+	}
+
+	public function get_course_version_detail( WP_REST_Request $request ) {
+		$version_id = intval( $request['id'] );
+		$post_id = intval( $request->get_param( 'post_id' ) );
+		// A lista végpont jelzi, honnan (Hub vagy helyi) jöttek az azonosítók - a két
+		// forrás ID-i NEM felcserélhetők, ezért a részlet-lekérésnek ugyanazt a forrást
+		// kell használnia, amiből a lista is származott.
+		$source = $request->get_param( 'source' ) === 'local' ? 'local' : 'hub';
+
+		if ( $source === 'hub' ) {
+			$hub_id = $post_id ? $this->resolve_hub_id( $post_id ) : 0;
+			if ( $hub_id ) {
+				$proxied = $this->proxy_hub_get( '/hub/course-versions/' . $version_id . '?hub_id=' . $hub_id );
+				if ( $proxied !== null ) {
+					return new WP_REST_Response( $proxied, 200 );
+				}
+			}
+		}
+
+		return $this->get_local_course_version_detail( $version_id, $post_id );
+	}
+
+	private function get_local_course_versions( $post_id ) {
+		global $wpdb;
 		$table = $wpdb->prefix . 'szeducate_course_versions';
 		$rows = $wpdb->get_results( $wpdb->prepare(
 			"SELECT id, title, changed_fields, edited_by, edited_at FROM $table WHERE local_post_id = %d ORDER BY edited_at DESC, id DESC LIMIT 50",
@@ -95,14 +247,11 @@ class SZEducate_Client_API {
 			);
 		}
 
-		return new WP_REST_Response( array( 'success' => true, 'versions' => $versions ), 200 );
+		return new WP_REST_Response( array( 'success' => true, 'versions' => $versions, 'source' => 'local' ), 200 );
 	}
 
-	public function get_course_version_detail( WP_REST_Request $request ) {
+	private function get_local_course_version_detail( $version_id, $post_id ) {
 		global $wpdb;
-		$version_id = intval( $request['id'] );
-		$post_id = intval( $request->get_param( 'post_id' ) );
-
 		$table = $wpdb->prefix . 'szeducate_course_versions';
 		$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table WHERE id = %d", $version_id ), ARRAY_A );
 
@@ -121,9 +270,55 @@ class SZEducate_Client_API {
 		), 200 );
 	}
 
-	// Egy Képzés-mentés eredményét rögzíti a verzió-előzményekben: mit (mely mezőket)
-	// és ki módosított. Csak az ÚJ állapotot tároljuk el (a régi már benne van az előző
-	// verzió-sorban), a "changed_fields" a két állapot közti mező-szintű különbség.
+	// Kliensek közötti szerkesztési zár lekérése/megújítása - a Hub-on tárolt, közös
+	// állapotot kérdezzük le (proxy). Ha a Hub nem elérhető, vagy a Képzés még sosem lett
+	// szinkronizálva (nincs hub_id), NEM akadályozzuk a szerkesztést (fail-open).
+	public function course_lock( WP_REST_Request $request ) {
+		$params = $request->get_json_params();
+		$post_id = isset( $params['post_id'] ) ? intval( $params['post_id'] ) : 0;
+		$action = isset( $params['action'] ) ? sanitize_text_field( $params['action'] ) : 'acquire';
+
+		if ( ! $post_id ) {
+			return new WP_Error( 'missing_post_id', 'Hiányzó post_id.', array( 'status' => 400 ) );
+		}
+
+		$hub_id = $this->resolve_hub_id( $post_id );
+		if ( ! $hub_id ) {
+			return new WP_REST_Response( array( 'success' => true, 'locked' => false ), 200 );
+		}
+
+		$options = get_option( 'szeducate_settings', array() );
+		if ( empty( $options['hub_url'] ) || empty( $options['api_token'] ) ) {
+			return new WP_REST_Response( array( 'success' => true, 'locked' => false ), 200 );
+		}
+
+		$endpoint = rtrim( $options['hub_url'], '/' ) . '/wp-json/szeducate/v1/hub/course-lock';
+		$response = wp_remote_post( $endpoint, array(
+			'headers' => array(
+				'Authorization' => 'Bearer ' . $options['api_token'],
+				'Content-Type'  => 'application/json',
+			),
+			'body'    => wp_json_encode( array(
+				'hub_id' => $hub_id,
+				'user'   => $this->current_user_label(),
+				'action' => $action,
+			) ),
+			'timeout' => 8,
+		) );
+
+		if ( is_wp_error( $response ) || wp_remote_retrieve_response_code( $response ) !== 200 ) {
+			return new WP_REST_Response( array( 'success' => true, 'locked' => false ), 200 );
+		}
+
+		$data = json_decode( wp_remote_retrieve_body( $response ), true );
+		return new WP_REST_Response( is_array( $data ) ? $data : array( 'success' => true, 'locked' => false ), 200 );
+	}
+
+	// Egy Képzés-mentés eredményét rögzíti a HELYI (csak erről a kliensről ismert) tartalék
+	// előzményekben - mit (mely mezőket) és ki módosított. Csak az ÚJ állapotot tároljuk el
+	// (a régi már benne van az előző verzió-sorban), a "changed_fields" a két állapot közti
+	// mező-szintű különbség. Ez CSAK tartalék: az igazi, kliens-független előzményt a Hub
+	// vezeti (lásd get_course_versions()).
 	private function record_course_version( $post_id, $title, $new_course_data, $old_title, $old_course_data, $json_blob ) {
 		global $wpdb;
 		$versions_table = $wpdb->prefix . 'szeducate_course_versions';
@@ -148,10 +343,7 @@ class SZEducate_Client_API {
 			}
 		}
 
-		$current_user = wp_get_current_user();
-		$editor_label = $current_user && $current_user->exists()
-			? ( $current_user->display_name ? $current_user->display_name : $current_user->user_login )
-			: 'Ismeretlen';
+		$editor_label = $this->current_user_label();
 
 		$wpdb->insert( $versions_table, array(
 			'local_post_id'  => $post_id,
@@ -340,7 +532,13 @@ class SZEducate_Client_API {
 			$data = json_decode( $body, true );
 			
 			if ( isset( $data['hub_id'] ) && isset( $data['title'] ) && isset( $data['course_data'] ) ) {
-				$this->update_local_course_from_hub( $data['hub_id'], $data['title'], $data['course_data'] );
+				$this->update_local_course_from_hub(
+					$data['hub_id'],
+					$data['title'],
+					$data['course_data'],
+					isset( $data['updated_by'] ) ? $data['updated_by'] : null,
+					isset( $data['updated_at'] ) ? $data['updated_at'] : null
+				);
 				return new WP_REST_Response( array( 'success' => true, 'message' => 'Sikeres valós idejű szinkronizáció.' ), 200 );
 			}
 		}
@@ -399,7 +597,9 @@ class SZEducate_Client_API {
 			$ok = $this->update_local_course_from_hub(
 				intval( $c['hub_id'] ),
 				sanitize_text_field( $c['title'] ),
-				is_array( $c['course_data'] ) ? $c['course_data'] : array()
+				is_array( $c['course_data'] ) ? $c['course_data'] : array(),
+				isset( $c['updated_by'] ) ? $c['updated_by'] : null,
+				isset( $c['updated_at'] ) ? $c['updated_at'] : null
 			);
 			if ( $ok ) $synced++;
 		}
@@ -417,7 +617,7 @@ class SZEducate_Client_API {
 		), 200 );
 	}
 
-	public function update_local_course_from_hub( $hub_id, $title, $course_data ) {
+	public function update_local_course_from_hub( $hub_id, $title, $course_data, $updated_by = null, $updated_at = null ) {
 		global $wpdb;
 		$table_name = $wpdb->prefix . 'szeducate_courses_data';
 
@@ -435,6 +635,13 @@ class SZEducate_Client_API {
 
 		$dynamic_columns = $this->flatten_dynamic_columns( $course_data, $table_name );
 
+		// A Hub-tól kapott "ki/mikor módosította" csak akkor íródik felül, ha ténylegesen
+		// érkezett ilyen adat (pl. egy régebbi Hub-verzió még nem küldi) - így nem
+		// veszítjük el a meglévő értéket egy hiányos válasz miatt.
+		$sync_meta = array();
+		if ( $updated_by !== null ) $sync_meta['updated_by'] = sanitize_text_field( $updated_by );
+		if ( $updated_at !== null ) $sync_meta['updated_at'] = $updated_at;
+
 		$local_post_id = 0;
 		if ( $existing ) {
 			$local_post_id = $existing['local_post_id'];
@@ -446,7 +653,7 @@ class SZEducate_Client_API {
 			}
 			$wpdb->update(
 				$table_name,
-				array_merge( array( 'title' => $title, 'course_data' => $json_blob, 'hub_id' => $hub_id ), $dynamic_columns ),
+				array_merge( array( 'title' => $title, 'course_data' => $json_blob, 'hub_id' => $hub_id ), $dynamic_columns, $sync_meta ),
 				array( 'id' => $existing['id'] )
 			);
 		} else {
@@ -461,7 +668,7 @@ class SZEducate_Client_API {
 				'hub_id'        => $hub_id,
 				'title'         => $title,
 				'course_data'   => $json_blob
-			), $dynamic_columns ) );
+			), $dynamic_columns, $sync_meta ) );
 		}
 
 		$this->set_featured_image_from_data( $local_post_id, $course_data );
@@ -530,13 +737,16 @@ class SZEducate_Client_API {
 			}
 			
 			$table_name = $wpdb->prefix . 'szeducate_courses_data';
-			
+
 			$json_blob = wp_json_encode( $dynamic_data, JSON_UNESCAPED_UNICODE );
+			$editor_label = $this->current_user_label();
 
 			$db_data = array_merge( array(
 				'local_post_id' => $saved_post_id,
 				'title'         => $title,
 				'course_data'   => $json_blob,
+				'updated_by'    => $editor_label,
+				'updated_at'    => current_time( 'mysql' ),
 			), $this->flatten_dynamic_columns( $dynamic_data, $table_name ) );
 
 			$existing = $wpdb->get_row( $wpdb->prepare( "SELECT id, hub_id, title, course_data FROM $table_name WHERE local_post_id = %d", $saved_post_id ), ARRAY_A );
@@ -595,7 +805,8 @@ class SZEducate_Client_API {
 					'local_post_id' => $saved_post_id,
 					'hub_id'        => $current_hub_id,
 					'title'         => $title,
-					'course_data'   => $dynamic_data
+					'course_data'   => $dynamic_data,
+					'edited_by'     => $editor_label
 				);
 
 				$response = wp_remote_post( $endpoint, array(

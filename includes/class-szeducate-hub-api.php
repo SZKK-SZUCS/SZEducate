@@ -52,6 +52,35 @@ class SZEducate_Hub_API {
 			'callback'            => array( $this, 'get_my_courses' ),
 			'permission_callback' => array( $this, 'verify_bearer_token' ),
 		) );
+
+		// Kliens-független, ÁTFOGÓ szerkesztési előzmény egy Képzéshez - bármelyik kliens
+		// kérheti, a Hub ezt egy helyen, minden kliens írását látva vezeti.
+		register_rest_route( 'szeducate/v1/hub', '/course-versions', array(
+			'methods'             => WP_REST_Server::READABLE,
+			'callback'            => array( $this, 'get_course_versions' ),
+			'permission_callback' => array( $this, 'verify_bearer_token' ),
+		) );
+
+		register_rest_route( 'szeducate/v1/hub', '/course-versions/(?P<id>\d+)', array(
+			'methods'             => WP_REST_Server::READABLE,
+			'callback'            => array( $this, 'get_course_version_detail' ),
+			'permission_callback' => array( $this, 'verify_bearer_token' ),
+		) );
+
+		// Kliensek közötti (Hub-mediált) szerkesztési zár - jelzi, ha egy Képzést épp
+		// valaki más szerkeszt egy MÁSIK kliens oldalán.
+		register_rest_route( 'szeducate/v1/hub', '/course-lock', array(
+			'methods'             => WP_REST_Server::CREATABLE,
+			'callback'            => array( $this, 'acquire_course_lock' ),
+			'permission_callback' => array( $this, 'verify_bearer_token' ),
+		) );
+
+		// Listanézethez: több Képzés zár-állapota egyszerre, zár (meg)szerzése nélkül.
+		register_rest_route( 'szeducate/v1/hub', '/course-locks-status', array(
+			'methods'             => WP_REST_Server::CREATABLE,
+			'callback'            => array( $this, 'get_course_locks_status' ),
+			'permission_callback' => array( $this, 'verify_bearer_token' ),
+		) );
 	}
 
 	public function get_my_courses( WP_REST_Request $request ) {
@@ -202,8 +231,135 @@ class SZEducate_Hub_API {
 		return new WP_REST_Response( array(
 			'hub_id'      => $course['id'],
 			'title'       => $course['title'],
-			'course_data' => $course_data
+			'course_data' => $course_data,
+			'updated_by'  => $course['updated_by'],
+			'updated_at'  => $course['updated_at'],
 		), 200 );
+	}
+
+	// --- Kliens-független szerkesztési előzmény: minden Képzésre egyetlen, közös lista fut
+	// a Hub-on, hub_id-vel kulcsolva - bármelyik jogosult kliens ugyanazt látja, függetlenül
+	// attól, hogy melyik kliens (vagy melyik felhasználó, melyik site-on) mentett utoljára.
+	public function get_course_versions( WP_REST_Request $request ) {
+		global $wpdb;
+		$hub_id = intval( $request->get_param( 'hub_id' ) );
+		if ( ! $hub_id ) return new WP_Error( 'missing_hub_id', 'Hiányzó hub_id.', array( 'status' => 400 ) );
+
+		if ( ! $this->client_may_access_course( $hub_id ) ) {
+			return new WP_Error( 'forbidden', 'Nincs jogosultsága a kliensnek ehhez a képzéshez.', array( 'status' => 403 ) );
+		}
+
+		$versions_table = $wpdb->prefix . 'szeducate_course_versions';
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			"SELECT id, title, changed_fields, edited_by, edited_at FROM $versions_table WHERE hub_id = %d ORDER BY edited_at DESC, id DESC LIMIT 50",
+			$hub_id
+		), ARRAY_A );
+
+		$versions = array();
+		foreach ( $rows as $r ) {
+			$changed = json_decode( $r['changed_fields'], true );
+			$versions[] = array(
+				'id'             => intval( $r['id'] ),
+				'title'          => $r['title'],
+				'changed_fields' => is_array( $changed ) ? $changed : array(),
+				'edited_by'      => $r['edited_by'] ? $r['edited_by'] : 'Ismeretlen',
+				'edited_at'      => $r['edited_at'],
+			);
+		}
+
+		return new WP_REST_Response( array( 'success' => true, 'versions' => $versions ), 200 );
+	}
+
+	public function get_course_version_detail( WP_REST_Request $request ) {
+		global $wpdb;
+		$version_id = intval( $request['id'] );
+		$hub_id = intval( $request->get_param( 'hub_id' ) );
+
+		$versions_table = $wpdb->prefix . 'szeducate_course_versions';
+		$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $versions_table WHERE id = %d", $version_id ), ARRAY_A );
+
+		if ( ! $row || ( $hub_id && intval( $row['hub_id'] ) !== $hub_id ) ) {
+			return new WP_Error( 'not_found', 'A verzió nem található.', array( 'status' => 404 ) );
+		}
+
+		if ( ! $this->client_may_access_course( intval( $row['hub_id'] ) ) ) {
+			return new WP_Error( 'forbidden', 'Nincs jogosultsága a kliensnek ehhez a képzéshez.', array( 'status' => 403 ) );
+		}
+
+		$course_data = json_decode( $row['course_data'], true );
+
+		return new WP_REST_Response( array(
+			'success'     => true,
+			'title'       => $row['title'],
+			'course_data' => is_array( $course_data ) ? $course_data : array(),
+			'edited_by'   => $row['edited_by'] ? $row['edited_by'] : 'Ismeretlen',
+			'edited_at'   => $row['edited_at'],
+		), 200 );
+	}
+
+	// A hívó kliens jogosultsági feltételei szerint hozzáférhet-e a Képzés JELENLEGI
+	// állapotához - ugyanaz az ellenőrzés, mint amit get_single_course() is használ,
+	// csak megosztva, hogy a verzió-végpontok is újra tudják hasznosítani.
+	private function client_may_access_course( $hub_id ) {
+		global $wpdb;
+		$table_name = $wpdb->prefix . 'szeducate_courses_data';
+		$course = $wpdb->get_row( $wpdb->prepare( "SELECT course_data FROM $table_name WHERE id = %d", $hub_id ), ARRAY_A );
+		if ( ! $course ) return false;
+
+		$course_data = json_decode( $course['course_data'], true );
+		if ( ! is_array( $course_data ) ) $course_data = array();
+
+		$client = $this->current_client;
+		$permissions = json_decode( $client['permissions'], true );
+		$conditions = isset( $permissions['conditions'] ) ? $permissions['conditions'] : array();
+
+		return $this->evaluate_conditions( $conditions, $course_data );
+	}
+
+	// Egy Képzés-mentés eredményét rögzíti a KÖZÖS, kliens-független verzió-előzményekben.
+	// Csak az ÚJ állapotot tároljuk el (a régi már benne van az előző verzió-sorban), a
+	// "changed_fields" a két állapot közti mező-szintű különbség.
+	private function record_course_version( $hub_id, $title, $new_course_data, $old_title, $old_course_data, $editor_label ) {
+		global $wpdb;
+		$versions_table = $wpdb->prefix . 'szeducate_course_versions';
+
+		$changed_keys = array();
+		$is_first_version = ( $old_course_data === null );
+
+		if ( $is_first_version ) {
+			$changed_keys[] = '__initial__';
+		} else {
+			$old_course_data = is_array( $old_course_data ) ? $old_course_data : array();
+			$all_keys = array_unique( array_merge( array_keys( $old_course_data ), array_keys( $new_course_data ) ) );
+			foreach ( $all_keys as $k ) {
+				$old_val = isset( $old_course_data[ $k ] ) ? $old_course_data[ $k ] : null;
+				$new_val = isset( $new_course_data[ $k ] ) ? $new_course_data[ $k ] : null;
+				if ( wp_json_encode( $old_val ) !== wp_json_encode( $new_val ) ) {
+					$changed_keys[] = $k;
+				}
+			}
+			if ( $old_title !== null && $old_title !== $title ) {
+				array_unshift( $changed_keys, '__title__' );
+			}
+		}
+
+		$wpdb->insert( $versions_table, array(
+			'hub_id'         => $hub_id,
+			'title'          => $title,
+			'course_data'    => wp_json_encode( $new_course_data, JSON_UNESCAPED_UNICODE ),
+			'changed_fields' => wp_json_encode( $changed_keys ),
+			'edited_by'      => $editor_label,
+			'edited_at'      => current_time( 'mysql' ),
+		) );
+
+		// Csak az utolsó 50 verziót őrizzük meg Képzésenként, hogy a tábla ne nőjön a végtelenségig.
+		$count = intval( $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $versions_table WHERE hub_id = %d", $hub_id ) ) );
+		if ( $count > 50 ) {
+			$wpdb->query( $wpdb->prepare(
+				"DELETE FROM $versions_table WHERE hub_id = %d ORDER BY edited_at ASC LIMIT %d",
+				$hub_id, $count - 50
+			) );
+		}
 	}
 
 	public function receive_course_data( WP_REST_Request $request ) {
@@ -291,12 +447,23 @@ class SZEducate_Hub_API {
 			}
 		}
 
+		// A ténylegesen szerkesztő felhasználó neve a Kliens oldaláról érkezik (nem
+		// kötelező - régebbi/eltérő kliens verzió esetén csak a kliens neve marad) - ez
+		// jelenik meg mindenhol "ki módosította utoljára" gyanánt, TÖBBI kliensen is.
+		$editor_name = isset( $params['edited_by'] ) ? sanitize_text_field( $params['edited_by'] ) : '';
+		$editor_label = 'Kliens: ' . $client['client_name'] . ( $editor_name !== '' ? ' (' . $editor_name . ')' : '' );
+
+		// A verzió-előzményekhez a MÉG felül nem írt régi állapotot kell megőrizni.
+		$old_title = $existing_row ? $existing_row['title'] : null;
+		$old_course_data = $existing_row ? $existing_course_data : null;
+
 		$db_data = array(
 			'title'         => $title,
 			'local_post_id' => $local_post_id,
 			'course_data'   => wp_json_encode( $course_data, JSON_UNESCAPED_UNICODE ),
 			'status'        => 'publish',
-			'updated_by'    => 'Kliens: ' . $client['client_name'],
+			'updated_by'    => $editor_label,
+			'updated_at'    => current_time( 'mysql' ),
 		);
 
 		$schema_json = get_option( 'szeducate_schema', '[]' );
@@ -357,6 +524,8 @@ class SZEducate_Hub_API {
 			$wpdb->update( $table_name, array( 'hub_id' => $hub_id ), array( 'id' => $hub_id ) );
 			$message = 'Sikeresen létrehozva a Hub-on!';
 		}
+
+		$this->record_course_version( $hub_id, $title, $course_data, $old_title, $old_course_data, $editor_label );
 
 		// A kliensek értesítése a HÁTTÉRBEN (cronon keresztül) történik, hogy egy lassan válaszoló
 		// vagy elérhetetlen kliens ne lassítsa/akassza meg minden egyes Képzés mentését a Hub-on.
@@ -504,6 +673,73 @@ class SZEducate_Hub_API {
 				SZEducate_Sync_Log::add( 'delete-course', sprintf( 'Hiba a törlés-értesítésnél ("%s", Hub ID: %d): HTTP %d', $c->client_name, $hub_id, $res['code'] ), false );
 			}
 		}
+	}
+
+	// --- Kliensek közötti szerkesztési zár egy Képzéshez, tranziens-alapú (nincs külön
+	// tábla - automatikusan lejár, ha a szerkesztő becsukja a lapot vagy elveszti a
+	// kapcsolatot, mert a Kliens csak ameddig a szerkesztő képernyő nyitva van, újítja meg
+	// rendszeresen). Egy időben csak EGY (kliens, felhasználó) pár tarthatja a zárat.
+	public function acquire_course_lock( WP_REST_Request $request ) {
+		$params = $request->get_json_params();
+		$hub_id = isset( $params['hub_id'] ) ? intval( $params['hub_id'] ) : 0;
+		$user = isset( $params['user'] ) ? sanitize_text_field( $params['user'] ) : 'Ismeretlen';
+		$action = isset( $params['action'] ) ? sanitize_text_field( $params['action'] ) : 'acquire';
+
+		if ( ! $hub_id ) {
+			return new WP_Error( 'missing_hub_id', 'Hiányzó hub_id.', array( 'status' => 400 ) );
+		}
+
+		$client = $this->current_client;
+		$lock_key = 'szeducate_lock_' . $hub_id;
+		$current = get_transient( $lock_key );
+		$is_same_holder = $current && intval( $current['client_id'] ) === intval( $client['id'] ) && $current['user'] === $user;
+
+		if ( $action === 'release' ) {
+			if ( $is_same_holder ) delete_transient( $lock_key );
+			return new WP_REST_Response( array( 'success' => true ), 200 );
+		}
+
+		if ( $current && ! $is_same_holder ) {
+			return new WP_REST_Response( array(
+				'success'          => true,
+				'locked'           => true,
+				'locked_by_client' => $current['client_name'],
+				'locked_by_user'   => $current['user'],
+				'locked_at'        => $current['acquired_at'],
+			), 200 );
+		}
+
+		// Szabad volt, vagy már mi tartjuk - (meg)szerezzük / megújítjuk a zárat.
+		set_transient( $lock_key, array(
+			'client_id'   => $client['id'],
+			'client_name' => $client['client_name'],
+			'user'        => $user,
+			'acquired_at' => $is_same_holder ? $current['acquired_at'] : current_time( 'mysql' ),
+		), 150 ); // 2,5 perc - a Kliens ennél gyakrabban (kb. percenként) újítja meg, amíg nyitva van a szerkesztő.
+
+		return new WP_REST_Response( array( 'success' => true, 'locked' => false ), 200 );
+	}
+
+	// Több Képzés zár-állapotának egyszerre történő lekérdezése (csak "kukucskálás" -
+	// SOSEM szerez vagy újít meg zárat), hogy a Kliens listanézete egyetlen kéréssel
+	// tudja jelezni az összes sorban, ha valamelyiket épp máshol szerkesztik.
+	public function get_course_locks_status( WP_REST_Request $request ) {
+		$params = $request->get_json_params();
+		$hub_ids = isset( $params['hub_ids'] ) && is_array( $params['hub_ids'] ) ? array_map( 'intval', $params['hub_ids'] ) : array();
+		$hub_ids = array_slice( array_unique( array_filter( $hub_ids ) ), 0, 200 );
+
+		$locks = array();
+		foreach ( $hub_ids as $hub_id ) {
+			$current = get_transient( 'szeducate_lock_' . $hub_id );
+			if ( $current ) {
+				$locks[ $hub_id ] = array(
+					'locked_by_client' => $current['client_name'],
+					'locked_by_user'   => $current['user'],
+				);
+			}
+		}
+
+		return new WP_REST_Response( array( 'success' => true, 'locks' => $locks ), 200 );
 	}
 
 	public function generate_backup( WP_REST_Request $request ) {

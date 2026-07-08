@@ -151,6 +151,15 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.16
+
+feat: Implement custom table plugin for TinyMCE editor
+
+- Added a custom table plugin `szeducate_table` to the TinyMCE editor, providing functionalities for table creation, row/column manipulation, cell merging, and properties editing.
+- Enhanced user experience with drag-selection for multiple cells and visual feedback for selected cells.
+- Integrated the new table plugin into the editor's toolbar and ensured compatibility with existing features.
+- Updated the plugin version to 0.9.16 in the main plugin file.
+
 ### 0.9.15
 
 - Refactor code structure for improved readability and maintainability

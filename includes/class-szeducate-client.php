@@ -32,6 +32,7 @@ class SZEducate_Client {
 
 		add_filter( 'bulk_actions-edit-sz_course', array( $this, 'add_custom_bulk_actions' ) );
 		add_action( 'admin_footer-edit.php', array( $this, 'bulk_admin_footer_js' ) );
+		add_action( 'admin_footer-edit.php', array( $this, 'render_lock_status_script' ) );
 		add_action( 'wp_ajax_szeducate_process_bulk_status', array( $this, 'ajax_process_bulk_status' ) );
 
 		if ( ! wp_next_scheduled( 'szeducate_daily_expiration_check' ) ) {
@@ -45,6 +46,65 @@ class SZEducate_Client {
 
 		add_filter( 'pre_trash_post', array( $this, 'bypass_trash_for_courses' ), 10, 2 );
 		add_action( 'before_delete_post', array( $this, 'process_course_deletion' ), 10, 1 );
+
+		add_filter( 'manage_sz_course_posts_columns', array( $this, 'add_list_columns' ) );
+		add_action( 'manage_sz_course_posts_custom_column', array( $this, 'render_list_column' ), 10, 2 );
+	}
+
+	private $list_row_cache = array();
+
+	// Három új oszlop a Képzések listájában: a Képzési Forma (rögtön a cím után, hogy a
+	// legfontosabb besorolás első pillantásra látszódjon), valamint mikor és ki módosította
+	// utoljára a Képzést - akár helyben szerkesztették, akár egy MÁSIK kliensről érkezett be
+	// a szinkron.
+	public function add_list_columns( $columns ) {
+		$new_columns = array();
+		foreach ( $columns as $key => $label ) {
+			$new_columns[ $key ] = $label;
+			if ( $key === 'title' ) {
+				$new_columns['szeducate_course_type'] = 'Képzési Forma';
+				$new_columns['szeducate_updated_at']  = 'Utoljára módosítva';
+				$new_columns['szeducate_updated_by']  = 'Módosította';
+			}
+		}
+		return $new_columns;
+	}
+
+	private function get_course_row_for_list( $post_id ) {
+		if ( isset( $this->list_row_cache[ $post_id ] ) ) return $this->list_row_cache[ $post_id ];
+
+		global $wpdb;
+		$table_name = $wpdb->prefix . 'szeducate_courses_data';
+		$row = $wpdb->get_row( $wpdb->prepare( "SELECT updated_at, updated_by, course_data FROM $table_name WHERE local_post_id = %d", $post_id ), ARRAY_A );
+
+		$this->list_row_cache[ $post_id ] = $row ? $row : false;
+		return $this->list_row_cache[ $post_id ];
+	}
+
+	public function render_list_column( $column, $post_id ) {
+		$known_columns = array( 'szeducate_course_type', 'szeducate_updated_at', 'szeducate_updated_by' );
+		if ( ! in_array( $column, $known_columns, true ) ) return;
+
+		$row = $this->get_course_row_for_list( $post_id );
+
+		if ( $column === 'szeducate_course_type' ) {
+			$course_data = $row && ! empty( $row['course_data'] ) ? json_decode( $row['course_data'], true ) : null;
+			$course_type = is_array( $course_data ) && ! empty( $course_data['kepzesi_forma'] ) ? $course_data['kepzesi_forma'] : '';
+			echo $course_type !== '' ? esc_html( $course_type ) : '&#8212;';
+		}
+
+		if ( $column === 'szeducate_updated_at' ) {
+			if ( $row && ! empty( $row['updated_at'] ) ) {
+				$timestamp = strtotime( $row['updated_at'] );
+				echo esc_html( date_i18n( 'Y.m.d. H:i', $timestamp ) );
+			} else {
+				echo '&#8212;';
+			}
+		}
+
+		if ( $column === 'szeducate_updated_by' ) {
+			echo $row && ! empty( $row['updated_by'] ) ? esc_html( $row['updated_by'] ) : '&#8212;';
+		}
 	}
 
 	// Az 'edit_sz_courses' jogosultság korábban KIZÁRÓLAG az Adminisztrátor szerepkörhöz
@@ -342,6 +402,81 @@ class SZEducate_Client {
 		}
 
 		return $bulk_actions;
+	}
+
+	// A listanézetben minden látható Képzés post ID-ját egyetlen kéréssel ellenőrzi
+	// (proxyzva a Hub-on át), és a WordPress saját "valaki más szerkeszti épp" jelzéséhez
+	// hasonló, azzal összhangban lévő stílusban jelöli meg a lezárt sorokat. NEM szerez
+	// zárat - csak megmutatja, ha valaki már tartja.
+	public function render_lock_status_script() {
+		global $typenow;
+		if ( $typenow !== 'sz_course' ) return;
+		?>
+		<style>
+			.szeducate-locked-info { margin-top: 4px; }
+			.szeducate-locked-info .dashicons-lock {
+				font-size: 16px; width: 16px; height: 16px;
+				color: #d63638; vertical-align: text-bottom;
+			}
+			.szeducate-locked-info .locked-text {
+				font-size: 12px; font-style: italic; color: #666; margin-left: 2px;
+			}
+		</style>
+		<script type="text/javascript">
+			document.addEventListener('DOMContentLoaded', function () {
+				var rows = document.querySelectorAll('#the-list tr[id^="post-"]');
+				if (!rows.length) return;
+
+				var rowByPostId = {};
+				var postIds = [];
+				rows.forEach(function (row) {
+					var id = parseInt(row.id.replace('post-', ''), 10);
+					if (id) {
+						postIds.push(id);
+						rowByPostId[id] = row;
+					}
+				});
+				if (!postIds.length) return;
+
+				fetch('<?php echo esc_url_raw( rest_url( 'szeducate/v1/client/course-locks-status' ) ); ?>', {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+						'X-WP-Nonce': '<?php echo wp_create_nonce( 'wp_rest' ); ?>',
+					},
+					body: JSON.stringify({ post_ids: postIds }),
+				})
+					.then(function (res) { return res.json(); })
+					.then(function (data) {
+						if (!data || !data.locks) return;
+						Object.keys(data.locks).forEach(function (postId) {
+							var lock = data.locks[postId];
+							var row = rowByPostId[postId];
+							if (!row || !lock) return;
+
+							var titleLink = row.querySelector('.row-title');
+							if (!titleLink) return;
+
+							var icon = document.createElement('span');
+							icon.className = 'dashicons dashicons-lock';
+							icon.setAttribute('aria-hidden', 'true');
+
+							var text = document.createElement('span');
+							text.className = 'locked-text';
+							text.textContent = (lock.locked_by_user || 'Valaki') + ' szerkeszti éppen (' + (lock.locked_by_client || '?') + ')';
+
+							var info = document.createElement('div');
+							info.className = 'szeducate-locked-info';
+							info.appendChild(icon);
+							info.appendChild(text);
+
+							titleLink.insertAdjacentElement('afterend', info);
+						});
+					})
+					.catch(function () {});
+			});
+		</script>
+		<?php
 	}
 
 	public function bulk_admin_footer_js() {
@@ -758,6 +893,8 @@ class SZEducate_Client {
 				$post_id = get_the_ID();
 				$existing_title = '';
 				$existing_data = new stdClass();
+				$current_wp_user = wp_get_current_user();
+				$current_user_label = $current_wp_user->display_name ? $current_wp_user->display_name : $current_wp_user->user_login;
 
 				if ( $post_id ) {
 					$table_name = $wpdb->prefix . 'szeducate_courses_data';
@@ -777,6 +914,8 @@ class SZEducate_Client {
 					'nonce'         => wp_create_nonce( 'wp_rest' ),
 					'restUrl'       => esc_url_raw( rest_url( 'szeducate/v1/client/course' ) ),
 					'versionsUrl'   => esc_url_raw( rest_url( 'szeducate/v1/client/course-versions' ) ),
+					'lockUrl'       => esc_url_raw( rest_url( 'szeducate/v1/client/course-lock' ) ),
+					'currentUser'   => $current_user_label,
 					'schema'        => json_decode( get_option( 'szeducate_local_schema', '[]' ), true ),
 					'permissions'   => json_decode( get_option( 'szeducate_client_permissions', '{}' ), true ),
 					'existingTitle' => $existing_title,

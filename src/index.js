@@ -183,6 +183,654 @@ const KeywordControl = ({
   );
 };
 
+// A WordPress mag NEM tartalmazza a hivatalos TinyMCE "table" pluginjét (a
+// wp-includes/js/tinymce/plugins/ alatt egyetlen WP-telepítésen sincs ilyen mappa) - ha
+// ezt kérnénk a plugins listában, a TinyMCE megpróbálná letölteni egy nem létező
+// fájlból, ami mindig 404-et ad és minden táblázat-gomb néma marad. Ehelyett egy teljes,
+// saját táblázatszerkesztő pluginot regisztrálunk közvetlenül JS-ből (nincs külön fájl,
+// nem lehet 404-elni): sor/oszlop beszúrás-törlés-másolás, cellaegyesítés/-felosztás,
+// fejléc sor, valamint cella- és táblázat-tulajdonságok egy legördülő menüből.
+// (Jobbklikk-menüt szándékosan NEM adunk hozzá: azt TinyMCE 4-ben a "contextmenu" plugin
+// biztosítaná, ami szintén nincs a WP-be csomagolva - inkább nem építünk rá funkciót,
+// mint hogy megint egy csendben nem működő gombunk legyen.)
+const registerSzeducateTablePlugin = () => {
+  if (!window.tinymce || !window.tinymce.PluginManager) return;
+  if (window.tinymce.PluginManager.get("szeducate_table")) return;
+
+  window.tinymce.PluginManager.add("szeducate_table", function (editor) {
+    // Az "editor.dom" csak a szerkesztő teljes inicializálása UTÁN érvényes - ha itt,
+    // a plugin regisztrálásakor (túl korán) mentenénk el egyszer egy sima változóba, a
+    // hivatkozás örökre "undefined" maradna (pontosan ez okozta az előző hibát: a
+    // táblázat-beszúrás popup OK gombja "Cannot read properties of undefined (reading
+    // 'create')" hibával elszállt). Ehelyett minden metódushíváskor frissen kérjük le a
+    // valódi editor.dom-ot, és hozzá kötjük a "this"-t (a DOMUtils metódusai belül saját
+    // magukra hivatkoznak).
+    const dom = new Proxy(
+      {},
+      {
+        get(_target, prop) {
+          const value = editor.dom[prop];
+          return typeof value === "function" ? value.bind(editor.dom) : value;
+        },
+      },
+    );
+
+    const getCell = () => dom.getParent(editor.selection.getNode(), "td,th");
+    const getRow = (cell) => (cell ? dom.getParent(cell, "tr") : null);
+    const getTable = (cell) => (cell ? dom.getParent(cell, "table") : null);
+    const rowIndexInTable = (table, row) => dom.select("tr", table).indexOf(row);
+
+    // --- Húzással kijelölhető cellatartomány -------------------------------------
+    // A hivatalos TinyMCE "table" plugin nélkül a böngésző alapból csak SZÖVEGET jelöl
+    // ki, akkor is, ha a húzás cellahatárokon átnyúlik - nincs "ez a 6 cella van
+    // kijelölve" fogalma. Ezt saját egér-figyeléssel pótoljuk: lenyomás egy cellában,
+    // húzás egy másikig kirajzolja a köztük lévő téglalapot, ezt használja aztán az
+    // egyesítés és a cella-tulajdonságok (háttérszín stb.) parancs is.
+    const SELECTED_CLASS = "szeducate-cell-selected";
+    let selectionAnchor = null;
+    let selectedCells = [];
+    let isDragSelecting = false;
+
+    const clearSelectionHighlight = () => {
+      selectedCells.forEach((c) => dom.removeClass(c, SELECTED_CLASS));
+      selectedCells = [];
+    };
+
+    const computeCellRectangle = (table, cellA, cellB) => {
+      const rows = dom.select("tr", table);
+      const rowA = rowIndexInTable(table, getRow(cellA));
+      const rowB = rowIndexInTable(table, getRow(cellB));
+      const colA = cellColumnIndex(cellA);
+      const colB = cellColumnIndex(cellB);
+      if (rowA === -1 || rowB === -1) return [];
+
+      const minRow = Math.min(rowA, rowB);
+      const maxRow = Math.max(rowA, rowB);
+      const minCol = Math.min(colA, colB);
+      const maxCol = Math.max(colA, colB);
+
+      const cells = [];
+      for (let r = minRow; r <= maxRow; r++) {
+        const row = rows[r];
+        if (!row) continue;
+        for (let c = minCol; c <= maxCol; c++) {
+          const cell = cellAtColumnIndex(row, c);
+          if (cell && cells.indexOf(cell) === -1) cells.push(cell);
+        }
+      }
+      return cells;
+    };
+
+    editor.on("mousedown", function (e) {
+      const cell = dom.getParent(e.target, "td,th");
+      clearSelectionHighlight();
+      if (!cell) {
+        selectionAnchor = null;
+        return;
+      }
+      selectionAnchor = cell;
+      isDragSelecting = true;
+    });
+
+    editor.on("mouseover", function (e) {
+      if (!isDragSelecting || !selectionAnchor) return;
+      const cell = dom.getParent(e.target, "td,th");
+      if (!cell) return;
+      const table = getTable(cell);
+      if (!table || getTable(selectionAnchor) !== table) return;
+
+      if (cell !== selectionAnchor) {
+        // Amint a húzás átlép egy másik cellába, eltüntetjük a böngésző saját
+        // szöveg-kijelölését, hogy ne zavarjon be a saját cella-kijelölésünk mellett.
+        try {
+          editor.selection.collapse(true);
+        } catch (err) {
+          /* nem kritikus, csak vizuális */
+        }
+      }
+
+      clearSelectionHighlight();
+      const rect = computeCellRectangle(table, selectionAnchor, cell);
+      rect.forEach((c) => dom.addClass(c, SELECTED_CLASS));
+      selectedCells = rect;
+    });
+
+    editor.on("mouseup", function () {
+      isDragSelecting = false;
+    });
+
+    // Minden szerkesztő-parancsot a TinyMCE undo/redo és esemény-rendszerébe ágyazunk
+    // (undoManager.transact + explicit "change" esemény). Enélkül a közvetlen DOM-
+    // módosítás ugyan LÁTSZIK az editorban, de sem a Ctrl+Z nem tudja visszavonni, sem a
+    // mentés-figyelőnk ("Change KeyUp") nem veszi észre, hogy változott valami - vagyis a
+    // sor/oszlop másolása, törlése, egyesítése stb. NÉZETRE megtörténik, de MENTÉSKOR
+    // elveszik. Ez volt az előző verzió fő hibája.
+    const runEdit = (fn) => {
+      editor.undoManager.transact(fn);
+      editor.fire("change");
+    };
+
+    // A cella "vizuális" oszlopindexe a sorban - a colspan-eket is figyelembe véve,
+    // hogy oszlop beszúrás/törlés/másolás akkor is a megfelelő helyre találjon, ha a
+    // táblázatban már vannak egyesített cellák.
+    const cellColumnIndex = (cell) => {
+      const row = getRow(cell);
+      if (!row) return -1;
+      let idx = 0;
+      for (let i = 0; i < row.children.length; i++) {
+        if (row.children[i] === cell) return idx;
+        idx += parseInt(row.children[i].getAttribute("colspan") || "1", 10);
+      }
+      return idx;
+    };
+
+    const cellAtColumnIndex = (row, colIndex) => {
+      if (!row) return null;
+      let idx = 0;
+      for (let i = 0; i < row.children.length; i++) {
+        const span = parseInt(row.children[i].getAttribute("colspan") || "1", 10);
+        if (colIndex >= idx && colIndex < idx + span) return row.children[i];
+        idx += span;
+      }
+      return null;
+    };
+
+    const buildCell = (isHeader) => {
+      const cell = dom.create(isHeader ? "th" : "td", {
+        style: "border:1px solid #ccc;padding:6px;",
+      });
+      cell.innerHTML = "&nbsp;";
+      return cell;
+    };
+
+    const appendMerged = (target, source) => {
+      const targetHtml = target.innerHTML === "&nbsp;" ? "" : target.innerHTML;
+      const sourceHtml = source.innerHTML === "&nbsp;" ? "" : source.innerHTML;
+      const combined = [targetHtml, sourceHtml].filter(Boolean).join(" ");
+      target.innerHTML = combined || "&nbsp;";
+    };
+
+    const insertTableDialog = () => {
+      editor.windowManager.open({
+        title: "Táblázat beszúrása",
+        body: [
+          { type: "textbox", name: "rows", label: "Sorok száma", value: "2" },
+          { type: "textbox", name: "cols", label: "Oszlopok száma", value: "2" },
+          { type: "checkbox", name: "header", label: "Fejléc sor hozzáadása", checked: true },
+          { type: "textbox", name: "border", label: "Szegély vastagsága (px)", value: "1" },
+        ],
+        onsubmit: function (e) {
+          const rows = parseInt(e.data.rows, 10);
+          const cols = parseInt(e.data.cols, 10);
+          if (!rows || !cols || rows < 1 || cols < 1) return;
+
+          runEdit(() => {
+            const border = parseInt(e.data.border, 10) || 0;
+            const table = dom.create("table", {
+              style: "border-collapse:collapse;width:100%;",
+              border: String(border),
+            });
+            const tbody = dom.create("tbody");
+
+            for (let r = 0; r < rows; r++) {
+              const tr = dom.create("tr");
+              for (let c = 0; c < cols; c++) {
+                tr.appendChild(buildCell(!!e.data.header && r === 0));
+              }
+              tbody.appendChild(tr);
+            }
+            table.appendChild(tbody);
+
+            editor.insertContent(table.outerHTML + "<p>&nbsp;</p>");
+          });
+        },
+      });
+    };
+
+    // Minden lenti parancs egy KONKRÉT cellán dolgozik, amit a hívó ad át (nem a
+    // kattintás pillanatában lekérdezett élő kijelöléssel) - lásd az "activeCell"
+    // mentését a menü megnyitásakor, lentebb.
+    const insertRow = (cell, before) => {
+      const row = getRow(cell);
+      if (!row) return;
+      runEdit(() => {
+        const newRow = dom.create("tr");
+        for (let i = 0; i < row.children.length; i++) {
+          newRow.appendChild(buildCell(row.children[i].tagName === "TH"));
+        }
+        row.parentNode.insertBefore(newRow, before ? row : row.nextSibling);
+      });
+    };
+
+    const deleteRow = (cell) => {
+      const row = getRow(cell);
+      const table = getTable(cell);
+      if (!row || !table) return;
+
+      if (dom.select("tr", table).length <= 1) {
+        if (window.confirm("Ez az utolsó sor - törlöd az egész táblázatot?")) {
+          runEdit(() => dom.remove(table));
+        }
+        return;
+      }
+      runEdit(() => dom.remove(row));
+    };
+
+    const duplicateRow = (cell) => {
+      const row = getRow(cell);
+      if (!row) return;
+      runEdit(() => row.parentNode.insertBefore(row.cloneNode(true), row.nextSibling));
+    };
+
+    const insertColumn = (cell, before) => {
+      const table = getTable(cell);
+      if (!cell || !table) return;
+      const colIndex = cellColumnIndex(cell);
+
+      runEdit(() => {
+        dom.select("tr", table).forEach((row) => {
+          const target = cellAtColumnIndex(row, colIndex);
+          if (!target) return;
+          const newCell = buildCell(target.tagName === "TH");
+          target.parentNode.insertBefore(newCell, before ? target : target.nextSibling);
+        });
+      });
+    };
+
+    const deleteColumn = (cell) => {
+      const table = getTable(cell);
+      if (!cell || !table) return;
+
+      const rows = dom.select("tr", table);
+      if (rows.length && rows[0].children.length <= 1) {
+        if (window.confirm("Ez az utolsó oszlop - törlöd az egész táblázatot?")) {
+          runEdit(() => dom.remove(table));
+        }
+        return;
+      }
+
+      const colIndex = cellColumnIndex(cell);
+      runEdit(() => {
+        rows.forEach((row) => {
+          const target = cellAtColumnIndex(row, colIndex);
+          if (target) dom.remove(target);
+        });
+      });
+    };
+
+    const duplicateColumn = (cell) => {
+      const table = getTable(cell);
+      if (!cell || !table) return;
+      const colIndex = cellColumnIndex(cell);
+
+      runEdit(() => {
+        dom.select("tr", table).forEach((row) => {
+          const target = cellAtColumnIndex(row, colIndex);
+          if (!target) return;
+          target.parentNode.insertBefore(target.cloneNode(true), target.nextSibling);
+        });
+      });
+    };
+
+    const mergeRight = (cell) => {
+      const next = cell && cell.nextElementSibling;
+      if (!cell || !next) return;
+
+      runEdit(() => {
+        const curSpan = parseInt(cell.getAttribute("colspan") || "1", 10);
+        const nextSpan = parseInt(next.getAttribute("colspan") || "1", 10);
+        cell.setAttribute("colspan", String(curSpan + nextSpan));
+        appendMerged(cell, next);
+        dom.remove(next);
+      });
+    };
+
+    const mergeDown = (cell) => {
+      const row = getRow(cell);
+      if (!cell || !row || !row.nextElementSibling) return;
+      const below = cellAtColumnIndex(row.nextElementSibling, cellColumnIndex(cell));
+      if (!below) return;
+
+      runEdit(() => {
+        const curSpan = parseInt(cell.getAttribute("rowspan") || "1", 10);
+        const belowSpan = parseInt(below.getAttribute("rowspan") || "1", 10);
+        cell.setAttribute("rowspan", String(curSpan + belowSpan));
+        appendMerged(cell, below);
+        dom.remove(below);
+      });
+    };
+
+    const splitCell = (cell) => {
+      const row = getRow(cell);
+      if (!cell || !row) return;
+
+      const colspan = parseInt(cell.getAttribute("colspan") || "1", 10);
+      const rowspan = parseInt(cell.getAttribute("rowspan") || "1", 10);
+      if (colspan <= 1 && rowspan <= 1) return;
+
+      runEdit(() => {
+        const colIndex = cellColumnIndex(cell);
+        const isHeader = cell.tagName === "TH";
+
+        if (colspan > 1) {
+          for (let i = 1; i < colspan; i++) {
+            cell.parentNode.insertBefore(buildCell(isHeader), cell.nextSibling);
+          }
+          cell.removeAttribute("colspan");
+        }
+
+        if (rowspan > 1) {
+          let curRow = row;
+          for (let i = 1; i < rowspan; i++) {
+            curRow = curRow.nextElementSibling;
+            if (!curRow) break;
+            const before = cellAtColumnIndex(curRow, colIndex + 1);
+            const newCell = buildCell(isHeader);
+            if (before) curRow.insertBefore(newCell, before);
+            else curRow.appendChild(newCell);
+          }
+          cell.removeAttribute("rowspan");
+        }
+      });
+    };
+
+    // A húzással kijelölt (téglalap alakú) cellatartomány egyesítése egyetlen cellává -
+    // ez a "több cella egyszerre" egyesítés, a mergeRight/mergeDown pedig a gyors,
+    // egy-szomszédos verzió marad külön parancsként.
+    const mergeSelectedCells = () => {
+      if (selectedCells.length < 2) {
+        window.alert("Előbb jelölj ki (kattintás + húzás) legalább két cellát!");
+        return;
+      }
+      const table = getTable(selectedCells[0]);
+      if (!table) return;
+
+      runEdit(() => {
+        const withPos = selectedCells.map((c) => ({
+          cell: c,
+          row: rowIndexInTable(table, getRow(c)),
+          col: cellColumnIndex(c),
+        }));
+        const minRow = Math.min(...withPos.map((p) => p.row));
+        const maxRow = Math.max(...withPos.map((p) => p.row));
+        const minCol = Math.min(...withPos.map((p) => p.col));
+        const maxCol = Math.max(...withPos.map((p) => p.col));
+        const host = withPos.find((p) => p.row === minRow && p.col === minCol);
+        if (!host) return;
+
+        const pieces = [];
+        withPos.forEach((p) => {
+          const html = p.cell.innerHTML === "&nbsp;" ? "" : p.cell.innerHTML;
+          if (html) pieces.push(html);
+          if (p.cell !== host.cell) dom.remove(p.cell);
+        });
+
+        host.cell.setAttribute("colspan", String(maxCol - minCol + 1));
+        host.cell.setAttribute("rowspan", String(maxRow - minRow + 1));
+        host.cell.innerHTML = pieces.join(" ") || "&nbsp;";
+        dom.removeClass(host.cell, SELECTED_CLASS);
+      });
+
+      selectedCells = [];
+    };
+
+    const toggleHeaderRow = (cell) => {
+      const table = getTable(cell);
+      const firstRow = table && dom.select("tr", table)[0];
+      if (!firstRow || !firstRow.children.length) return;
+
+      runEdit(() => {
+        const makeHeader = firstRow.children[0].tagName !== "TH";
+        Array.prototype.slice.call(firstRow.children).forEach((td) => {
+          dom.rename(td, makeHeader ? "th" : "td");
+        });
+      });
+    };
+
+    const deleteTable = (cell) => {
+      const table = getTable(cell);
+      if (!table) return;
+      if (window.confirm("Biztosan törlöd a teljes táblázatot?")) {
+        runEdit(() => dom.remove(table));
+      }
+    };
+
+    const tablePropertiesDialog = (cell) => {
+      const table = getTable(cell);
+      if (!table) return;
+
+      let align = "";
+      if (dom.getStyle(table, "margin-left") === "auto" && dom.getStyle(table, "margin-right") === "auto") {
+        align = "center";
+      } else if (dom.getStyle(table, "margin-right") === "auto") {
+        align = "left";
+      } else if (dom.getStyle(table, "margin-left") === "auto") {
+        align = "right";
+      }
+
+      editor.windowManager.open({
+        title: "Táblázat tulajdonságai",
+        body: [
+          { type: "textbox", name: "width", label: "Szélesség (pl. 100% vagy 600px)", value: dom.getStyle(table, "width") || "100%" },
+          { type: "textbox", name: "border", label: "Szegély vastagsága (px)", value: table.getAttribute("border") || "1" },
+          {
+            type: "listbox",
+            name: "align",
+            label: "Igazítás",
+            values: [
+              { text: "Alapértelmezett", value: "" },
+              { text: "Balra", value: "left" },
+              { text: "Középre", value: "center" },
+              { text: "Jobbra", value: "right" },
+            ],
+            value: align,
+          },
+        ],
+        onsubmit: function (e) {
+          runEdit(() => {
+            dom.setStyle(table, "width", e.data.width);
+            table.setAttribute("border", e.data.border);
+
+            const margins = {
+              left: ["0", "auto"],
+              center: ["auto", "auto"],
+              right: ["auto", "0"],
+              "": ["", ""],
+            }[e.data.align] || ["", ""];
+            dom.setStyle(table, "margin-left", margins[0]);
+            dom.setStyle(table, "margin-right", margins[1]);
+          });
+        },
+      });
+    };
+
+    // "cells" egy vagy több cella - ha húzással több van kijelölve, mindegyikre
+    // ugyanazt az egy döntést alkalmazzuk (mint pl. Excelben a kijelölt tartomány
+    // formázásakor).
+    const cellPropertiesDialog = (cells) => {
+      if (!cells || !cells.length) return;
+      const first = cells[0];
+
+      editor.windowManager.open({
+        title: cells.length > 1 ? `Cella tulajdonságai (${cells.length} kijelölt cella)` : "Cella tulajdonságai",
+        body: [
+          { type: "colorpicker", name: "bgcolor", label: "Háttérszín", value: dom.getStyle(first, "background-color") || "" },
+          {
+            type: "listbox",
+            name: "align",
+            label: "Vízszintes igazítás",
+            values: [
+              { text: "Alapértelmezett", value: "" },
+              { text: "Balra", value: "left" },
+              { text: "Középre", value: "center" },
+              { text: "Jobbra", value: "right" },
+            ],
+            value: dom.getStyle(first, "text-align") || "",
+          },
+          {
+            type: "listbox",
+            name: "valign",
+            label: "Függőleges igazítás",
+            values: [
+              { text: "Alapértelmezett", value: "" },
+              { text: "Fent", value: "top" },
+              { text: "Középen", value: "middle" },
+              { text: "Lent", value: "bottom" },
+            ],
+            value: dom.getStyle(first, "vertical-align") || "",
+          },
+        ],
+        onsubmit: function (e) {
+          runEdit(() => {
+            cells.forEach((cell) => {
+              if (e.data.bgcolor) dom.setStyle(cell, "background-color", e.data.bgcolor);
+              dom.setStyle(cell, "text-align", e.data.align || "");
+              dom.setStyle(cell, "vertical-align", e.data.valign || "");
+            });
+          });
+        },
+      });
+    };
+
+    // A "colgroup/col" a megbízható módja az oszlopszélesség beállításának (a puszta
+    // cella-szélesség stílust a böngészők gyakran felülbírálják a tartalom vagy a többi
+    // sor alapján) - ha még nincs colgroup, létrehozunk egyet a jelenlegi oszlopszámmal.
+    const ensureColgroup = (table) => {
+      let colgroup = dom.select("colgroup", table)[0];
+      const firstRow = dom.select("tr", table)[0];
+      const colCount = firstRow ? firstRow.children.length : 0;
+
+      if (!colgroup) {
+        colgroup = dom.create("colgroup");
+        table.insertBefore(colgroup, table.firstChild);
+      }
+
+      const existingCols = dom.select("col", colgroup);
+      for (let i = existingCols.length; i < colCount; i++) {
+        colgroup.appendChild(dom.create("col"));
+      }
+      return colgroup;
+    };
+
+    const columnWidthDialog = (cell) => {
+      const table = getTable(cell);
+      if (!table) return;
+      const colIndex = cellColumnIndex(cell);
+
+      const colgroupExisting = dom.select("colgroup", table)[0];
+      const existingCol = colgroupExisting ? dom.select("col", colgroupExisting)[colIndex] : null;
+
+      editor.windowManager.open({
+        title: "Oszlop szélessége",
+        body: [
+          {
+            type: "textbox",
+            name: "width",
+            label: "Szélesség (pl. 150px vagy 20%)",
+            value: existingCol ? dom.getStyle(existingCol, "width") || "" : "",
+          },
+        ],
+        onsubmit: function (e) {
+          const width = (e.data.width || "").trim();
+          if (!width) return;
+
+          runEdit(() => {
+            dom.setStyle(table, "table-layout", "fixed");
+            const colgroup = ensureColgroup(table);
+            const col = dom.select("col", colgroup)[colIndex];
+            if (col) dom.setStyle(col, "width", width);
+          });
+        },
+      });
+    };
+
+    const rowHeightDialog = (cell) => {
+      const row = getRow(cell);
+      if (!row) return;
+
+      editor.windowManager.open({
+        title: "Sor magassága",
+        body: [
+          { type: "textbox", name: "height", label: "Magasság (pl. 40px)", value: dom.getStyle(row, "height") || "" },
+        ],
+        onsubmit: function (e) {
+          const height = (e.data.height || "").trim();
+          if (!height) return;
+          runEdit(() => dom.setStyle(row, "height", height));
+        },
+      });
+    };
+
+    // Mindig elérhető: új táblázat bárhová beszúrható, függetlenül attól, hogy a
+    // kurzor épp egy meglévő táblázatban van-e.
+    editor.addButton("szeducate_table_insert", {
+      icon: "table",
+      tooltip: "Táblázat beszúrása",
+      onclick: insertTableDialog,
+    });
+
+    // Minden parancs a KATTINTÁS pillanatában lekérdezi, hol áll a kurzor - ha nincs
+    // épp táblázat-cellában, egyértelmű üzenetet kap ahelyett, hogy csendben nem
+    // történne semmi. (Szándékosan NEM próbáljuk a gombot magát az inicializáláskor
+    // vagy "nodechange"-re dinamikusan le/felszürkíteni - az egy korábbi verzióban az
+    // egész szerkesztő beindulását megakasztotta, ha a TinyMCE kijelölés-kezelése még
+    // nem volt teljesen kész abban a pillanatban.)
+    const withCell = (fn) => () => {
+      const cell = getCell();
+      if (!cell) {
+        window.alert("Előbb kattints egy táblázat egyik cellájába!");
+        return;
+      }
+      fn(cell);
+    };
+
+    // Ha húzással több cella van kijelölve, azokra dolgozik; egyébként az egy aktív
+    // cellára esik vissza - így a "Cella tulajdonságai" egyszerre is használható.
+    const withCells = (fn) => () => {
+      if (selectedCells.length > 1) {
+        fn(selectedCells.slice());
+        return;
+      }
+      const cell = getCell();
+      if (!cell) {
+        window.alert("Előbb kattints egy táblázat egyik cellájába, vagy jelölj ki (húzással) egy cellatartományt!");
+        return;
+      }
+      fn([cell]);
+    };
+
+    editor.addButton("szeducate_table_edit", {
+      type: "menubutton",
+      text: "Táblázat szerkesztése",
+      tooltip: "Táblázat szerkesztése",
+      menu: [
+        { text: "Sor beszúrása fölé", onclick: withCell((cell) => insertRow(cell, true)) },
+        { text: "Sor beszúrása alá", onclick: withCell((cell) => insertRow(cell, false)) },
+        { text: "Sor másolása", onclick: withCell(duplicateRow) },
+        { text: "Sor törlése", onclick: withCell(deleteRow) },
+        { text: "Sor magassága...", onclick: withCell(rowHeightDialog) },
+        { text: "-" },
+        { text: "Oszlop beszúrása elé", onclick: withCell((cell) => insertColumn(cell, true)) },
+        { text: "Oszlop beszúrása mögé", onclick: withCell((cell) => insertColumn(cell, false)) },
+        { text: "Oszlop másolása", onclick: withCell(duplicateColumn) },
+        { text: "Oszlop törlése", onclick: withCell(deleteColumn) },
+        { text: "Oszlop szélessége...", onclick: withCell(columnWidthDialog) },
+        { text: "-" },
+        { text: "Egyesítés a jobb oldali cellával", onclick: withCell(mergeRight) },
+        { text: "Egyesítés az alatta lévő cellával", onclick: withCell(mergeDown) },
+        { text: "Kijelölt cellák egyesítése (húzd ki előbb a tartományt)", onclick: mergeSelectedCells },
+        { text: "Cella felosztása", onclick: withCell(splitCell) },
+        { text: "-" },
+        { text: "Fejléc sor be/kikapcsolása", onclick: withCell(toggleHeaderRow) },
+        { text: "Cella(k) tulajdonságai...", onclick: withCells(cellPropertiesDialog) },
+        { text: "Táblázat tulajdonságai...", onclick: withCell(tablePropertiesDialog) },
+        { text: "-" },
+        { text: "Táblázat törlése", onclick: withCell(deleteTable) },
+      ],
+    });
+  });
+};
+
 const WysiwygControl = ({
   label,
   fieldKey,
@@ -197,14 +845,25 @@ const WysiwygControl = ({
 
   useEffect(() => {
     if (window.wp && window.wp.editor) {
+      registerSzeducateTablePlugin();
+
       window.wp.editor.initialize(editorId, {
         tinymce: {
           readonly: isReadonly ? 1 : 0,
-          plugins: "paste,lists,link,textcolor,colorpicker,table",
+          plugins: "paste,lists,link,textcolor,colorpicker,szeducate_table",
           toolbar1:
-            "formatselect,bold,italic,underline,bullist,numlist,link,unlink,forecolor,backcolor,table",
+            "formatselect,bold,italic,underline,bullist,numlist,link,unlink,forecolor,backcolor,szeducate_table_insert,szeducate_table_edit",
+          // A húzással kijelölt táblázat-cellák vizuális kiemelése (lásd a
+          // szeducate_table plugin egér-figyelését).
+          content_style:
+            ".szeducate-cell-selected{background-color:rgba(34,113,177,0.25) !important;outline:1px solid #2271b1;}",
           setup: function (editor) {
-            editor.on("Change KeyUp", function () {
+            // Csak a "change" eseményre figyelünk, NEM a "keyup"-ra is - a keyup
+            // minden billentyűre lefut, a nyílgombokkal való puszta navigációra is
+            // (tényleges tartalomváltozás nélkül), ami feleslegesen "módosítottnak"
+            // jelölte a mezőt. A "change" a TinyMCE saját, tartalom-alapú piszkos-
+            // jelzése - csak akkor tüzel, ha valóban változott valami.
+            editor.on("change", function () {
               if (!isReadonly) onChange(fieldKey, editor.getContent());
             });
           },
@@ -554,6 +1213,8 @@ const SZEducateEditor = () => {
     nonce,
     restUrl,
     versionsUrl,
+    lockUrl,
+    currentUser,
     schema,
     permissions,
     existingTitle,
@@ -575,8 +1236,17 @@ const SZEducateEditor = () => {
   const [resetTick, setResetTick] = useState(0);
 
   const [versions, setVersions] = useState([]);
+  const [versionsSource, setVersionsSource] = useState("hub");
   const [isLoadingVersions, setIsLoadingVersions] = useState(false);
   const [isRestoring, setIsRestoring] = useState(null);
+
+  // Kliensek közötti szerkesztési zár állapota - ha egy MÁSIK kliensen valaki már
+  // szerkeszti ugyanezt a (Hub-on ugyanahhoz a hub_id-hoz tartozó) Képzést.
+  const [lockInfo, setLockInfo] = useState({
+    locked: false,
+    lockedByClient: "",
+    lockedByUser: "",
+  });
 
   const fieldRefs = useRef({});
   // A legutóbb MENTETT állapot (nem a jelenleg szerkesztett!) - ehhez viszonyítva
@@ -594,6 +1264,11 @@ const SZEducateEditor = () => {
   const isNewPost = !existingTitle;
   const globalReadonly = !isNewPost && !actions.edit;
   const canSave = isNewPost ? actions.create : actions.edit;
+  const isLockedByOther = lockInfo.locked;
+  // A jogosultsági és a "más éppen szerkeszti" korlátozás ugyanúgy csak-olvashatóvá
+  // teszi a mezőket, csak a felhasználónak mutatott indoklás más - ezért ott, ahol
+  // csak a viselkedés számít (nem a szöveg), ezt az összevont jelzőt használjuk.
+  const effectiveReadonly = globalReadonly || isLockedByOther;
 
   const isDirty =
     JSON.stringify({ title, formData }) !==
@@ -611,7 +1286,13 @@ const SZEducateEditor = () => {
     })
       .then((res) => res.json())
       .then((data) => {
-        if (data.success) setVersions(data.versions || []);
+        if (data.success) {
+          setVersions(data.versions || []);
+          // A Hub-tól kapott előzmény minden klienst átfog; ha a Hub épp nem
+          // elérhető, a végpont csak a helyi (erről a kliensről ismert) listával
+          // tér vissza - ezt jelezzük is, hogy ne tűnjön hamisan teljesnek.
+          setVersionsSource(data.source === "local" ? "local" : "hub");
+        }
       })
       .catch(() => {})
       .finally(() => setIsLoadingVersions(false));
@@ -619,6 +1300,41 @@ const SZEducateEditor = () => {
 
   useEffect(() => {
     fetchVersions();
+  }, [postId]);
+
+  // Kliensek közötti szerkesztési zár: a szerkesztő megnyitásakor megpróbáljuk
+  // megszerezni, majd amíg a lap nyitva van, rendszeresen megújítjuk (Hub-oldali
+  // lejárati idő van mögötte, nincs explicit "elengedés" - egy bezárt/összeomlott
+  // lap magától felszabadul, nem kell rá számítani, hogy lefut a leiratkozás).
+  useEffect(() => {
+    if (!postId || !lockUrl || !canSave) return;
+    let cancelled = false;
+
+    const acquireLock = () => {
+      fetch(lockUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-WP-Nonce": nonce },
+        body: JSON.stringify({ post_id: postId, user: currentUser, action: "acquire" }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (cancelled) return;
+          setLockInfo({
+            locked: !!(data && data.locked),
+            lockedByClient: (data && data.locked_by_client) || "",
+            lockedByUser: (data && data.locked_by_user) || "",
+          });
+        })
+        .catch(() => {});
+    };
+
+    acquireLock();
+    const interval = setInterval(acquireLock, 60000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, [postId]);
 
   const handleRestoreVersion = (version) => {
@@ -635,7 +1351,7 @@ const SZEducateEditor = () => {
     }
 
     setIsRestoring(version.id);
-    fetch(`${versionsUrl}/${version.id}?post_id=${postId}`, {
+    fetch(`${versionsUrl}/${version.id}?post_id=${postId}&source=${versionsSource}`, {
       headers: { "X-WP-Nonce": nonce },
     })
       .then((res) => res.json())
@@ -792,7 +1508,7 @@ const SZEducateEditor = () => {
     ) : (
       ""
     );
-    const isReadonly = !!field.is_readonly || globalReadonly;
+    const isReadonly = !!field.is_readonly || effectiveReadonly;
     const isChanged = !isReadonly && isFieldChangedSinceSave(field.key);
     const readonlyMark = isReadonly ? (
       <span
@@ -1190,7 +1906,7 @@ const SZEducateEditor = () => {
     for (const group of visibleGroups()) {
       if (!group.fields) continue;
       for (const field of group.fields) {
-        if (!field.is_required || field.is_readonly || globalReadonly) continue;
+        if (!field.is_required || field.is_readonly || effectiveReadonly) continue;
         const val = formData[field.key];
         if (isFieldEmpty(field, val)) {
           return {
@@ -1268,7 +1984,7 @@ const SZEducateEditor = () => {
     return visibleGroups().map((group) => {
       const required = getGroupCompletion(group);
       let badge = null;
-      if (required && !globalReadonly) {
+      if (required && !effectiveReadonly) {
         const filled = required.filter(
           (f) => !isFieldEmpty(f, formData[f.key]),
         ).length;
@@ -1324,11 +2040,21 @@ const SZEducateEditor = () => {
     return acc;
   }, {});
 
+  // Ugyanaz a mező-kulcs több fülön/csoportban is szerepelhet a sémában (pl. a
+  // képzési forma szerint feltételesen megjelenő fülek gyakran ugyanazokat a
+  // kulcsokat használják újra) - kulcs szerint egyedivé tesszük, hogy egy módosított
+  // mező csak EGYSZER jelenjen meg a listában, ne annyiszor, ahány fülön előfordul.
+  const changedFieldKeys = Array.from(
+    new Set(
+      allSchemaFields
+        .filter((f) => isFieldChangedSinceSave(f.key))
+        .map((f) => f.key),
+    ),
+  );
+
   const changedSinceSave = [
     ...(title !== savedSnapshot.current.title ? ["Cím"] : []),
-    ...allSchemaFields
-      .filter((f) => isFieldChangedSinceSave(f.key))
-      .map((f) => f.label),
+    ...changedFieldKeys.map((key) => fieldLabelByKey[key] || key),
   ];
 
   const describeChangedFields = (keys) =>
@@ -1359,6 +2085,19 @@ const SZEducateEditor = () => {
           style={{ marginBottom: "20px" }}>
           <strong>Figyelem:</strong> Nincs jogosultságod a képzés adatainak
           módosítására. Az űrlap csak olvasható módban nyílt meg.
+        </Notice>
+      )}
+
+      {!globalReadonly && isLockedByOther && (
+        <Notice
+          status="warning"
+          isDismissible={false}
+          style={{ marginBottom: "20px" }}>
+          <strong>Figyelem:</strong> Ezt a Képzést jelenleg{" "}
+          <strong>{lockInfo.lockedByUser}</strong> szerkeszti a(z){" "}
+          <strong>{lockInfo.lockedByClient}</strong> oldalon. Amíg ott nyitva
+          van a szerkesztő, itt csak megtekintheted az adatokat - így
+          elkerülhető, hogy két hely egymás mentését írja felül.
         </Notice>
       )}
 
@@ -1395,9 +2134,9 @@ const SZEducateEditor = () => {
                 gap: "8px",
               }}>
               <span>
-                Képzés Részletei {globalReadonly ? "(Csak Megtekintés)" : ""}
+                Képzés Részletei {effectiveReadonly ? "(Csak Megtekintés)" : ""}
               </span>
-              {!globalReadonly && overallRequired.length > 0 && (
+              {!effectiveReadonly && overallRequired.length > 0 && (
                 <span
                   style={{
                     fontSize: "12px",
@@ -1525,7 +2264,7 @@ const SZEducateEditor = () => {
                   setTitle(value);
                 }}
                 help="Ez jelenik meg a listákban és a címekben."
-                disabled={globalReadonly}
+                disabled={effectiveReadonly}
                 style={{
                   marginBottom: "20px",
                   outline:
@@ -1534,7 +2273,7 @@ const SZEducateEditor = () => {
                 }}
               />
 
-              {!globalReadonly && (
+              {!effectiveReadonly && (
                 <>
                   <Button
                     isPrimary
@@ -1587,6 +2326,8 @@ const SZEducateEditor = () => {
                 }}>
                 {globalReadonly
                   ? "Nincs jogosultságod módosítani ezt a képzést."
+                  : isLockedByOther
+                  ? "Amíg más szerkeszti máshol, itt nem menthetsz."
                   : "A csillaggal (*) jelölt mezők kitöltése kötelező."}
               </p>
             </div>
@@ -1686,6 +2427,22 @@ const SZEducateEditor = () => {
                   ) : null}
                 </div>
 
+                {postId && !isLoadingVersions && versionsSource === "local" && (
+                  <p
+                    style={{
+                      fontSize: "11px",
+                      color: "#996800",
+                      background: "#fff8e5",
+                      border: "1px solid #f0dca0",
+                      borderRadius: "4px",
+                      padding: "6px 8px",
+                      margin: "0 0 8px 0",
+                    }}>
+                    A Hub jelenleg nem érhető el - csak az ezen a kliensen
+                    ismert (nem feltétlenül teljes) előzmény látszik.
+                  </p>
+                )}
+
                 {!postId ? (
                   <p style={{ fontSize: "12px", color: "#8c8f94", margin: 0 }}>
                     Az előzmények az első mentés után lesznek elérhetők.
@@ -1782,7 +2539,7 @@ const SZEducateEditor = () => {
                               )}
                             </div>
                           )}
-                          {!isCurrent && !globalReadonly && (
+                          {!isCurrent && !effectiveReadonly && (
                             <Button
                               isSecondary
                               isSmall

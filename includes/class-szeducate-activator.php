@@ -132,28 +132,40 @@ class SZEducate_Activator {
 		self::ensure_versions_table();
 	}
 
-	// --- Kliens-oldali szerkesztési előzmények (ki, mikor, mit módosított egy Képzésen) -
-	// minden sikeres mentés egy új sort hoz létre itt, nem íródik felül semmi.
+	// --- Szerkesztési előzmények (ki, mikor, mit módosított egy Képzésen) - minden
+	// sikeres mentés egy új sort hoz létre, nem íródik felül semmi. Ugyanaz a tábla-
+	// szerkezet fut a Hub-on (hub_id-vel kulcsolva - ez az ÁTFOGÓ, kliens-független
+	// előzmény) ÉS a Kliensen (local_post_id-vel kulcsolva - csak tartalék, ha a Hub
+	// épp nem lenne elérhető).
 	private static function ensure_versions_table() {
 		global $wpdb;
 		$table_name = $wpdb->prefix . 'szeducate_course_versions';
 
-		if ( $wpdb->get_var( "SHOW TABLES LIKE '{$table_name}'" ) == $table_name ) return;
+		if ( $wpdb->get_var( "SHOW TABLES LIKE '{$table_name}'" ) != $table_name ) {
+			$charset_collate = $wpdb->get_charset_collate();
+			$sql = "CREATE TABLE `{$table_name}` (
+				`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+				`local_post_id` bigint(20) unsigned DEFAULT NULL,
+				`hub_id` bigint(20) unsigned DEFAULT NULL,
+				`title` varchar(255) NOT NULL,
+				`course_data` longtext DEFAULT NULL,
+				`changed_fields` longtext DEFAULT NULL,
+				`edited_by` varchar(191) DEFAULT NULL,
+				`edited_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				PRIMARY KEY (`id`),
+				KEY `local_post_id` (`local_post_id`),
+				KEY `hub_id` (`hub_id`)
+			) $charset_collate;";
 
-		$charset_collate = $wpdb->get_charset_collate();
-		$sql = "CREATE TABLE `{$table_name}` (
-			`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-			`local_post_id` bigint(20) unsigned NOT NULL,
-			`title` varchar(255) NOT NULL,
-			`course_data` longtext DEFAULT NULL,
-			`changed_fields` longtext DEFAULT NULL,
-			`edited_by` varchar(191) DEFAULT NULL,
-			`edited_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			PRIMARY KEY (`id`),
-			KEY `local_post_id` (`local_post_id`)
-		) $charset_collate;";
+			$wpdb->query( $sql );
+			return;
+		}
 
-		$wpdb->query( $sql );
+		// Retrofit: a hub_id oszlop egy korábbi (Kliens-only) körben még nem létezett.
+		$existing_cols = $wpdb->get_col( "DESCRIBE `{$table_name}`", 0 );
+		if ( ! in_array( 'hub_id', $existing_cols ) ) {
+			$wpdb->query( "ALTER TABLE `{$table_name}` ADD COLUMN `hub_id` bigint(20) unsigned DEFAULT NULL, ADD INDEX `hub_id` (`hub_id`)" );
+		}
 	}
 
 	// --- DESCRIBE-eredmény rövid gyorsítótárazása, hogy ne kelljen minden egyes Képzés-írásnál
