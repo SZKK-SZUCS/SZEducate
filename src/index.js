@@ -34,6 +34,21 @@ const parseOptions = (optionsString) => {
   return [{ label: "Válassz...", value: "" }, ...opts];
 };
 
+// A boolean mezők értéke stringként is érkezhet (pl. Excel importból: "0"/"1"),
+// ahol a sima "!!value" JS-ben félrevezető, mert a "0" string igaz értékű -
+// ellentétben a backend (PHP) logikájával, ami falsy-nak veszi. Ez a helper
+// a backend oldali "1"/"true"/"igaz"/stb. és "0"/"false"/"hamis"/stb. jelentését
+// tükrözi, hogy a kapcsoló mindig ugyanazt mutassa, amit elmentettünk.
+const toBoolValue = (val) => {
+  if (typeof val === "string") {
+    const normalized = val.trim().toLowerCase();
+    return !["", "0", "false", "hamis", "nem", "no", "n"].includes(
+      normalized,
+    );
+  }
+  return !!val;
+};
+
 // Egy csoport (fül) láthatósága a "kepzesi_forma" pivot-mezőtől vagy egy explicit
 // feltételtől függhet - ugyanezt a logikát használja a fül-építés ÉS a validáció is,
 // hogy a kettő soha ne tudjon egymástól eltérni.
@@ -1062,7 +1077,7 @@ const RepeaterControl = ({
                       }}>
                       {sf.type === "boolean" ? (
                         <ToggleControl
-                          checked={!!row[sf.key]}
+                          checked={toBoolValue(row[sf.key])}
                           onChange={(v) => updateRow(index, sf.key, v)}
                           disabled={isReadonly}
                         />
@@ -1757,7 +1772,7 @@ const SZEducateEditor = () => {
         control = (
           <ToggleControl
             label={labelWithRequired}
-            checked={!!value}
+            checked={toBoolValue(value)}
             help={combinedHelp}
             onChange={(val) => handleChange(field.key, val)}
             disabled={isReadonly}

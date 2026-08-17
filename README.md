@@ -151,6 +151,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.19
+
+- Fixed boolean error on frontend
+
 ### 0.9.18
 
 feat: Widget audit - fix broken Style controls, add caching, new Repeater widget
