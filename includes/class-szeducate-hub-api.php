@@ -10,7 +10,84 @@ class SZEducate_Hub_API {
 	public function init() {
 		add_action( 'rest_api_init', array( $this, 'register_endpoints' ) );
 		add_action( 'szeducate_dispatch_course_webhook', array( $this, 'dispatch_course_webhook' ) );
+		add_action( 'szeducate_dispatch_course_webhook_batch', array( $this, 'dispatch_course_webhook_batch' ) );
 		add_action( 'szeducate_dispatch_delete_webhook', array( $this, 'dispatch_delete_webhook' ), 10, 2 );
+	}
+
+	// Sok Képzés egyszerre történő szinkronizálásakor (pl. tömeges migráció után) NEM az
+	// egyedi "csak értesítés, majd a kliens hívja vissza a Hub-ot az adatért" (pull-back)
+	// mintát ismétli Képzésenként - az ugyanis sok egyidejű eseménynél könnyen elakad, mert a
+	// kliens visszahívása UGYANAHHOZ a Hub-hoz fut be, ami épp a kötegelt háttérfolyamatával
+	// van elfoglalva. Ehelyett a TELJES adatot egyetlen kérésben, egyenesen ki-PUSH-olja
+	// minden kliensnek (a már meglévő /client/sync-course-batch végponton), klienenként
+	// egy-egy párhuzamos kérésben - visszahívás nélkül, ezért nem alakulhat ki ez a fajta elakadás.
+	public function dispatch_course_webhook_batch( $hub_ids ) {
+		if ( ! is_array( $hub_ids ) || empty( $hub_ids ) ) return;
+
+		global $wpdb;
+		$table_name = $wpdb->prefix . 'szeducate_courses_data';
+		$clients_table = $wpdb->prefix . 'szeducate_clients';
+
+		$hub_ids = array_map( 'intval', $hub_ids );
+		$placeholders = implode( ',', array_fill( 0, count( $hub_ids ), '%d' ) );
+		$courses = $wpdb->get_results( $wpdb->prepare( "SELECT id, title, course_data, updated_by, updated_at FROM $table_name WHERE id IN ($placeholders)", $hub_ids ), ARRAY_A );
+		if ( empty( $courses ) ) return;
+
+		$all_clients = $wpdb->get_results( "SELECT id, client_name, client_url, api_token, permissions FROM {$clients_table} WHERE client_url != '' AND enabled = 1" );
+
+		$requests = array();
+		$client_by_key = array();
+		$count_by_key = array();
+
+		foreach ( $all_clients as $c ) {
+			$c_perms = json_decode( $c->permissions, true );
+			$c_conditions = isset( $c_perms['conditions'] ) ? $c_perms['conditions'] : array();
+
+			$allowed_courses = array();
+			foreach ( $courses as $course ) {
+				$course_data = json_decode( $course['course_data'], true );
+				if ( ! is_array( $course_data ) ) $course_data = array();
+
+				if ( ! $this->evaluate_conditions( $c_conditions, $course_data ) ) continue;
+
+				$allowed_courses[] = array(
+					'hub_id'      => intval( $course['id'] ),
+					'title'       => $course['title'],
+					'course_data' => $course_data,
+					'updated_by'  => $course['updated_by'],
+					'updated_at'  => $course['updated_at'],
+				);
+			}
+
+			if ( empty( $allowed_courses ) ) continue;
+
+			$key = $c->id;
+			$client_by_key[ $key ] = $c;
+			$count_by_key[ $key ] = count( $allowed_courses );
+			$requests[ $key ] = array(
+				'url'     => rtrim( $c->client_url, '/' ) . '/wp-json/szeducate/v1/client/sync-course-batch',
+				'method'  => 'POST',
+				'body'    => wp_json_encode( array( 'courses' => $allowed_courses ) ),
+				'headers' => array( 'Content-Type' => 'application/json', 'X-SZEducate-Auth' => $c->api_token ),
+				// A köteg sok Képzést is tartalmazhat, és mivel ez már nem igényel visszahívást
+				// a kliens felől, bőven megengedhető egy hosszabb határidő.
+				'timeout' => 60,
+			);
+		}
+
+		$results = SZEducate_Sync_Log::parallel_requests( $requests );
+
+		foreach ( $results as $key => $res ) {
+			$c = $client_by_key[ $key ];
+			$n = $count_by_key[ $key ];
+			if ( $res['error'] ) {
+				SZEducate_Sync_Log::add( 'push-course-batch', sprintf( 'Sikertelen kötegelt küldés ("%s", %d Képzés): %s', $c->client_name, $n, $res['error'] ), false );
+			} elseif ( $res['code'] >= 200 && $res['code'] < 300 ) {
+				SZEducate_Sync_Log::add( 'push-course-batch', sprintf( 'Sikeres kötegelt küldés ("%s", %d Képzés).', $c->client_name, $n ), true );
+			} else {
+				SZEducate_Sync_Log::add( 'push-course-batch', sprintf( 'Hiba ("%s", %d Képzés): HTTP %d', $c->client_name, $n, $res['code'] ), false );
+			}
+		}
 	}
 
 	public function register_endpoints() {

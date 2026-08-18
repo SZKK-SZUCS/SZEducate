@@ -151,6 +151,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.20
+
+- Added new widget to solve problem of different "munkarendek"
+
 ### 0.9.19
 
 - Fixed boolean error on frontend

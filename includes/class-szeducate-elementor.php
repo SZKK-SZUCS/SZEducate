@@ -35,6 +35,7 @@ class SZEducate_Elementor {
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/widgets/class-szeducate-keywords-widget.php';
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/widgets/class-szeducate-search-widget.php';
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/widgets/class-szeducate-repeater-widget.php';
+		require_once SZEDUCATE_PLUGIN_DIR . 'includes/widgets/class-szeducate-pricing-table-widget.php';
 
 		$widgets_manager->register( new SZEducate_Search_Widget() );
 		$widgets_manager->register( new SZEducate_Links_Widget() );
@@ -42,6 +43,7 @@ class SZEducate_Elementor {
 		$widgets_manager->register( new SZEducate_Listing_Widget() );
 		$widgets_manager->register( new SZEducate_Keywords_Widget() );
 		$widgets_manager->register( new SZEducate_Repeater_Widget() );
+		$widgets_manager->register( new SZEducate_Pricing_Table_Widget() );
 	}
 
 	public function add_visibility_controls( $element, $args ) {

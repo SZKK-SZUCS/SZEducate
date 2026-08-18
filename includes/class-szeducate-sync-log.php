@@ -133,9 +133,23 @@ class SZEducate_Sync_Log {
 
 		foreach ( $handles as $key => $ch ) {
 			$errno = curl_errno( $ch );
-			$results[ $key ] = $errno
-				? array( 'code' => null, 'error' => curl_error( $ch ) )
-				: array( 'code' => curl_getinfo( $ch, CURLINFO_HTTP_CODE ), 'error' => null );
+			$http_code = curl_getinfo( $ch, CURLINFO_HTTP_CODE );
+
+			if ( $errno ) {
+				$results[ $key ] = array( 'code' => null, 'error' => curl_error( $ch ) );
+			} elseif ( $http_code === 0 ) {
+				// curl_errno() ilyenkor is 0-t (nincs hiba) adhat vissza, miközben a kérés
+				// ténylegesen nem kapott érvényes HTTP választ (hibás/hiányzó URL, elutasított
+				// kapcsolat, DNS-hiba, vagy a célszerver félbeszakította a választ) - enélkül a
+				// napló egy diagnosztikailag értéktelen "HTTP 0" üzenetet adna vissza.
+				$effective_url = curl_getinfo( $ch, CURLINFO_EFFECTIVE_URL );
+				$results[ $key ] = array(
+					'code'  => null,
+					'error' => sprintf( 'Nem érkezett érvényes HTTP válasz (cél: %s) - valószínűleg hibás/elérhetetlen URL, elutasított kapcsolat vagy DNS-hiba.', $effective_url ?: '(ismeretlen URL)' ),
+				);
+			} else {
+				$results[ $key ] = array( 'code' => $http_code, 'error' => null );
+			}
 
 			curl_multi_remove_handle( $multi, $ch );
 			curl_close( $ch );

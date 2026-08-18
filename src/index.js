@@ -42,12 +42,20 @@ const parseOptions = (optionsString) => {
 const toBoolValue = (val) => {
   if (typeof val === "string") {
     const normalized = val.trim().toLowerCase();
-    return !["", "0", "false", "hamis", "nem", "no", "n"].includes(
-      normalized,
-    );
+    return !["", "0", "false", "hamis", "nem", "no", "n"].includes(normalized);
   }
   return !!val;
 };
+
+// A "Munkarend csoportok" beágyazott lista Variánsok sorainál a szerkesztőben is
+// egyértelművé kell tenni, hogy Állami finanszírozású sornál nem kell (és a widget
+// figyelmen kívül is hagyja) az ár típusa/összeg - ezekhez a konvenció-szerű
+// al-mező kulcsokhoz nem beviteli mezőt, hanem magyarázó szöveget mutatunk.
+const PRICE_LIKE_SUBFIELD_KEYS = ["ar_tipus", "osszeg"];
+const isStateFundedRow = (row) =>
+  Object.values(row || {}).some(
+    (v) => typeof v === "string" && v.toLowerCase().includes("állami"),
+  );
 
 // Egy csoport (fül) láthatósága a "kepzesi_forma" pivot-mezőtől vagy egy explicit
 // feltételtől függhet - ugyanezt a logikát használja a fül-építés ÉS a validáció is,
@@ -233,7 +241,8 @@ const registerSzeducateTablePlugin = () => {
     const getCell = () => dom.getParent(editor.selection.getNode(), "td,th");
     const getRow = (cell) => (cell ? dom.getParent(cell, "tr") : null);
     const getTable = (cell) => (cell ? dom.getParent(cell, "table") : null);
-    const rowIndexInTable = (table, row) => dom.select("tr", table).indexOf(row);
+    const rowIndexInTable = (table, row) =>
+      dom.select("tr", table).indexOf(row);
 
     // --- Húzással kijelölhető cellatartomány -------------------------------------
     // A hivatalos TinyMCE "table" plugin nélkül a böngésző alapból csak SZÖVEGET jelöl
@@ -343,7 +352,10 @@ const registerSzeducateTablePlugin = () => {
       if (!row) return null;
       let idx = 0;
       for (let i = 0; i < row.children.length; i++) {
-        const span = parseInt(row.children[i].getAttribute("colspan") || "1", 10);
+        const span = parseInt(
+          row.children[i].getAttribute("colspan") || "1",
+          10,
+        );
         if (colIndex >= idx && colIndex < idx + span) return row.children[i];
         idx += span;
       }
@@ -370,9 +382,24 @@ const registerSzeducateTablePlugin = () => {
         title: "Táblázat beszúrása",
         body: [
           { type: "textbox", name: "rows", label: "Sorok száma", value: "2" },
-          { type: "textbox", name: "cols", label: "Oszlopok száma", value: "2" },
-          { type: "checkbox", name: "header", label: "Fejléc sor hozzáadása", checked: true },
-          { type: "textbox", name: "border", label: "Szegély vastagsága (px)", value: "1" },
+          {
+            type: "textbox",
+            name: "cols",
+            label: "Oszlopok száma",
+            value: "2",
+          },
+          {
+            type: "checkbox",
+            name: "header",
+            label: "Fejléc sor hozzáadása",
+            checked: true,
+          },
+          {
+            type: "textbox",
+            name: "border",
+            label: "Szegély vastagsága (px)",
+            value: "1",
+          },
         ],
         onsubmit: function (e) {
           const rows = parseInt(e.data.rows, 10);
@@ -434,7 +461,9 @@ const registerSzeducateTablePlugin = () => {
     const duplicateRow = (cell) => {
       const row = getRow(cell);
       if (!row) return;
-      runEdit(() => row.parentNode.insertBefore(row.cloneNode(true), row.nextSibling));
+      runEdit(() =>
+        row.parentNode.insertBefore(row.cloneNode(true), row.nextSibling),
+      );
     };
 
     const insertColumn = (cell, before) => {
@@ -447,7 +476,10 @@ const registerSzeducateTablePlugin = () => {
           const target = cellAtColumnIndex(row, colIndex);
           if (!target) return;
           const newCell = buildCell(target.tagName === "TH");
-          target.parentNode.insertBefore(newCell, before ? target : target.nextSibling);
+          target.parentNode.insertBefore(
+            newCell,
+            before ? target : target.nextSibling,
+          );
         });
       });
     };
@@ -458,7 +490,9 @@ const registerSzeducateTablePlugin = () => {
 
       const rows = dom.select("tr", table);
       if (rows.length && rows[0].children.length <= 1) {
-        if (window.confirm("Ez az utolsó oszlop - törlöd az egész táblázatot?")) {
+        if (
+          window.confirm("Ez az utolsó oszlop - törlöd az egész táblázatot?")
+        ) {
           runEdit(() => dom.remove(table));
         }
         return;
@@ -482,7 +516,10 @@ const registerSzeducateTablePlugin = () => {
         dom.select("tr", table).forEach((row) => {
           const target = cellAtColumnIndex(row, colIndex);
           if (!target) return;
-          target.parentNode.insertBefore(target.cloneNode(true), target.nextSibling);
+          target.parentNode.insertBefore(
+            target.cloneNode(true),
+            target.nextSibling,
+          );
         });
       });
     };
@@ -503,7 +540,10 @@ const registerSzeducateTablePlugin = () => {
     const mergeDown = (cell) => {
       const row = getRow(cell);
       if (!cell || !row || !row.nextElementSibling) return;
-      const below = cellAtColumnIndex(row.nextElementSibling, cellColumnIndex(cell));
+      const below = cellAtColumnIndex(
+        row.nextElementSibling,
+        cellColumnIndex(cell),
+      );
       if (!below) return;
 
       runEdit(() => {
@@ -554,7 +594,9 @@ const registerSzeducateTablePlugin = () => {
     // egy-szomszédos verzió marad külön parancsként.
     const mergeSelectedCells = () => {
       if (selectedCells.length < 2) {
-        window.alert("Előbb jelölj ki (kattintás + húzás) legalább két cellát!");
+        window.alert(
+          "Előbb jelölj ki (kattintás + húzás) legalább két cellát!",
+        );
         return;
       }
       const table = getTable(selectedCells[0]);
@@ -615,7 +657,10 @@ const registerSzeducateTablePlugin = () => {
       if (!table) return;
 
       let align = "";
-      if (dom.getStyle(table, "margin-left") === "auto" && dom.getStyle(table, "margin-right") === "auto") {
+      if (
+        dom.getStyle(table, "margin-left") === "auto" &&
+        dom.getStyle(table, "margin-right") === "auto"
+      ) {
         align = "center";
       } else if (dom.getStyle(table, "margin-right") === "auto") {
         align = "left";
@@ -626,8 +671,18 @@ const registerSzeducateTablePlugin = () => {
       editor.windowManager.open({
         title: "Táblázat tulajdonságai",
         body: [
-          { type: "textbox", name: "width", label: "Szélesség (pl. 100% vagy 600px)", value: dom.getStyle(table, "width") || "100%" },
-          { type: "textbox", name: "border", label: "Szegély vastagsága (px)", value: table.getAttribute("border") || "1" },
+          {
+            type: "textbox",
+            name: "width",
+            label: "Szélesség (pl. 100% vagy 600px)",
+            value: dom.getStyle(table, "width") || "100%",
+          },
+          {
+            type: "textbox",
+            name: "border",
+            label: "Szegély vastagsága (px)",
+            value: table.getAttribute("border") || "1",
+          },
           {
             type: "listbox",
             name: "align",
@@ -667,9 +722,17 @@ const registerSzeducateTablePlugin = () => {
       const first = cells[0];
 
       editor.windowManager.open({
-        title: cells.length > 1 ? `Cella tulajdonságai (${cells.length} kijelölt cella)` : "Cella tulajdonságai",
+        title:
+          cells.length > 1
+            ? `Cella tulajdonságai (${cells.length} kijelölt cella)`
+            : "Cella tulajdonságai",
         body: [
-          { type: "colorpicker", name: "bgcolor", label: "Háttérszín", value: dom.getStyle(first, "background-color") || "" },
+          {
+            type: "colorpicker",
+            name: "bgcolor",
+            label: "Háttérszín",
+            value: dom.getStyle(first, "background-color") || "",
+          },
           {
             type: "listbox",
             name: "align",
@@ -698,7 +761,8 @@ const registerSzeducateTablePlugin = () => {
         onsubmit: function (e) {
           runEdit(() => {
             cells.forEach((cell) => {
-              if (e.data.bgcolor) dom.setStyle(cell, "background-color", e.data.bgcolor);
+              if (e.data.bgcolor)
+                dom.setStyle(cell, "background-color", e.data.bgcolor);
               dom.setStyle(cell, "text-align", e.data.align || "");
               dom.setStyle(cell, "vertical-align", e.data.valign || "");
             });
@@ -733,7 +797,9 @@ const registerSzeducateTablePlugin = () => {
       const colIndex = cellColumnIndex(cell);
 
       const colgroupExisting = dom.select("colgroup", table)[0];
-      const existingCol = colgroupExisting ? dom.select("col", colgroupExisting)[colIndex] : null;
+      const existingCol = colgroupExisting
+        ? dom.select("col", colgroupExisting)[colIndex]
+        : null;
 
       editor.windowManager.open({
         title: "Oszlop szélessége",
@@ -766,7 +832,12 @@ const registerSzeducateTablePlugin = () => {
       editor.windowManager.open({
         title: "Sor magassága",
         body: [
-          { type: "textbox", name: "height", label: "Magasság (pl. 40px)", value: dom.getStyle(row, "height") || "" },
+          {
+            type: "textbox",
+            name: "height",
+            label: "Magasság (pl. 40px)",
+            value: dom.getStyle(row, "height") || "",
+          },
         ],
         onsubmit: function (e) {
           const height = (e.data.height || "").trim();
@@ -808,7 +879,9 @@ const registerSzeducateTablePlugin = () => {
       }
       const cell = getCell();
       if (!cell) {
-        window.alert("Előbb kattints egy táblázat egyik cellájába, vagy jelölj ki (húzással) egy cellatartományt!");
+        window.alert(
+          "Előbb kattints egy táblázat egyik cellájába, vagy jelölj ki (húzással) egy cellatartományt!",
+        );
         return;
       }
       fn([cell]);
@@ -819,26 +892,56 @@ const registerSzeducateTablePlugin = () => {
       text: "Táblázat szerkesztése",
       tooltip: "Táblázat szerkesztése",
       menu: [
-        { text: "Sor beszúrása fölé", onclick: withCell((cell) => insertRow(cell, true)) },
-        { text: "Sor beszúrása alá", onclick: withCell((cell) => insertRow(cell, false)) },
+        {
+          text: "Sor beszúrása fölé",
+          onclick: withCell((cell) => insertRow(cell, true)),
+        },
+        {
+          text: "Sor beszúrása alá",
+          onclick: withCell((cell) => insertRow(cell, false)),
+        },
         { text: "Sor másolása", onclick: withCell(duplicateRow) },
         { text: "Sor törlése", onclick: withCell(deleteRow) },
         { text: "Sor magassága...", onclick: withCell(rowHeightDialog) },
         { text: "-" },
-        { text: "Oszlop beszúrása elé", onclick: withCell((cell) => insertColumn(cell, true)) },
-        { text: "Oszlop beszúrása mögé", onclick: withCell((cell) => insertColumn(cell, false)) },
+        {
+          text: "Oszlop beszúrása elé",
+          onclick: withCell((cell) => insertColumn(cell, true)),
+        },
+        {
+          text: "Oszlop beszúrása mögé",
+          onclick: withCell((cell) => insertColumn(cell, false)),
+        },
         { text: "Oszlop másolása", onclick: withCell(duplicateColumn) },
         { text: "Oszlop törlése", onclick: withCell(deleteColumn) },
         { text: "Oszlop szélessége...", onclick: withCell(columnWidthDialog) },
         { text: "-" },
-        { text: "Egyesítés a jobb oldali cellával", onclick: withCell(mergeRight) },
-        { text: "Egyesítés az alatta lévő cellával", onclick: withCell(mergeDown) },
-        { text: "Kijelölt cellák egyesítése (húzd ki előbb a tartományt)", onclick: mergeSelectedCells },
+        {
+          text: "Egyesítés a jobb oldali cellával",
+          onclick: withCell(mergeRight),
+        },
+        {
+          text: "Egyesítés az alatta lévő cellával",
+          onclick: withCell(mergeDown),
+        },
+        {
+          text: "Kijelölt cellák egyesítése (húzd ki előbb a tartományt)",
+          onclick: mergeSelectedCells,
+        },
         { text: "Cella felosztása", onclick: withCell(splitCell) },
         { text: "-" },
-        { text: "Fejléc sor be/kikapcsolása", onclick: withCell(toggleHeaderRow) },
-        { text: "Cella(k) tulajdonságai...", onclick: withCells(cellPropertiesDialog) },
-        { text: "Táblázat tulajdonságai...", onclick: withCell(tablePropertiesDialog) },
+        {
+          text: "Fejléc sor be/kikapcsolása",
+          onclick: withCell(toggleHeaderRow),
+        },
+        {
+          text: "Cella(k) tulajdonságai...",
+          onclick: withCells(cellPropertiesDialog),
+        },
+        {
+          text: "Táblázat tulajdonságai...",
+          onclick: withCell(tablePropertiesDialog),
+        },
         { text: "-" },
         { text: "Táblázat törlése", onclick: withCell(deleteTable) },
       ],
@@ -1014,9 +1117,16 @@ const RepeaterControl = ({
 }) => {
   const rows = Array.isArray(value) ? value : [];
   const subFields = field.sub_fields || [];
+  // A séma-tervező legfeljebb egy szintig engedi a beágyazott listát (repeater
+  // al-mezőn belüli repeater), ezért ez a lapos táblázatos nézet helyett kártyás
+  // elrendezésre vált, hogy a beágyazott lista ne egy táblázat-cellába zsúfolódjon.
+  const hasNestedRepeater = subFields.some((sf) => sf.type === "repeater");
+
   const addRow = () => {
     const newRow = {};
-    subFields.forEach((sf) => (newRow[sf.key] = ""));
+    subFields.forEach(
+      (sf) => (newRow[sf.key] = sf.type === "repeater" ? [] : ""),
+    );
     onChange(field.key, [...rows, newRow]);
   };
   const removeRow = (index) =>
@@ -1025,9 +1135,57 @@ const RepeaterControl = ({
       rows.filter((_, i) => i !== index),
     );
   const updateRow = (index, sfKey, val) => {
-    const newRows = [...rows];
-    newRows[index][sfKey] = val;
+    const newRows = rows.map((row, i) =>
+      i === index ? { ...row, [sfKey]: val } : row,
+    );
     onChange(field.key, newRows);
+  };
+
+  const renderCellControl = (sf, row, index) => {
+    if (PRICE_LIKE_SUBFIELD_KEYS.includes(sf.key) && isStateFundedRow(row)) {
+      return (
+        <span
+          style={{
+            display: "inline-block",
+            fontSize: "12px",
+            fontStyle: "italic",
+            color: "#8a6100",
+          }}>
+          Nem szükséges (Állami)
+        </span>
+      );
+    }
+    if (sf.type === "boolean") {
+      return (
+        <ToggleControl
+          checked={toBoolValue(row[sf.key])}
+          onChange={(v) => updateRow(index, sf.key, v)}
+          disabled={isReadonly}
+        />
+      );
+    }
+    if (sf.type === "select") {
+      return (
+        <SelectControl
+          value={row[sf.key] || ""}
+          options={parseOptions(sf.options)}
+          onChange={(v) => updateRow(index, sf.key, v)}
+          disabled={isReadonly}
+          style={{ marginBottom: 0 }}
+        />
+      );
+    }
+    return (
+      <TextControl
+        type={
+          sf.type === "number" ? "number" : sf.type === "url" ? "url" : "text"
+        }
+        value={row[sf.key] || ""}
+        onChange={(v) => updateRow(index, sf.key, v)}
+        disabled={isReadonly}
+        style={{ marginBottom: 0 }}
+      />
+    );
   };
 
   return (
@@ -1039,10 +1197,77 @@ const RepeaterControl = ({
           marginTop: "10px",
           paddingTop: "12px",
           borderTop: "1px solid #eceef0",
-          overflowX: "auto",
+          overflowX: hasNestedRepeater ? "visible" : "auto",
         }}>
         {rows.length === 0 ? (
           <EmptyStateRow>Még nincs hozzáadva egyetlen sor sem.</EmptyStateRow>
+        ) : hasNestedRepeater ? (
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+            {rows.map((row, index) => (
+              <div
+                key={index}
+                style={{
+                  border: "1px solid #dcdcde",
+                  borderRadius: "6px",
+                  padding: "14px",
+                  background: "#fbfbfc",
+                }}>
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "12px",
+                    alignItems: "flex-end",
+                  }}>
+                  {subFields
+                    .filter((sf) => sf.type !== "repeater")
+                    .map((sf) => (
+                      <div
+                        key={sf.key}
+                        style={{ flex: "1 1 160px", minWidth: "140px" }}>
+                        <div
+                          style={{
+                            fontSize: "11px",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.02em",
+                            color: "#50575e",
+                            marginBottom: "4px",
+                          }}>
+                          {sf.label}
+                        </div>
+                        {renderCellControl(sf, row, index)}
+                      </div>
+                    ))}
+                  {!isReadonly && (
+                    <Button
+                      isDestructive
+                      isSmall
+                      onClick={() => removeRow(index)}
+                      label="Sor eltávolítása"
+                      style={{ marginBottom: "2px" }}>
+                      &times; Sor törlése
+                    </Button>
+                  )}
+                </div>
+                {subFields
+                  .filter((sf) => sf.type === "repeater")
+                  .map((sf) => (
+                    <div key={sf.key} style={{ marginTop: "12px" }}>
+                      <RepeaterControl
+                        label={sf.label}
+                        field={sf}
+                        value={row[sf.key]}
+                        isReadonly={isReadonly}
+                        onChange={(_key, newVal) =>
+                          updateRow(index, sf.key, newVal)
+                        }
+                      />
+                    </div>
+                  ))}
+              </div>
+            ))}
+          </div>
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
@@ -1075,35 +1300,7 @@ const RepeaterControl = ({
                         padding: "8px",
                         borderBottom: "1px solid #eee",
                       }}>
-                      {sf.type === "boolean" ? (
-                        <ToggleControl
-                          checked={toBoolValue(row[sf.key])}
-                          onChange={(v) => updateRow(index, sf.key, v)}
-                          disabled={isReadonly}
-                        />
-                      ) : sf.type === "select" ? (
-                        <SelectControl
-                          value={row[sf.key] || ""}
-                          options={parseOptions(sf.options)}
-                          onChange={(v) => updateRow(index, sf.key, v)}
-                          disabled={isReadonly}
-                          style={{ marginBottom: 0 }}
-                        />
-                      ) : (
-                        <TextControl
-                          type={
-                            sf.type === "number"
-                              ? "number"
-                              : sf.type === "url"
-                              ? "url"
-                              : "text"
-                          }
-                          value={row[sf.key] || ""}
-                          onChange={(v) => updateRow(index, sf.key, v)}
-                          disabled={isReadonly}
-                          style={{ marginBottom: 0 }}
-                        />
-                      )}
+                      {renderCellControl(sf, row, index)}
                     </td>
                   ))}
                   {!isReadonly && (
@@ -1329,7 +1526,11 @@ const SZEducateEditor = () => {
       fetch(lockUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-WP-Nonce": nonce },
-        body: JSON.stringify({ post_id: postId, user: currentUser, action: "acquire" }),
+        body: JSON.stringify({
+          post_id: postId,
+          user: currentUser,
+          action: "acquire",
+        }),
       })
         .then((res) => res.json())
         .then((data) => {
@@ -1357,7 +1558,9 @@ const SZEducateEditor = () => {
         user: currentUser,
         action: "release",
       });
-      const url = `${lockUrl}${lockUrl.indexOf("?") === -1 ? "?" : "&"}_wpnonce=${encodeURIComponent(nonce)}`;
+      const url = `${lockUrl}${
+        lockUrl.indexOf("?") === -1 ? "?" : "&"
+      }_wpnonce=${encodeURIComponent(nonce)}`;
 
       if (navigator.sendBeacon) {
         navigator.sendBeacon(
@@ -1402,9 +1605,12 @@ const SZEducateEditor = () => {
     }
 
     setIsRestoring(version.id);
-    fetch(`${versionsUrl}/${version.id}?post_id=${postId}&source=${versionsSource}`, {
-      headers: { "X-WP-Nonce": nonce },
-    })
+    fetch(
+      `${versionsUrl}/${version.id}?post_id=${postId}&source=${versionsSource}`,
+      {
+        headers: { "X-WP-Nonce": nonce },
+      },
+    )
       .then((res) => res.json())
       .then((data) => {
         if (data.success) {
@@ -1620,7 +1826,7 @@ const SZEducateEditor = () => {
 
     const helpStr = field.help_text || "";
     const isFilterableStr =
-      field.is_filterable && !isReadonly ? "Indexelt mező." : "";
+      field.is_filterable && !isReadonly ? "(Indexelt mező.)" : "";
     const combinedHelp = [helpStr, isFilterableStr].filter(Boolean).join(" ");
 
     let control = null;
@@ -1957,7 +2163,8 @@ const SZEducateEditor = () => {
     for (const group of visibleGroups()) {
       if (!group.fields) continue;
       for (const field of group.fields) {
-        if (!field.is_required || field.is_readonly || effectiveReadonly) continue;
+        if (!field.is_required || field.is_readonly || effectiveReadonly)
+          continue;
         const val = formData[field.key];
         if (isFieldEmpty(field, val)) {
           return {
