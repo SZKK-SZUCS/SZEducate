@@ -9,7 +9,7 @@ class SZEducate_Hub_API {
 
 	public function init() {
 		add_action( 'rest_api_init', array( $this, 'register_endpoints' ) );
-		add_action( 'szeducate_dispatch_course_webhook', array( $this, 'dispatch_course_webhook' ) );
+		add_action( 'szeducate_dispatch_course_webhook', array( $this, 'dispatch_course_webhook' ), 10, 2 );
 		add_action( 'szeducate_dispatch_course_webhook_batch', array( $this, 'dispatch_course_webhook_batch' ) );
 		add_action( 'szeducate_dispatch_delete_webhook', array( $this, 'dispatch_delete_webhook' ), 10, 2 );
 	}
@@ -608,7 +608,7 @@ class SZEducate_Hub_API {
 		// vagy elérhetetlen kliens ne lassítsa/akassza meg minden egyes Képzés mentését a Hub-on.
 		$clients_table = $wpdb->prefix . 'szeducate_clients';
 		if ( $wpdb->get_var( "SHOW TABLES LIKE '{$clients_table}'" ) == $clients_table ) {
-			wp_schedule_single_event( time(), 'szeducate_dispatch_course_webhook', array( $hub_id ) );
+			wp_schedule_single_event( time(), 'szeducate_dispatch_course_webhook', array( $hub_id, $client['id'] ) );
 		}
 
 		return new WP_REST_Response( array(
@@ -621,7 +621,13 @@ class SZEducate_Hub_API {
 	// --- Kliens-webhook kiküldése a HÁTTÉRBEN (WP-Cron), a kérésen kívül.
 	// Minden érintett klienshez EGYSZERRE (párhuzamosan) küldjük ki az értesítést, nem
 	// egymás után - így egy lassú/elérhetetlen kliens nem lassítja le a többiek értesítését.
-	public function dispatch_course_webhook( $hub_id ) {
+	// $exclude_client_id: az a kliens, aki EZT a mentést maga küldte be (receive_course_data) -
+	// őt NEM értesítjük vissza, mert a saját mentése válaszából már megkapja/rögzíti a hub_id-t.
+	// Enélkül egy versenyhelyzet állhatna elő: ha ez a visszahívás gyorsabban futna le, mint
+	// ahogy a beküldő kliens a saját válaszából rögzíti a hub_id-t, a kliens még nem ismerné fel
+	// a saját, épp az imént létrehozott rekordját, és egy MÁSODIK (duplikált) helyi Képzést hozna
+	// létre ugyanahhoz a hub_id-hoz.
+	public function dispatch_course_webhook( $hub_id, $exclude_client_id = 0 ) {
 		global $wpdb;
 		$table_name = $wpdb->prefix . 'szeducate_courses_data';
 		$clients_table = $wpdb->prefix . 'szeducate_clients';
@@ -632,7 +638,10 @@ class SZEducate_Hub_API {
 		$course_data = json_decode( $course['course_data'], true );
 		if ( ! is_array( $course_data ) ) $course_data = array();
 
-		$all_clients = $wpdb->get_results( "SELECT id, client_name, client_url, api_token, permissions FROM {$clients_table} WHERE client_url != '' AND enabled = 1" );
+		$all_clients = $wpdb->get_results( $wpdb->prepare(
+			"SELECT id, client_name, client_url, api_token, permissions FROM {$clients_table} WHERE client_url != '' AND enabled = 1 AND id != %d",
+			$exclude_client_id
+		) );
 
 		$requests = array();
 		$client_by_key = array();
