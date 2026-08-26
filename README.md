@@ -151,6 +151,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.23
+
+- Disable duplicate course button
+
 ### 0.9.22
 
 - Urgent fix for course duping on server callback for hub ID

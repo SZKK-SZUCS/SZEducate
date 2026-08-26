@@ -26,11 +26,20 @@ class SZEducate_Client {
 		
 		add_action( 'admin_menu', array( $this, 'remove_add_new_menu' ), 999 );
 		add_filter( 'post_row_actions', array( $this, 'modify_list_actions' ), 10, 2 );
+		// Nagyon kései prioritás (999), hogy ez BIZTOSAN a "Duplicate Page" (és bármilyen más,
+		// duplikálást kínáló) plugin sor-műveletének hozzáadása UTÁN fusson - egy véletlen
+		// kattintás a duplikáló gombra egy a Hub-tól teljesen független, "árva" WP-bejegyzést
+		// hoz létre (nincs sora az egyedi adattáblában), amit a Képzések listája emiatt el is
+		// rejt, gyakorlatilag megtalálhatatlanná téve admin felületről.
+		add_filter( 'post_row_actions', array( $this, 'remove_duplicate_action' ), 999, 2 );
 
 		add_filter( 'query_vars', array( $this, 'register_query_vars' ) );
 		add_action( 'init', array( $this, 'add_seo_rewrite_rules' ) );
 
-		add_filter( 'bulk_actions-edit-sz_course', array( $this, 'add_custom_bulk_actions' ) );
+		// Kései prioritás itt is, ugyanazért, mint a post_row_actions-nél feljebb - hogy a
+		// duplikátum-eltávolítás a szűrő végén biztosan lássa (és eltávolíthassa) a "Duplicate
+		// Page" (vagy hasonló) plugin által esetlegesen hozzáadott tömeges műveletet is.
+		add_filter( 'bulk_actions-edit-sz_course', array( $this, 'add_custom_bulk_actions' ), 999 );
 		add_action( 'admin_footer-edit.php', array( $this, 'bulk_admin_footer_js' ) );
 		add_action( 'admin_footer-edit.php', array( $this, 'render_lock_status_script' ) );
 		add_action( 'wp_ajax_szeducate_process_bulk_status', array( $this, 'ajax_process_bulk_status' ) );
@@ -389,6 +398,14 @@ class SZEducate_Client {
 		unset($bulk_actions['trash']);
 		unset($bulk_actions['delete']);
 
+		// Ugyanazon okból, mint a sor-műveletnél (remove_duplicate_action): egy tömeges
+		// duplikálás is a Hub-tól teljesen független, "árva" bejegyzéseket hozna létre.
+		foreach ( $bulk_actions as $key => $label ) {
+			if ( stripos( $key, 'duplicate' ) !== false || stripos( wp_strip_all_tags( $label ), 'duplicate' ) !== false || stripos( wp_strip_all_tags( $label ), 'duplik' ) !== false ) {
+				unset( $bulk_actions[ $key ] );
+			}
+		}
+
 		$perms = json_decode( get_option('szeducate_client_permissions', '{}'), true );
 		$actions = isset($perms['actions']) ? $perms['actions'] : array();
 
@@ -699,6 +716,28 @@ class SZEducate_Client {
 						'Biztosan véglegesen törölni akarod? Ez a művelet a Hub-ról is eltünteti a képzést!',
 						'Végleges törlés'
 					);
+				}
+			}
+		}
+		return $actions;
+	}
+
+	// A "Duplicate Page" (mndpsingh287) és hasonló bővítmények sor-műveleteinek eltávolítása
+	// a Képzéseknél. Egy ilyen duplikálás a SZEducate saját mentési folyamatát teljesen
+	// megkerülve hoz létre egy nyers WordPress-másolatot - nincs sora az egyedi adattáblában,
+	// nincs hub_id-je, a Hub sosem szerez tudomást róla -, ami miatt a Képzések listája
+	// (lásd filter_courses_by_permissions) automatikusan el is rejti, gyakorlatilag
+	// megtalálhatatlanná és feleslegessé téve. A pontos kulcsnevet ('duplicate') ismerjük a
+	// pluginból, de tartalék-ellenőrzésként szöveg alapján is eltávolítunk minden egyezőt,
+	// hogy egy másik verzió vagy egy másik hasonló plugin se tudja visszacsempészni.
+	public function remove_duplicate_action( $actions, $post ) {
+		if ( $post->post_type === 'sz_course' ) {
+			unset( $actions['duplicate'] );
+
+			foreach ( $actions as $key => $html ) {
+				$label = wp_strip_all_tags( $html );
+				if ( stripos( $key, 'duplicate' ) !== false || stripos( $label, 'duplicate' ) !== false || stripos( $label, 'duplik' ) !== false ) {
+					unset( $actions[ $key ] );
 				}
 			}
 		}
