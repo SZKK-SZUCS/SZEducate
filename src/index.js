@@ -1162,7 +1162,9 @@ const RichTextCellControl = ({ value, onChange, disabled }) => {
     const url = /^(https?:|mailto:|tel:|\/|#)/i.test(raw.trim())
       ? raw.trim()
       : "https://" + raw.trim();
-    const linkText = (selected || url).replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const linkText = (selected || url)
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
     const html =
       '<a href="' +
       url.replace(/"/g, "&quot;") +
