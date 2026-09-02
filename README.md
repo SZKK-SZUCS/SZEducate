@@ -151,6 +151,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.26
+
+- Repeater widget: az összevont (több sort átfogó) celláknál a tartalom vízszintesen és függőlegesen is középre igazodik; a többi cella marad felül.
+
 ### 0.9.25
 
 Hotfix a 0.9.24-hez

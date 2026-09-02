@@ -555,11 +555,20 @@ class SZEducate_Repeater_Widget extends \Elementor\Widget_Base {
 				if ( $merge && isset( $rowspans[ $ci ][ $index ] ) && $rowspans[ $ci ][ $index ] === 0 ) {
 					continue; // ezt a cellát a fölötte lévő egyesített cella lefedi
 				}
-				$val  = isset( $row[ $sf['key'] ] ) ? $row[ $sf['key'] ] : '';
-				$span = ( $merge && ! empty( $rowspans[ $ci ][ $index ] ) && $rowspans[ $ci ][ $index ] > 1 )
-					? ' rowspan="' . intval( $rowspans[ $ci ][ $index ] ) . '"'
-					: '';
-				$td_style = $merge ? ' style="vertical-align:top;"' : '';
+				$val      = isset( $row[ $sf['key'] ] ) ? $row[ $sf['key'] ] : '';
+				$span_n   = ( $merge && ! empty( $rowspans[ $ci ][ $index ] ) ) ? intval( $rowspans[ $ci ][ $index ] ) : 1;
+				$span     = $span_n > 1 ? ' rowspan="' . $span_n . '"' : '';
+				// Az összevont (több sort átfogó) cellában a tartalom vízszintesen és
+				// függőlegesen is középre; a többi cella marad felül, hogy a csoport
+				// tetejéhez igazodjon. Merge nélkül nincs inline stílus (a Stílus-vezérlők
+				// dolgoznak) - itt sincs text-align/vertical-align vezérlő, így nincs ütközés.
+				if ( ! $merge ) {
+					$td_style = '';
+				} elseif ( $span_n > 1 ) {
+					$td_style = ' style="vertical-align:middle; text-align:center;"';
+				} else {
+					$td_style = ' style="vertical-align:top;"';
+				}
 				echo '<td class="sz-repeater-td"' . $span . $td_style . '>' . $this->render_cell_value( $val, $sf ) . '</td>';
 			}
 			echo '</tr>';
