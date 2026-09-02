@@ -1120,6 +1120,9 @@ const richTextPreviewSafe = (html) => {
     Array.prototype.slice.call(node.childNodes).forEach((child) => {
       if (child.nodeType === 1) {
         if (!allowed.test(child.tagName)) {
+          // Előbb kitakarítjuk a belsejét, csak utána bontjuk ki - különben egy
+          // tiltott elembe ágyazott <a href="javascript:..."> átcsúszna szűretlenül.
+          walk(child);
           while (child.firstChild) node.insertBefore(child.firstChild, child);
           node.removeChild(child);
           return;
