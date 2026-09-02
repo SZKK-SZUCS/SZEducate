@@ -151,6 +151,20 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.24
+
+Megbeszélés 2026-09-02 – támogatási táblázat, intézményi pontok, indulás időszaka
+
+- **Séma Tervező:** repeater al-mezőkhöz új „Hosszúszöveg" és „Hosszúszöveg (linkelhető)" (`richtext`) típus. A `richtext` a Kliens szerkesztőben szövegközi hiperhivatkozást enged, a frontenden `wp_kses` szűri.
+- **Támogatási Táblázat widget:**
+  - Szakosodás: új „Beágyazott al-mező: Szakosodás" (alap: `szakosodas`). Ha a variáns-soron ki van töltve, a név `Szak neve - Szakosodás (nyelv nyelven)` formában jelenik meg.
+  - Lapozás munkarend-fülönként: állítható küszöb (alap 8), fölötte `oldalak = ⌈n/küszöb⌉`, a sorok kiegyenlítve. Jobb alsó sarokban szám-gombok + nyilak, saját „Lapozó" Stílus-szekcióval.
+  - Jelmagyarázat: bekarikázott „?" a Fin. forma fejlécben, hover/fókusz buborékkal (A = …, K = …), ki-be kapcsolható, állítható szöveggel.
+  - A finanszírozási forma / ár típusa al-mező alapértelmezett kulcsa a valós sémához igazítva (`finanszirozasi-forma`, `ar-tipusa`).
+- **Repeater widget:** `richtext` (wp_kses) és `textarea` (nl2br) cellák; új „Azonos cellák függőleges egyesítése" kapcsoló (oszloponként, `rowspan`).
+- **React szerkesztő:** repeater rekord/kártya nézetre vált sok oszlopnál vagy hosszúszöveg-oszlopnál; a `richtext` cella textarea + „Link beszúrása" gombbal és élő előnézettel.
+- **Láthatóság szűrő:** a strukturált (repeater/links) mezők „üres/nem üres" vizsgálata JSON-alapú – nincs több „Array to string" warning.
+
 ### 0.9.23
 
 - Disable duplicate course button

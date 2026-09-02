@@ -51,7 +51,9 @@ const toBoolValue = (val) => {
 // egyértelművé kell tenni, hogy Állami finanszírozású sornál nem kell (és a widget
 // figyelmen kívül is hagyja) az ár típusa/összeg - ezekhez a konvenció-szerű
 // al-mező kulcsokhoz nem beviteli mezőt, hanem magyarázó szöveget mutatunk.
-const PRICE_LIKE_SUBFIELD_KEYS = ["ar_tipus", "osszeg"];
+// (A séma az "ar-tipusa" kötőjeles kulcsot használja; a régi "ar_tipus" is bent
+// marad, hogy egy korábbi szerkezetű adat se essen ki a kezelésből.)
+const PRICE_LIKE_SUBFIELD_KEYS = ["ar-tipusa", "ar_tipus", "osszeg"];
 const isStateFundedRow = (row) =>
   Object.values(row || {}).some(
     (v) => typeof v === "string" && v.toLowerCase().includes("állami"),
@@ -1107,6 +1109,135 @@ const LinksControl = ({
   );
 };
 
+// A "richtext" repeater al-mező megjelenítésekor / előnézetekor engedélyezett HTML.
+// A frontend (SZEducate_Repeater_Widget) wp_kses-e ugyanezt a listát tükrözi - itt
+// csak azért sanitizálunk, hogy a szerkesztői előnézet ne tudjon k/pl. script/ befutni.
+const richTextPreviewSafe = (html) => {
+  const allowed = /^(a|strong|b|em|i|br)$/i;
+  const tmp = document.createElement("div");
+  tmp.innerHTML = String(html || "");
+  const walk = (node) => {
+    Array.prototype.slice.call(node.childNodes).forEach((child) => {
+      if (child.nodeType === 1) {
+        if (!allowed.test(child.tagName)) {
+          // Előbb kitakarítjuk a belsejét, csak utána bontjuk ki - különben egy
+          // tiltott elembe ágyazott <a href="javascript:..."> átcsúszna szűretlenül.
+          walk(child);
+          while (child.firstChild) node.insertBefore(child.firstChild, child);
+          node.removeChild(child);
+          return;
+        }
+        Array.prototype.slice.call(child.attributes).forEach((attr) => {
+          const keep =
+            child.tagName.toLowerCase() === "a" &&
+            attr.name.toLowerCase() === "href" &&
+            /^(https?:|mailto:|tel:|\/|#)/i.test(attr.value.trim());
+          if (!keep) child.removeAttribute(attr.name);
+        });
+        if (child.tagName.toLowerCase() === "a") {
+          child.setAttribute("target", "_blank");
+          child.setAttribute("rel", "noopener noreferrer");
+        }
+        walk(child);
+      } else if (child.nodeType !== 3) {
+        node.removeChild(child);
+      }
+    });
+  };
+  walk(tmp);
+  return tmp.innerHTML;
+};
+
+// Hosszúszöveg, amibe a "Link beszúrása" gomb a kijelölt szövegre <a> tag-et tesz.
+// A tárolt érték korlátozott HTML; a végleges szűrés a frontenden (wp_kses) történik.
+const RichTextCellControl = ({ value, onChange, disabled }) => {
+  const taRef = useRef(null);
+  const str = typeof value === "string" ? value : "";
+
+  const insertLink = () => {
+    const ta = taRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const selected = str.slice(start, end);
+    const raw = window.prompt("Add meg a hivatkozás címét (URL):", "https://");
+    if (!raw) return;
+    const url = /^(https?:|mailto:|tel:|\/|#)/i.test(raw.trim())
+      ? raw.trim()
+      : "https://" + raw.trim();
+    const linkText = (selected || url)
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+    const html =
+      '<a href="' +
+      url.replace(/"/g, "&quot;") +
+      '" target="_blank" rel="noopener noreferrer">' +
+      linkText +
+      "</a>";
+    const next = str.slice(0, start) + html + str.slice(end);
+    onChange(next);
+    setTimeout(() => {
+      ta.focus();
+      const pos = start + html.length;
+      ta.setSelectionRange(pos, pos);
+    }, 0);
+  };
+
+  const preview = str ? richTextPreviewSafe(str) : "";
+
+  return (
+    <div>
+      <textarea
+        ref={taRef}
+        value={str}
+        disabled={disabled}
+        rows={3}
+        onChange={(e) => onChange(e.target.value)}
+        style={{
+          width: "100%",
+          fontSize: "13px",
+          padding: "8px",
+          border: "1px solid #757575",
+          borderRadius: "2px",
+          fontFamily: "inherit",
+          boxSizing: "border-box",
+        }}
+      />
+      {!disabled && (
+        <div
+          style={{
+            display: "flex",
+            gap: "8px",
+            alignItems: "center",
+            flexWrap: "wrap",
+            marginTop: "4px",
+          }}>
+          <Button isSecondary isSmall onClick={insertLink}>
+            🔗 Link beszúrása
+          </Button>
+          <span style={{ fontSize: "11px", color: "#8c8f94" }}>
+            Jelöld ki a szöveget, majd kattints ide. Megjelenítéskor a link, a
+            félkövér (&lt;strong&gt;) és a dőlt (&lt;em&gt;) marad meg.
+          </span>
+        </div>
+      )}
+      {preview && (
+        <div
+          style={{
+            fontSize: "12px",
+            color: "#50575e",
+            marginTop: "4px",
+            paddingLeft: "8px",
+            borderLeft: "2px solid #dcdcde",
+          }}>
+          <span style={{ color: "#8c8f94" }}>Előnézet: </span>
+          <span dangerouslySetInnerHTML={{ __html: preview }} />
+        </div>
+      )}
+    </div>
+  );
+};
+
 const RepeaterControl = ({
   label,
   field,
@@ -1121,6 +1252,16 @@ const RepeaterControl = ({
   // al-mezőn belüli repeater), ezért ez a lapos táblázatos nézet helyett kártyás
   // elrendezésre vált, hogy a beágyazott lista ne egy táblázat-cellába zsúfolódjon.
   const hasNestedRepeater = subFields.some((sf) => sf.type === "repeater");
+  // Kártyás (soronkénti, "rekord") nézetre váltunk akkor is, ha sok az oszlop
+  // (pl. Variánsok: nyelv/finanszírozás/ár típusa/összeg/szakosodás - egy lapos
+  // sorba már nem fér ki), vagy ha van hosszúszöveg/linkelhető oszlop, amit egy
+  // szűk táblázat-cellába zsúfolni olvashatatlan.
+  const flatColumns = subFields.filter((sf) => sf.type !== "repeater");
+  const hasLongTextColumn = subFields.some(
+    (sf) => sf.type === "textarea" || sf.type === "richtext",
+  );
+  const useStackedLayout =
+    hasNestedRepeater || hasLongTextColumn || flatColumns.length > 4;
 
   const addRow = () => {
     const newRow = {};
@@ -1175,6 +1316,25 @@ const RepeaterControl = ({
         />
       );
     }
+    if (sf.type === "richtext") {
+      return (
+        <RichTextCellControl
+          value={row[sf.key]}
+          disabled={isReadonly}
+          onChange={(v) => updateRow(index, sf.key, v)}
+        />
+      );
+    }
+    if (sf.type === "textarea") {
+      return (
+        <TextareaControl
+          value={row[sf.key] || ""}
+          rows={3}
+          onChange={(v) => updateRow(index, sf.key, v)}
+          disabled={isReadonly}
+        />
+      );
+    }
     return (
       <TextControl
         type={
@@ -1197,11 +1357,11 @@ const RepeaterControl = ({
           marginTop: "10px",
           paddingTop: "12px",
           borderTop: "1px solid #eceef0",
-          overflowX: hasNestedRepeater ? "visible" : "auto",
+          overflowX: useStackedLayout ? "visible" : "auto",
         }}>
         {rows.length === 0 ? (
           <EmptyStateRow>Még nincs hozzáadva egyetlen sor sem.</EmptyStateRow>
-        ) : hasNestedRepeater ? (
+        ) : useStackedLayout ? (
           <div
             style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
             {rows.map((row, index) => (
@@ -1225,7 +1385,16 @@ const RepeaterControl = ({
                     .map((sf) => (
                       <div
                         key={sf.key}
-                        style={{ flex: "1 1 160px", minWidth: "140px" }}>
+                        style={{
+                          flex:
+                            sf.type === "textarea" || sf.type === "richtext"
+                              ? "1 1 100%"
+                              : "1 1 160px",
+                          minWidth:
+                            sf.type === "textarea" || sf.type === "richtext"
+                              ? "100%"
+                              : "140px",
+                        }}>
                         <div
                           style={{
                             fontSize: "11px",
@@ -1679,11 +1848,19 @@ const SZEducateEditor = () => {
           const val = migratedData[field.key];
           if (val !== undefined && val !== null && val !== "") {
             if (field.type === "repeater" && typeof val === "string") {
-              const firstCol =
-                field.sub_fields && field.sub_fields.length > 0
-                  ? field.sub_fields[0].key
-                  : "col1";
-              migratedData[field.key] = [{ [firstCol]: val }];
+              // Régi sima szöveges / WYSIWYG mező repeaterré vált: a meglévő tartalmat
+              // az első hosszúszöveg/linkelhető oszlopba tesszük (ha van ilyen - az
+              // tudja HTML-ként megjeleníteni), különben az első oszlopba. Nem vész
+              // el semmi, de a valós szétbontást kézzel kell befejezni.
+              const subs = field.sub_fields || [];
+              const targetCol =
+                (
+                  subs.find(
+                    (sf) => sf.type === "richtext" || sf.type === "textarea",
+                  ) ||
+                  subs[0] || { key: "col1" }
+                ).key;
+              migratedData[field.key] = [{ [targetCol]: val }];
               needsMigration = true;
             } else if (field.type === "checkbox" && typeof val === "string") {
               migratedData[field.key] = val.split(";").map((v) => v.trim());

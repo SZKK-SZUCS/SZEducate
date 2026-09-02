@@ -499,6 +499,11 @@ class SZEducate_Schema {
 
 			const baseSubFieldTypes = [
 				{ val: 'text', text: 'Rövidszöveg' },
+				{ val: 'textarea', text: 'Hosszúszöveg' },
+				// "richtext": hosszúszöveg, amibe a Kliens szerkesztőben szövegközi
+				// hiperhivatkozás szúrható; a tárolt érték korlátozott HTML (a, strong, em, br),
+				// a frontend Repeater widget wp_kses-szel engedi át.
+				{ val: 'richtext', text: 'Hosszúszöveg (linkelhető)' },
 				{ val: 'number', text: 'Szám' },
 				{ val: 'select', text: 'Dropdown' },
 				{ val: 'boolean', text: 'Kapcsoló' },

@@ -102,6 +102,20 @@ class SZEducate_Repeater_Widget extends \Elementor\Widget_Base {
 		);
 
 		$this->add_control(
+			'merge_matching_cells',
+			[
+				'label'        => 'Azonos cellák függőleges egyesítése',
+				'type'         => \Elementor\Controls_Manager::SWITCHER,
+				'label_on'     => 'Igen',
+				'label_off'    => 'Nem',
+				'return_value' => 'yes',
+				'default'      => '',
+				'description'  => 'Oszloponként külön vizsgálva: az egymás alatt közvetlenül ismétlődő, azonos értékű cellákat egyetlen cellává vonja össze (rowspan). Üres cellákat nem egyesít.',
+				'condition'    => [ 'layout' => 'table' ],
+			]
+		);
+
+		$this->add_control(
 			'empty_text',
 			[
 				'label'     => 'Szöveg, ha nincs adat',
@@ -420,6 +434,24 @@ class SZEducate_Repeater_Widget extends \Elementor\Widget_Base {
 			return '<a href="' . esc_url( $value ) . '" target="_blank" rel="noopener noreferrer">' . esc_html( $value ) . '</a>';
 		}
 
+		// "richtext": a Kliens szerkesztő korlátozott HTML-t tárol (szövegközi linkek,
+		// félkövér, dőlt). Itt wp_kses a végső védővonal - csak ez a néhány tag mehet ki.
+		if ( $type === 'richtext' ) {
+			return wp_kses( (string) $value, array(
+				'a'      => array( 'href' => array(), 'target' => array(), 'rel' => array(), 'title' => array() ),
+				'strong' => array(),
+				'b'      => array(),
+				'em'     => array(),
+				'i'      => array(),
+				'br'     => array(),
+			) );
+		}
+
+		// "textarea": sima szöveg, de a sortöréseket meg akarjuk tartani.
+		if ( $type === 'textarea' ) {
+			return nl2br( esc_html( (string) $value ) );
+		}
+
 		if ( is_array( $value ) ) {
 			return esc_html( implode( ', ', $value ) );
 		}
@@ -490,13 +522,45 @@ class SZEducate_Repeater_Widget extends \Elementor\Widget_Base {
 			echo '</tr></thead>';
 		}
 
+		// Függőleges cellaegyesítés: oszloponként KÜLÖN végigmegyünk a sorokon, és a
+		// közvetlenül egymás alatt ismétlődő, azonos (nem üres) értékű cellákat
+		// rowspan-nal egy cellává vonjuk. $rowspans[oszlop][sor]: >1 = ennyi sort fog
+		// át, 1 = önálló cella, 0 = a fölötte lévő egyesített cella "elnyelte".
+		$merge = isset( $settings['merge_matching_cells'] ) && $settings['merge_matching_cells'] === 'yes';
+		$rowspans = array();
+		if ( $merge ) {
+			foreach ( $sub_fields as $ci => $sf ) {
+				$anchor_row = null;
+				$anchor_val = null;
+				foreach ( $rows as $ri => $row ) {
+					$raw  = isset( $row[ $sf['key'] ] ) ? $row[ $sf['key'] ] : '';
+					$norm = is_array( $raw ) ? wp_json_encode( $raw ) : (string) $raw;
+					if ( $anchor_row !== null && $norm !== '' && $norm === $anchor_val ) {
+						$rowspans[ $ci ][ $ri ] = 0;
+						$rowspans[ $ci ][ $anchor_row ]++;
+					} else {
+						$rowspans[ $ci ][ $ri ] = 1;
+						$anchor_row = $ri;
+						$anchor_val = $norm;
+					}
+				}
+			}
+		}
+
 		echo '<tbody>';
 		foreach ( $rows as $index => $row ) {
 			$stripe_class = ( $settings['striped_rows'] === 'yes' && $index % 2 === 1 ) ? ' sz-repeater-tr-odd' : '';
 			echo '<tr class="sz-repeater-tr' . $stripe_class . '">';
-			foreach ( $sub_fields as $sf ) {
-				$val = isset( $row[ $sf['key'] ] ) ? $row[ $sf['key'] ] : '';
-				echo '<td class="sz-repeater-td">' . $this->render_cell_value( $val, $sf ) . '</td>';
+			foreach ( $sub_fields as $ci => $sf ) {
+				if ( $merge && isset( $rowspans[ $ci ][ $index ] ) && $rowspans[ $ci ][ $index ] === 0 ) {
+					continue; // ezt a cellát a fölötte lévő egyesített cella lefedi
+				}
+				$val  = isset( $row[ $sf['key'] ] ) ? $row[ $sf['key'] ] : '';
+				$span = ( $merge && ! empty( $rowspans[ $ci ][ $index ] ) && $rowspans[ $ci ][ $index ] > 1 )
+					? ' rowspan="' . intval( $rowspans[ $ci ][ $index ] ) . '"'
+					: '';
+				$td_style = $merge ? ' style="vertical-align:top;"' : '';
+				echo '<td class="sz-repeater-td"' . $span . $td_style . '>' . $this->render_cell_value( $val, $sf ) . '</td>';
 			}
 			echo '</tr>';
 		}
