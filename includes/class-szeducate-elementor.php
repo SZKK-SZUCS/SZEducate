@@ -160,8 +160,12 @@ class SZEducate_Elementor {
 
 		foreach ( $keys_to_check as $key ) {
 			$actual_val = isset( $data[ $key ] ) ? $data[ $key ] : '';
-			$actual_str = is_array( $actual_val ) ? implode( ',', $actual_val ) : (string) $actual_val;
-			$is_empty = trim($actual_str) === '';
+			// A strukturált mezők (repeater / links) tömb-a-tömbben adatok - az implode()
+			// ezekre "Array to string" warningot dobott és "Array"-t adott. A JSON-alak
+			// üres tömbnél tényleg üres ("[]"), kitöltöttnél nem - így az "üres/nem üres"
+			// szabály repeaterre is helyesen működik.
+			$actual_str = is_array( $actual_val ) ? wp_json_encode( $actual_val ) : (string) $actual_val;
+			$is_empty = ( trim( $actual_str ) === '' || $actual_str === '[]' || $actual_str === '{}' );
 
 			$is_match = false;
 			switch ( $rule ) {
