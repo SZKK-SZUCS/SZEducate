@@ -656,6 +656,16 @@ class SZEducate_Pricing_Table_Widget extends \Elementor\Widget_Base {
 		return $values;
 	}
 
+	// Rendezési kulcs a szak/szakosodás névhez: kisbetűs, ékezet nélküli alak, hogy a
+	// magyar ábécé szerinti sorrend a szerver LC_COLLATE beállításától függetlenül stimmeljen.
+	private function sort_fold( $str ) {
+		$str = mb_strtolower( trim( (string) $str ), 'UTF-8' );
+		return strtr( $str, array(
+			'á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ö' => 'o',
+			'ő' => 'o', 'ú' => 'u', 'ü' => 'u', 'ű' => 'u',
+		) );
+	}
+
 	// Hány oldalra bontsuk egy munkarend $n sorát, és oldalanként hány sor jusson.
 	// Küszöb ($threshold) alatt minden egy oldalon marad; fölötte az oldalak száma
 	// felfelé kerekít($n / $threshold), a sorok pedig kiegyenlítve oszlanak el
@@ -760,21 +770,6 @@ class SZEducate_Pricing_Table_Widget extends \Elementor\Widget_Base {
 			$nested_rows = isset( $group[ $sub_variants_key ] ) && is_array( $group[ $sub_variants_key ] ) ? $group[ $sub_variants_key ] : array();
 			if ( empty( $nested_rows ) ) continue;
 
-			// Sorrend: nyelv (séma szerint), azon belül állami sor előbb.
-			usort( $nested_rows, function( $a, $b ) use ( $nested_nyelv_key, $nested_finance_key, $nyelv_opts, $state_value ) {
-				$la = isset( $a[ $nested_nyelv_key ] ) ? trim( (string) $a[ $nested_nyelv_key ] ) : '';
-				$lb = isset( $b[ $nested_nyelv_key ] ) ? trim( (string) $b[ $nested_nyelv_key ] ) : '';
-				$ia = array_search( $la, $nyelv_opts, true ); $ia = $ia === false ? 999 : $ia;
-				$ib = array_search( $lb, $nyelv_opts, true ); $ib = $ib === false ? 999 : $ib;
-				if ( $ia !== $ib ) return $ia <=> $ib;
-
-				$fa = isset( $a[ $nested_finance_key ] ) ? (string) $a[ $nested_finance_key ] : '';
-				$fb = isset( $b[ $nested_finance_key ] ) ? (string) $b[ $nested_finance_key ] : '';
-				$sa = ( $state_value !== '' && mb_stripos( $fa, $state_value, 0, 'UTF-8' ) !== false ) ? 1 : 0;
-				$sb = ( $state_value !== '' && mb_stripos( $fb, $state_value, 0, 'UTF-8' ) !== false ) ? 1 : 0;
-				return $sb - $sa;
-			} );
-
 			$rows = array();
 			foreach ( $nested_rows as $nr ) {
 				if ( ! is_array( $nr ) ) continue;
@@ -795,10 +790,18 @@ class SZEducate_Pricing_Table_Widget extends \Elementor\Widget_Base {
 				$is_default_lang = ( $lang === '' ) || ( $default_lang_value !== '' && mb_strtolower( $lang, 'UTF-8' ) === mb_strtolower( $default_lang_value, 'UTF-8' ) );
 				$display_title = ! $is_default_lang ? ( $name_with_spec . ' (' . mb_strtolower( $lang, 'UTF-8' ) . ' nyelven)' ) : $name_with_spec;
 
+				$lang_idx = array_search( $lang, $nyelv_opts, true );
+
 				$rows[] = array(
 					'display_title' => $display_title,
 					'is_state'      => $is_state,
 					'cost_display'  => $cost_display,
+					// Rendezési kulcsok (lásd a lentebbi usort-ot): 1. szak/szakosodás ABC,
+					// 2. nyelv (alap nyelv előre, utána séma-sorrend), 3. állami a önköltség előtt.
+					'_sort_name'    => $this->sort_fold( $name_with_spec ),
+					'_sort_lang'    => $is_default_lang ? 0 : 1,
+					'_sort_langidx' => $lang_idx === false ? 999 : $lang_idx,
+					'_sort_state'   => $is_state ? 0 : 1,
 				);
 			}
 
@@ -807,6 +810,21 @@ class SZEducate_Pricing_Table_Widget extends \Elementor\Widget_Base {
 				$tables_by_form[ $form ] = array();
 			}
 			$tables_by_form[ $form ] = array_merge( $tables_by_form[ $form ], $rows );
+		}
+
+		// A megjelenítési sorrend: szak/szakosodás ABC (magyar ábécé, ékezet-független),
+		// azon belül a magyar (alap) nyelvű előre, majd a séma szerinti nyelvsorrend, és
+		// legbelül az állami finanszírozású sor az önköltséges elé. A szerkesztőben megadott
+		// sorrend NEM számít (a Kliens szerkesztő erre figyelmeztet is).
+		foreach ( $tables_by_form as $form_key => $form_rows ) {
+			usort( $form_rows, function( $a, $b ) {
+				$c = strnatcmp( $a['_sort_name'], $b['_sort_name'] );
+				if ( $c !== 0 ) return $c;
+				if ( $a['_sort_lang'] !== $b['_sort_lang'] ) return $a['_sort_lang'] <=> $b['_sort_lang'];
+				if ( $a['_sort_langidx'] !== $b['_sort_langidx'] ) return $a['_sort_langidx'] <=> $b['_sort_langidx'];
+				return $a['_sort_state'] <=> $b['_sort_state'];
+			} );
+			$tables_by_form[ $form_key ] = $form_rows;
 		}
 
 		if ( empty( $forms ) ) {

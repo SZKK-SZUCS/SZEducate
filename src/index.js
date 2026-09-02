@@ -1213,7 +1213,7 @@ const RichTextCellControl = ({ value, onChange, disabled }) => {
             marginTop: "4px",
           }}>
           <Button isSecondary isSmall onClick={insertLink}>
-            🔗 Link beszúrása
+            Link beszúrása
           </Button>
           <span style={{ fontSize: "11px", color: "#8c8f94" }}>
             Jelöld ki a szöveget, majd kattints ide. Megjelenítéskor a link, a
@@ -1348,10 +1348,33 @@ const RepeaterControl = ({
     );
   };
 
+  // A Támogatási Táblázat widget a sorokat a frontenden automatikusan rendezi -
+  // az itteni sorrend nem számít. A szerkesztőt erről a Munkarend csoportok mezőnél
+  // tájékoztatjuk (ott vannak a variánsok), hogy ne pepecseljen kézi sorrenddel.
+  const isMunkarendGroups = field.key === "munkarend_csoportok";
+
   return (
     <div style={{ opacity: isReadonly ? 0.7 : 1 }}>
       <div style={{ marginBottom: "4px" }}>{label}</div>
       <HelpTextUi text={helpText} />
+      {isMunkarendGroups && (
+        <div
+          style={{
+            fontSize: "12px",
+            color: "#50575e",
+            background: "#f0f6fc",
+            border: "1px solid #c8d8e8",
+            borderRadius: "4px",
+            padding: "8px 10px",
+            marginBottom: "10px",
+            lineHeight: 1.5,
+          }}>
+          <strong>Sorrend:</strong> a Támogatási Táblázat widget a sorokat
+          automatikusan rendezi &ndash; szak / szakosodás ABC-sorrend, azon belül
+          előbb az állami, majd az önköltséges, a magyar nyelvű változat előre.
+          Az itt megadott sorrend a megjelenítést nem befolyásolja.
+        </div>
+      )}
       <div
         style={{
           marginTop: "10px",
