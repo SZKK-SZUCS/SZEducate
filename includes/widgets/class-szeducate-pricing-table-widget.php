@@ -1002,6 +1002,7 @@ class SZEducate_Pricing_Table_Widget extends \Elementor\Widget_Base {
 				var numBtns = Array.prototype.slice.call( pager.querySelectorAll('.sz-pt-pager-num') );
 				var prevBtn = pager.querySelector('.sz-pt-pager-prev');
 				var nextBtn = pager.querySelector('.sz-pt-pager-next');
+				var firstRun = true;
 
 				function showPage( n ) {
 					n = Math.max( 1, Math.min( pages, n ) );
@@ -1010,14 +1011,16 @@ class SZEducate_Pricing_Table_Widget extends \Elementor\Widget_Base {
 					rows.forEach(function(r){
 						var onPage = parseInt( r.getAttribute('data-sz-pt-page'), 10 ) === n;
 						r.classList.toggle('sz-pt-row-hidden', ! onPage);
-						if ( onPage ) {
+						if ( onPage && ! firstRun ) {
 							// Az animáció újrajátszása a most előhozott sorokon (a delay inline
-							// marad, csak a name-et pörgetjük újra egy reflow-val).
+							// marad, csak a name-et pörgetjük újra egy reflow-val). Az első
+							// megjelenítéskor nem kell - a CSS animáció már betöltéskor lefut.
 							r.style.animationName = 'none';
 							void r.offsetWidth;
 							r.style.animationName = '';
 						}
 					});
+					firstRun = false;
 
 					numBtns.forEach(function(b){
 						var active = parseInt( b.getAttribute('data-sz-page'), 10 ) === n;
