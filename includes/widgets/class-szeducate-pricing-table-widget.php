@@ -61,15 +61,24 @@ class SZEducate_Pricing_Table_Widget extends \Elementor\Widget_Base {
 		);
 		$this->add_control(
 			'nested_finance_key',
-			[ 'label' => 'Beágyazott al-mező: Finanszírozási forma', 'type' => \Elementor\Controls_Manager::TEXT, 'default' => 'finanszirozasi_forma' ]
+			[ 'label' => 'Beágyazott al-mező: Finanszírozási forma', 'type' => \Elementor\Controls_Manager::TEXT, 'default' => 'finanszirozasi-forma' ]
 		);
 		$this->add_control(
 			'nested_price_type_key',
-			[ 'label' => 'Beágyazott al-mező: Ár típusa', 'type' => \Elementor\Controls_Manager::TEXT, 'default' => 'ar_tipus' ]
+			[ 'label' => 'Beágyazott al-mező: Ár típusa', 'type' => \Elementor\Controls_Manager::TEXT, 'default' => 'ar-tipusa' ]
 		);
 		$this->add_control(
 			'nested_amount_key',
 			[ 'label' => 'Beágyazott al-mező: Összeg', 'type' => \Elementor\Controls_Manager::TEXT, 'default' => 'osszeg' ]
+		);
+		$this->add_control(
+			'nested_specialization_key',
+			[
+				'label'       => 'Beágyazott al-mező: Szakosodás',
+				'type'        => \Elementor\Controls_Manager::TEXT,
+				'default'     => 'szakosodas',
+				'description' => 'Ha ez a soronkénti al-mező ki van töltve, a szak neve "Szak neve - Szakosodás" formában jelenik meg (a nyelvi kiegészítés elé fűzve).',
+			]
 		);
 
 		$this->add_control(
@@ -141,6 +150,69 @@ class SZEducate_Pricing_Table_Widget extends \Elementor\Widget_Base {
 		$this->add_control(
 			'state_funded_cost_label',
 			[ 'label' => 'Állami sor "költség" felirata', 'type' => \Elementor\Controls_Manager::TEXT, 'default' => 'Támogatott' ]
+		);
+
+		$this->add_control(
+			'legend_show',
+			[
+				'label'     => 'Jelmagyarázat (?) a Fin. forma fejlécben',
+				'type'      => \Elementor\Controls_Manager::SWITCHER,
+				'label_on'  => 'Be',
+				'label_off' => 'Ki',
+				'default'   => 'yes',
+				'separator' => 'before',
+			]
+		);
+		$this->add_control(
+			'legend_state_text',
+			[
+				'label'     => 'Jelmagyarázat: "A" jelentése',
+				'type'      => \Elementor\Controls_Manager::TEXT,
+				'default'   => 'Államilag finanszírozott',
+				'condition' => [ 'legend_show' => 'yes' ],
+			]
+		);
+		$this->add_control(
+			'legend_self_text',
+			[
+				'label'     => 'Jelmagyarázat: "K" jelentése',
+				'type'      => \Elementor\Controls_Manager::TEXT,
+				'default'   => 'Önköltséges',
+				'condition' => [ 'legend_show' => 'yes' ],
+			]
+		);
+
+		$this->end_controls_section();
+
+		// ------------------------------------------------------------------
+		// Tartalom: Lapozás
+		// ------------------------------------------------------------------
+		$this->start_controls_section(
+			'pagination_section',
+			[ 'label' => 'Lapozás', 'tab' => \Elementor\Controls_Manager::TAB_CONTENT ]
+		);
+
+		$this->add_control(
+			'pagination_enabled',
+			[
+				'label'     => 'Hosszú táblázat lapozása',
+				'type'      => \Elementor\Controls_Manager::SWITCHER,
+				'label_on'  => 'Be',
+				'label_off' => 'Ki',
+				'default'   => 'yes',
+			]
+		);
+		$this->add_control(
+			'pagination_threshold',
+			[
+				'label'       => 'Egy oldalra fér',
+				'type'        => \Elementor\Controls_Manager::NUMBER,
+				'min'         => 1,
+				'max'         => 50,
+				'default'     => 8,
+				'description' => 'Eddig a sorszámig a munkarend egy oldalon marad. Efölött: oldalak száma = felfelé kerekít(sorok / ez az érték), a sorok pedig egyenletesen oszlanak el az oldalak közt (pl. 8 fölött 9-16 sor = 2 oldal).',
+				'condition'   => [ 'pagination_enabled' => 'yes' ],
+			]
 		);
 
 		$this->end_controls_section();
@@ -416,6 +488,47 @@ class SZEducate_Pricing_Table_Widget extends \Elementor\Widget_Base {
 		$this->end_controls_section();
 
 		// ------------------------------------------------------------------
+		// Stílus: Lapozó
+		// ------------------------------------------------------------------
+		$this->start_controls_section(
+			'style_pager_section',
+			[ 'label' => 'Lapozó', 'tab' => \Elementor\Controls_Manager::TAB_STYLE ]
+		);
+
+		$this->add_control(
+			'pager_align',
+			[
+				'label'     => 'Igazítás',
+				'type'      => \Elementor\Controls_Manager::CHOOSE,
+				'options'   => [
+					'flex-start' => [ 'title' => 'Balra', 'icon' => 'eicon-text-align-left' ],
+					'center'     => [ 'title' => 'Középre', 'icon' => 'eicon-text-align-center' ],
+					'flex-end'   => [ 'title' => 'Jobbra', 'icon' => 'eicon-text-align-right' ],
+				],
+				'default'   => 'flex-end',
+				'selectors' => [ '{{WRAPPER}} .sz-pt-pager' => 'justify-content: {{VALUE}};' ],
+			]
+		);
+		$this->add_control(
+			'pager_active_bg',
+			[ 'label' => 'Aktív oldal háttér', 'type' => \Elementor\Controls_Manager::COLOR, 'default' => '#50ADC9', 'selectors' => [ '{{WRAPPER}} .sz-pt-pager-btn.is-active' => 'background-color: {{VALUE}}; border-color: {{VALUE}};' ] ]
+		);
+		$this->add_control(
+			'pager_active_text',
+			[ 'label' => 'Aktív oldal szöveg', 'type' => \Elementor\Controls_Manager::COLOR, 'default' => '#FFFFFF', 'selectors' => [ '{{WRAPPER}} .sz-pt-pager-btn.is-active' => 'color: {{VALUE}};' ] ]
+		);
+		$this->add_control(
+			'pager_text',
+			[ 'label' => 'Inaktív gomb szöveg', 'type' => \Elementor\Controls_Manager::COLOR, 'default' => '#242943', 'selectors' => [ '{{WRAPPER}} .sz-pt-pager-btn' => 'color: {{VALUE}};' ] ]
+		);
+		$this->add_control(
+			'pager_border_color',
+			[ 'label' => 'Gomb keret', 'type' => \Elementor\Controls_Manager::COLOR, 'default' => '#C7D3DD', 'selectors' => [ '{{WRAPPER}} .sz-pt-pager-btn' => 'border-color: {{VALUE}};' ] ]
+		);
+
+		$this->end_controls_section();
+
+		// ------------------------------------------------------------------
 		// Stílus: Konténer
 		// ------------------------------------------------------------------
 		$this->start_controls_section(
@@ -543,6 +656,21 @@ class SZEducate_Pricing_Table_Widget extends \Elementor\Widget_Base {
 		return $values;
 	}
 
+	// Hány oldalra bontsuk egy munkarend $n sorát, és oldalanként hány sor jusson.
+	// Küszöb ($threshold) alatt minden egy oldalon marad; fölötte az oldalak száma
+	// felfelé kerekít($n / $threshold), a sorok pedig kiegyenlítve oszlanak el
+	// (felfelé kerekít($n / oldalak)) - így 8-as küszöbnél 9-16 sor = 2 oldal (5-8/oldal),
+	// 17-24 = 3 oldal, stb. A tényleges oldalindex sosem lépi túl az oldalszámot.
+	private function paginate_plan( $n, $threshold ) {
+		$threshold = max( 1, (int) $threshold );
+		if ( $n <= $threshold ) {
+			return array( 'pages' => 1, 'per_page' => max( 1, $n ) );
+		}
+		$pages    = (int) ceil( $n / $threshold );
+		$per_page = (int) ceil( $n / $pages );
+		return array( 'pages' => $pages, 'per_page' => $per_page );
+	}
+
 	protected function render() {
 		$settings = $this->get_settings_for_display();
 
@@ -550,9 +678,10 @@ class SZEducate_Pricing_Table_Widget extends \Elementor\Widget_Base {
 		$sub_munkarend_key  = ! empty( $settings['sub_munkarend_key'] ) ? trim( $settings['sub_munkarend_key'] ) : 'munkarend';
 		$sub_variants_key   = ! empty( $settings['sub_variants_key'] ) ? trim( $settings['sub_variants_key'] ) : 'variansok';
 		$nested_nyelv_key   = ! empty( $settings['nested_nyelv_key'] ) ? trim( $settings['nested_nyelv_key'] ) : 'nyelv';
-		$nested_finance_key = ! empty( $settings['nested_finance_key'] ) ? trim( $settings['nested_finance_key'] ) : 'finanszirozasi_forma';
-		$nested_price_key   = ! empty( $settings['nested_price_type_key'] ) ? trim( $settings['nested_price_type_key'] ) : 'ar_tipus';
+		$nested_finance_key = ! empty( $settings['nested_finance_key'] ) ? trim( $settings['nested_finance_key'] ) : 'finanszirozasi-forma';
+		$nested_price_key   = ! empty( $settings['nested_price_type_key'] ) ? trim( $settings['nested_price_type_key'] ) : 'ar-tipusa';
 		$nested_amount_key  = ! empty( $settings['nested_amount_key'] ) ? trim( $settings['nested_amount_key'] ) : 'osszeg';
+		$nested_spec_key    = ! empty( $settings['nested_specialization_key'] ) ? trim( $settings['nested_specialization_key'] ) : 'szakosodas';
 		$state_value        = isset( $settings['state_funded_value'] ) ? trim( $settings['state_funded_value'] ) : 'Állami';
 		$duration_key       = ! empty( $settings['duration_key'] ) ? trim( $settings['duration_key'] ) : 'felevek_szama';
 
@@ -561,6 +690,13 @@ class SZEducate_Pricing_Table_Widget extends \Elementor\Widget_Base {
 		$state_badge      = $settings['state_funded_badge'] !== '' ? $settings['state_funded_badge'] : 'A';
 		$self_badge       = $settings['self_funded_badge'] !== '' ? $settings['self_funded_badge'] : 'K';
 		$state_cost_label = $settings['state_funded_cost_label'] !== '' ? $settings['state_funded_cost_label'] : 'Támogatott';
+
+		$legend_show       = ( ! isset( $settings['legend_show'] ) ) || $settings['legend_show'] === 'yes';
+		$legend_state_text = isset( $settings['legend_state_text'] ) && $settings['legend_state_text'] !== '' ? $settings['legend_state_text'] : 'Államilag finanszírozott';
+		$legend_self_text  = isset( $settings['legend_self_text'] ) && $settings['legend_self_text'] !== '' ? $settings['legend_self_text'] : 'Önköltséges';
+
+		$pagination_enabled   = ( ! isset( $settings['pagination_enabled'] ) ) || $settings['pagination_enabled'] === 'yes';
+		$pagination_threshold = isset( $settings['pagination_threshold'] ) && intval( $settings['pagination_threshold'] ) > 0 ? intval( $settings['pagination_threshold'] ) : 8;
 
 		// Az Elementor SWITCHER "kikapcsolt" állapotának tényleges tárolt értéke üres string
 		// ('') - NEM a szöveges 'no' - ezért itt kifejezetten a 'yes'-re kell vizsgálni,
@@ -650,8 +786,14 @@ class SZEducate_Pricing_Table_Widget extends \Elementor\Widget_Base {
 				$amount = isset( $nr[ $nested_amount_key ] ) ? $nr[ $nested_amount_key ] : '';
 				$cost_display = $is_state ? $state_cost_label : $this->format_cost( $amount, $price_type );
 
+				// A név felépítése: "Szak neve - Szakosodás (nyelv nyelven)". A szakosodás
+				// csak akkor jelenik meg, ha az adott variáns-soron ki van töltve; a nyelvi
+				// kiegészítés pedig csak a nem-alap nyelvnél - a kettő egymástól függetlenül.
+				$spec = isset( $nr[ $nested_spec_key ] ) ? trim( (string) $nr[ $nested_spec_key ] ) : '';
+				$name_with_spec = $spec !== '' ? ( $title . ' - ' . $spec ) : $title;
+
 				$is_default_lang = ( $lang === '' ) || ( $default_lang_value !== '' && mb_strtolower( $lang, 'UTF-8' ) === mb_strtolower( $default_lang_value, 'UTF-8' ) );
-				$display_title = ! $is_default_lang ? ( $title . ' (' . mb_strtolower( $lang, 'UTF-8' ) . ' nyelven)' ) : $title;
+				$display_title = ! $is_default_lang ? ( $name_with_spec . ' (' . mb_strtolower( $lang, 'UTF-8' ) . ' nyelven)' ) : $name_with_spec;
 
 				$rows[] = array(
 					'display_title' => $display_title,
@@ -689,30 +831,42 @@ class SZEducate_Pricing_Table_Widget extends \Elementor\Widget_Base {
 					<?php endforeach; ?>
 				</div>
 			<?php endif; ?>
-			<?php foreach ( $forms as $i => $form ) : $rows = $tables_by_form[ $form ]; ?>
-				<div class="sz-pt-table-wrap sz-pt-panel" data-sz-panel="<?php echo esc_attr( sanitize_title( $form ) ); ?>" <?php echo $i !== 0 ? 'style="display:none;"' : ''; ?>>
+			<?php
+			$badge_label    = $settings['col_badge_label'] ?: 'Fin. forma';
+			$name_label     = $settings['col_name_label'] ?: 'Szak neve';
+			$cost_label     = $settings['col_cost_label'] ?: 'Önköltség';
+			$duration_label = $settings['col_duration_label'] ?: 'Képzési idő';
+			?>
+			<?php foreach ( $forms as $i => $form ) :
+				$rows        = $tables_by_form[ $form ];
+				$panel_slug  = sanitize_title( $form );
+				$plan        = $pagination_enabled
+					? $this->paginate_plan( count( $rows ), $pagination_threshold )
+					: array( 'pages' => 1, 'per_page' => max( 1, count( $rows ) ) );
+				$has_pager   = $plan['pages'] > 1;
+			?>
+				<div class="sz-pt-panel" data-sz-panel="<?php echo esc_attr( $panel_slug ); ?>" <?php echo $i !== 0 ? 'style="display:none;"' : ''; ?>>
+					<div class="sz-pt-table-wrap">
 					<table class="sz-pt-table">
 						<thead>
 							<tr>
-								<th class="sz-pt-col-badge"><?php echo esc_html( $settings['col_badge_label'] ?: 'Fin. forma' ); ?></th>
-								<th class="sz-pt-col-name"><?php echo esc_html( $settings['col_name_label'] ?: 'Szak neve' ); ?></th>
-								<th class="sz-pt-col-cost"><?php echo esc_html( $settings['col_cost_label'] ?: 'Önköltség' ); ?></th>
-								<th class="sz-pt-col-duration"><?php echo esc_html( $settings['col_duration_label'] ?: 'Képzési idő' ); ?></th>
+								<th class="sz-pt-col-badge"><?php echo esc_html( $badge_label ); ?><?php if ( $legend_show ) : ?><span class="sz-pt-legend" tabindex="0" role="button" aria-label="Finanszírozási forma jelmagyarázat">?<span class="sz-pt-legend-pop"><b><?php echo esc_html( $state_badge ); ?></b> = <?php echo esc_html( $legend_state_text ); ?><br><b><?php echo esc_html( $self_badge ); ?></b> = <?php echo esc_html( $legend_self_text ); ?></span></span><?php endif; ?></th>
+								<th class="sz-pt-col-name"><?php echo esc_html( $name_label ); ?></th>
+								<th class="sz-pt-col-cost"><?php echo esc_html( $cost_label ); ?></th>
+								<th class="sz-pt-col-duration"><?php echo esc_html( $duration_label ); ?></th>
 							</tr>
 						</thead>
 						<tbody>
-							<?php
-							$badge_label    = $settings['col_badge_label'] ?: 'Fin. forma';
-							$name_label     = $settings['col_name_label'] ?: 'Szak neve';
-							$cost_label     = $settings['col_cost_label'] ?: 'Önköltség';
-							$duration_label = $settings['col_duration_label'] ?: 'Képzési idő';
-							?>
 							<?php foreach ( $rows as $row_index => $r ) :
+								$page_no   = (int) floor( $row_index / $plan['per_page'] ) + 1;
+								// A lépcsőzetes animáció késleltetése az oldalon belüli pozíció szerint
+								// megy, nem a teljes listabeli indexszel - így a 2. oldal sorai is
+								// elölről kezdik a lépcsőt, amikor a lapozó előhozza őket.
 								$row_style = ( $row_anim_enabled && $row_anim_stagger > 0 )
-									? ' style="animation-delay:' . esc_attr( round( $row_index * $row_anim_stagger ) ) . 'ms;"'
+									? ' style="animation-delay:' . esc_attr( round( ( $row_index % $plan['per_page'] ) * $row_anim_stagger ) ) . 'ms;"'
 									: '';
 							?>
-								<tr class="sz-pt-row"<?php echo $row_style; ?>>
+								<tr class="sz-pt-row<?php echo ( $has_pager && $page_no !== 1 ) ? ' sz-pt-row-hidden' : ''; ?>" data-sz-pt-page="<?php echo esc_attr( $page_no ); ?>"<?php echo $row_style; ?>>
 									<td class="sz-pt-col-badge" data-label="<?php echo esc_attr( $badge_label ); ?>"><span class="sz-pt-badge<?php echo $r['is_state'] ? ' sz-pt-badge-state' : ' sz-pt-badge-self'; ?>"><?php echo esc_html( $r['is_state'] ? $state_badge : $self_badge ); ?></span></td>
 									<td class="sz-pt-col-name" data-label="<?php echo esc_attr( $name_label ); ?>"><?php echo esc_html( $r['display_title'] ); ?></td>
 									<td class="sz-pt-col-cost" data-label="<?php echo esc_attr( $cost_label ); ?>"><?php echo esc_html( $r['cost_display'] ); ?></td>
@@ -721,6 +875,16 @@ class SZEducate_Pricing_Table_Widget extends \Elementor\Widget_Base {
 							<?php endforeach; ?>
 						</tbody>
 					</table>
+					</div>
+					<?php if ( $has_pager ) : ?>
+						<div class="sz-pt-pager" data-sz-pager="<?php echo esc_attr( $panel_slug ); ?>" data-sz-pages="<?php echo esc_attr( $plan['pages'] ); ?>">
+							<button type="button" class="sz-pt-pager-btn sz-pt-pager-prev" aria-label="Előző oldal" disabled>&lsaquo;</button>
+							<?php for ( $p = 1; $p <= $plan['pages']; $p++ ) : ?>
+								<button type="button" class="sz-pt-pager-btn sz-pt-pager-num<?php echo $p === 1 ? ' is-active' : ''; ?>" data-sz-page="<?php echo esc_attr( $p ); ?>" aria-label="<?php echo esc_attr( $p . '. oldal' ); ?>"<?php echo $p === 1 ? ' aria-current="true"' : ''; ?>><?php echo esc_html( $p ); ?></button>
+							<?php endfor; ?>
+							<button type="button" class="sz-pt-pager-btn sz-pt-pager-next" aria-label="Következő oldal">&rsaquo;</button>
+						</div>
+					<?php endif; ?>
 				</div>
 			<?php endforeach; ?>
 		</div>
@@ -753,6 +917,30 @@ class SZEducate_Pricing_Table_Widget extends \Elementor\Widget_Base {
 				to   { opacity: 1; transform: translateY(0); }
 			}
 			<?php endif; ?>
+
+			/* Lapozó által elrejtett sorok - a mobil media query display:block szabályát is
+			   felül kell írnia, ezért kap az azonos elemszelektor + extra osztály nagyobb
+			   specificitást. */
+			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-table tr.sz-pt-row-hidden { display: none; }
+
+			/* Jelmagyarázat "?" a Fin. forma fejlécben. A színek itt fixek (sötét fejléc,
+			   világos buborék) - szándékosan NEM Elementor-vezéreltek, hogy egy be nem
+			   állított Stílus-szekció se hagyja olvashatatlanul. */
+			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-col-badge { position: relative; }
+			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-legend { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; margin-left: 6px; border: 1px solid currentColor; border-radius: 50%; font-size: 11px; font-weight: 700; line-height: 1; cursor: help; vertical-align: middle; text-transform: none; }
+			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-legend:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-legend-pop { position: absolute; top: calc(100% + 8px); left: 0; min-width: 220px; max-width: 280px; padding: 10px 12px; background: #ffffff; color: #242943; font-size: 12px; font-weight: 400; line-height: 1.5; text-align: left; text-transform: none; letter-spacing: normal; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.18); opacity: 0; visibility: hidden; transform: translateY(-4px); transition: opacity .15s ease, transform .15s ease; z-index: 30; pointer-events: none; }
+			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-legend-pop b { font-weight: 700; }
+			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-legend:hover .sz-pt-legend-pop,
+			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-legend:focus-within .sz-pt-legend-pop { opacity: 1; visibility: visible; transform: translateY(0); }
+
+			/* Lapozó - a gombszínek Elementor-vezéreltek (Stílus > Lapozó), itt csak a szerkezet. */
+			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-pager { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 14px; }
+			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-pager-btn { cursor: pointer; font: inherit; min-width: 34px; height: 34px; padding: 0 9px; border: 1px solid; border-radius: 6px; background: transparent; display: inline-flex; align-items: center; justify-content: center; line-height: 1; transition: background-color .15s ease, color .15s ease, border-color .15s ease; }
+			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-pager-btn:disabled { opacity: .4; cursor: default; }
+			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-pager-btn.is-active { cursor: default; }
+			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-pager-btn:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+
 			@media (max-width: 640px) {
 				#<?php echo esc_attr( $widget_id ); ?> .sz-pt-table thead { display: none; }
 				#<?php echo esc_attr( $widget_id ); ?> .sz-pt-table,
@@ -800,6 +988,60 @@ class SZEducate_Pricing_Table_Widget extends \Elementor\Widget_Base {
 				}
 			}
 
+			// --- Lapozó munkarend-fülönként --------------------------------------------
+			// Minden sor a szerver által kiszámolt oldalszámot hordozza (data-sz-pt-page);
+			// itt csak láthatóságot kapcsolgatunk, nincs újrarendezés. Fülváltáskor a
+			// panel lapozója visszaáll az 1. oldalra.
+			var pagers = Array.prototype.slice.call( root.querySelectorAll('.sz-pt-pager') );
+
+			pagers.forEach(function(pager){
+				var panel = pager.closest('.sz-pt-panel');
+				if ( ! panel ) return;
+				var pages = parseInt( pager.getAttribute('data-sz-pages'), 10 ) || 1;
+				var rows = Array.prototype.slice.call( panel.querySelectorAll('.sz-pt-row') );
+				var numBtns = Array.prototype.slice.call( pager.querySelectorAll('.sz-pt-pager-num') );
+				var prevBtn = pager.querySelector('.sz-pt-pager-prev');
+				var nextBtn = pager.querySelector('.sz-pt-pager-next');
+
+				function showPage( n ) {
+					n = Math.max( 1, Math.min( pages, n ) );
+					pager._szPage = n;
+
+					rows.forEach(function(r){
+						var onPage = parseInt( r.getAttribute('data-sz-pt-page'), 10 ) === n;
+						r.classList.toggle('sz-pt-row-hidden', ! onPage);
+						if ( onPage ) {
+							// Az animáció újrajátszása a most előhozott sorokon (a delay inline
+							// marad, csak a name-et pörgetjük újra egy reflow-val).
+							r.style.animationName = 'none';
+							void r.offsetWidth;
+							r.style.animationName = '';
+						}
+					});
+
+					numBtns.forEach(function(b){
+						var active = parseInt( b.getAttribute('data-sz-page'), 10 ) === n;
+						b.classList.toggle('is-active', active);
+						if ( active ) { b.setAttribute('aria-current', 'true'); }
+						else { b.removeAttribute('aria-current'); }
+					});
+					if ( prevBtn ) prevBtn.disabled = ( n === 1 );
+					if ( nextBtn ) nextBtn.disabled = ( n === pages );
+				}
+
+				pager._szShowPage = showPage;
+
+				numBtns.forEach(function(b){
+					b.addEventListener('click', function(){
+						showPage( parseInt( b.getAttribute('data-sz-page'), 10 ) || 1 );
+					});
+				});
+				if ( prevBtn ) prevBtn.addEventListener('click', function(){ showPage( ( pager._szPage || 1 ) - 1 ); });
+				if ( nextBtn ) nextBtn.addEventListener('click', function(){ showPage( ( pager._szPage || 1 ) + 1 ); });
+
+				showPage( 1 );
+			});
+
 			tabs.forEach(function(tab){
 				tab.addEventListener('click', function(){
 					tabs.forEach(function(t){ t.classList.remove('sz-pt-tab-active'); t.setAttribute('aria-selected', 'false'); });
@@ -810,6 +1052,8 @@ class SZEducate_Pricing_Table_Widget extends \Elementor\Widget_Base {
 					panels.forEach(function(p){
 						p.style.display = ( p.getAttribute('data-sz-panel') === selected ) ? '' : 'none';
 					});
+
+					pagers.forEach(function(pg){ if ( pg._szShowPage ) pg._szShowPage( 1 ); });
 
 					positionIndicator( tab, true );
 				});
