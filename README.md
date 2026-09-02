@@ -151,6 +151,13 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.25
+
+Hotfix a 0.9.24-hez
+
+- Támogatási Táblázat: a sorok a frontenden mostantól automatikusan rendeződnek – szak / szakosodás ABC-sorrend (magyar ábécé, ékezet-független), azon belül a magyar nyelvű változat előre, majd a séma szerinti nyelvsorrend, legbelül az állami finanszírozás az önköltséges előtt. A Kliens szerkesztő a Munkarend csoportok mezőnél tájékoztat erről.
+- A „Link beszúrása" gombról lekerült az emoji.
+
 ### 0.9.24
 
 Megbeszélés 2026-09-02 – támogatási táblázat, intézményi pontok, indulás időszaka
