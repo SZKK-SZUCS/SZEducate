@@ -151,6 +151,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.28
+
+- Státusz widget: a meghirdetési időszakok (szeptemberi általános / pótfelvételi / februári keresztféléves) újragondolt megjelenítése. A widget a mai dátum alapján kiemeli a **soron következő indulást**, a többit halványan alálistázza („Később: …"). Új „Meghirdetési időszakok" szekció: időszakonként rövid címke + tájékoztató jelentkezési határidő (hónap/nap) a sorrendhez, előre kitöltött alapértékekkel. Ki is kapcsolható (akkor egyszerű felsorolás).
+
 ### 0.9.27
 
 - Repeater widget: **Oszloponkénti igazítás** Stílus-szekció – a kiválasztott Repeater mező minden oszlopához külön állítható a szöveg vízszintes (balra/középre/jobbra) és függőleges (felülre/középre/alulra) igazítása, reszponzívan is. Az összevont (rowspan) cellák igazítása inline `!important`-tal középre-középre kényszerítve marad.
