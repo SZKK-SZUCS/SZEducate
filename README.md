@@ -151,6 +151,16 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.30
+
+- Okos Kereső widget – teljes stílus-átdolgozás. Eddig szinte minden a JS által generált HTML-be volt inline-olva, ezért az Elementor Stílus-vezérlők nem hatottak. Mostantól:
+  - **Helyőrző szöveg** színe és tipográfiája állítható (`::placeholder`).
+  - **Legördülő találati lista**: konténer háttér / keret / lekerekítés / árnyék / max. magasság; találati elem tipográfia, szín, hover-háttér, hover-szövegszín, belső margó, elválasztó vonal.
+  - **Pöttyök**: méret, térköz, lekerekítés, szín (aktív / inaktív) – vagy teljesen kikapcsolhatók.
+  - **Aktív / inaktív megkülönböztetés** kapcsoló – kikapcsolva minden találat egyformán jelenik meg.
+  - Kategória-találat és a „Nincs találat" / „Összes találat" sorok színei is állíthatók.
+  - Mellékesen javítva: a beviteli mező háttere / tipográfiája (font-méret) korábban az inline stílus miatt nem volt felülírható.
+
 ### 0.9.29
 
 - Szaklista widget: a listaelemek **Hover** stílusa mostantól az **inaktív** szakokra is érvényes (eddig csak az aktívakra vonatkozott, mert a hover-szelektor a `.sz-course-active:hover`-t célozta – most a közös `.sz-course-link:hover`-t).
