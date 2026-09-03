@@ -188,7 +188,7 @@ class SZEducate_Status_Widget extends \Elementor\Widget_Base {
 		$this->add_responsive_control(
 			'alignment',
 			[
-				'label' => 'Igazítás',
+				'label' => 'Vízszintes igazítás',
 				'type' => \Elementor\Controls_Manager::CHOOSE,
 				'options' => [
 					'flex-start' => [ 'title' => 'Balra', 'icon' => 'eicon-text-align-left' ],
@@ -197,6 +197,42 @@ class SZEducate_Status_Widget extends \Elementor\Widget_Base {
 				],
 				'selectors' => [
 					'{{WRAPPER}} .szeducate-status-wrapper' => 'justify-content: {{VALUE}};',
+				],
+			]
+		);
+
+		$this->add_responsive_control(
+			'valignment',
+			[
+				'label'       => 'Függőleges igazítás',
+				'type'        => \Elementor\Controls_Manager::CHOOSE,
+				'options'     => [
+					'flex-start' => [ 'title' => 'Fent', 'icon' => 'eicon-v-align-top' ],
+					'center'     => [ 'title' => 'Középen', 'icon' => 'eicon-v-align-middle' ],
+					'flex-end'   => [ 'title' => 'Lent', 'icon' => 'eicon-v-align-bottom' ],
+					'stretch'    => [ 'title' => 'Nyújtott', 'icon' => 'eicon-v-align-stretch' ],
+				],
+				'description' => 'A "Középen" / "Lent" akkor látszik, ha a widget magasabb a tartalmánál - ehhez kapcsold be alább a magasság-kitöltést.',
+				'selectors'   => [
+					'{{WRAPPER}} .szeducate-status-wrapper' => 'align-items: {{VALUE}}; align-content: {{VALUE}};',
+				],
+			]
+		);
+
+		$this->add_control(
+			'fill_height',
+			[
+				'label'        => 'Töltse ki a rendelkezésre álló magasságot',
+				'type'         => \Elementor\Controls_Manager::SWITCHER,
+				'label_on'     => 'Igen',
+				'label_off'    => 'Nem',
+				'return_value' => 'yes',
+				'default'      => '',
+				'description'  => 'Ha a widget egy magasabb konténerben ül (pl. hero kép fölött), ezzel a tartalom a "Függőleges igazítás" szerint tolható fel / le.',
+				'selectors'    => [
+					'{{WRAPPER}}'                              => 'align-self: stretch;',
+					'{{WRAPPER}} .elementor-widget-container'  => 'height: 100%;',
+					'{{WRAPPER}} .szeducate-status-wrapper'    => 'min-height: 100%;',
 				],
 			]
 		);

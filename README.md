@@ -151,6 +151,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.32
+
+- Státusz widget: új **Függőleges igazítás** vezérlő (Fent / Középen / Lent / Nyújtott – `align-items` + `align-content`) és **„Töltse ki a rendelkezésre álló magasságot"** kapcsoló. Így egy magasabb konténerben (pl. hero kép fölött) a badge-blokk függőlegesen is pozicionálható. A meglévő „Igazítás" átnevezve „Vízszintes igazítás"-ra.
+
 ### 0.9.31
 
 - Új **SZEducate Képzés Videó** widget: egy „Link" típusú séma-mezőben (alapból `video`) tárolt hivatkozást beágyazott lejátszóként jeleníti meg. YouTube / Vimeo / stb. a WordPress beépített oEmbed-en át (nincs API-kulcs), közvetlen `.mp4`/`.webm` fájl natív `<video>`-ként, minden más nyers hivatkozásként. Vezérlők: képarány (16:9 / 4:3 / 21:9 / 1:1 / 9:16), max. szélesség, igazítás, lekerekítés, árnyék; a lejátszó reszponzívan kitölti az arány-dobozt. Ingyenes Elementorral is működik.
