@@ -151,6 +151,14 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.33
+
+- Státusz widget – elrendezés újragondolva. A markup mostantól fix szerkezetű: a wrapper mindig függőleges (oszlop), fent a badge-ek sora, alul a „Később" sor. Így:
+  - a **„Vízszintes igazítás"** a badge-eket ÉS a „Később" sort is igazítja (eddig a kiegészítő szöveg mindig balra maradt);
+  - a **„Függőleges igazítás"** és a **„Vízszintes igazítás"** iránytól függetlenül ugyanazt jelenti (nem cserélik a jelentésüket a régi row/column kapcsoló miatt);
+  - a badge-ek nem nyúlnak/torzulnak, előreláthatóan stackelnek;
+  - a régi „Irány" → **„A badge-ek elrendezése"** (csak a két badge-re hat), új **„Térköz a 'Később' sor előtt"** vezérlő. A „Függőleges igazítás" csak akkor jelenik meg, ha a magasság-kitöltés be van kapcsolva.
+
 ### 0.9.32
 
 - Státusz widget: új **Függőleges igazítás** vezérlő (Fent / Középen / Lent / Nyújtott – `align-items` + `align-content`) és **„Töltse ki a rendelkezésre álló magasságot"** kapcsoló. Így egy magasabb konténerben (pl. hero kép fölött) a badge-blokk függőlegesen is pozicionálható. A meglévő „Igazítás" átnevezve „Vízszintes igazítás"-ra.
