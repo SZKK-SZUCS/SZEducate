@@ -185,36 +185,74 @@ class SZEducate_Status_Widget extends \Elementor\Widget_Base {
 			]
 		);
 
+		// A markup fix szerkezete: a wrapper MINDIG függőleges (oszlop), benne fent a
+		// badge-ek sora (.sz-status-badges), alul a "Később" sor. Így a "Vízszintes
+		// igazítás" a wrapperen az align-items (= vízszintes tengely oszlop-módban), a
+		// "Függőleges igazítás" a justify-content (= függőleges tengely) - a kettő nem
+		// cserél jelentést, ellentétben a korábbi row/column kapcsolóval.
 		$this->add_responsive_control(
 			'alignment',
 			[
-				'label' => 'Vízszintes igazítás',
-				'type' => \Elementor\Controls_Manager::CHOOSE,
-				'options' => [
+				'label'       => 'Vízszintes igazítás',
+				'type'        => \Elementor\Controls_Manager::CHOOSE,
+				'default'     => 'flex-start',
+				'options'     => [
 					'flex-start' => [ 'title' => 'Balra', 'icon' => 'eicon-text-align-left' ],
-					'center' => [ 'title' => 'Középre', 'icon' => 'eicon-text-align-center' ],
-					'flex-end' => [ 'title' => 'Jobbra', 'icon' => 'eicon-text-align-right' ],
+					'center'     => [ 'title' => 'Középre', 'icon' => 'eicon-text-align-center' ],
+					'flex-end'   => [ 'title' => 'Jobbra', 'icon' => 'eicon-text-align-right' ],
 				],
-				'selectors' => [
-					'{{WRAPPER}} .szeducate-status-wrapper' => 'justify-content: {{VALUE}};',
+				'description' => 'A badge-ek ÉS a "Később" sor vízszintes igazítása.',
+				'selectors'   => [
+					'{{WRAPPER}} .szeducate-status-wrapper' => 'align-items: {{VALUE}};',
+					// A .sz-status-badges-en: sor-módban a justify-content igazít vízszintesen,
+					// oszlop-módban az align-items - mindkettőt beállítjuk, hogy bármelyik
+					// irányban a jó tengely dolgozzon (a másik ilyenkor ártalmatlan).
+					'{{WRAPPER}} .sz-status-badges'         => 'justify-content: {{VALUE}}; align-items: {{VALUE}};',
+				],
+			]
+		);
+
+		$this->add_control(
+			'direction',
+			[
+				'label'       => 'A badge-ek elrendezése',
+				'type'        => \Elementor\Controls_Manager::SELECT,
+				'default'     => 'row',
+				'options'     => [
+					'row'    => 'Egymás mellett',
+					'column' => 'Egymás alatt',
+				],
+				'description' => 'A státusz-badge és a "Következő indulás" badge egymás mellett vagy egymás alatt. (A "Később" sor mindig alul van.)',
+				'selectors'   => [
+					'{{WRAPPER}} .sz-status-badges' => 'flex-direction: {{VALUE}};',
 				],
 			]
 		);
 
 		$this->add_responsive_control(
-			'valignment',
+			'gap',
 			[
-				'label'       => 'Függőleges igazítás',
-				'type'        => \Elementor\Controls_Manager::CHOOSE,
-				'options'     => [
-					'flex-start' => [ 'title' => 'Fent', 'icon' => 'eicon-v-align-top' ],
-					'center'     => [ 'title' => 'Középen', 'icon' => 'eicon-v-align-middle' ],
-					'flex-end'   => [ 'title' => 'Lent', 'icon' => 'eicon-v-align-bottom' ],
-					'stretch'    => [ 'title' => 'Nyújtott', 'icon' => 'eicon-v-align-stretch' ],
+				'label'      => 'Térköz a badge-ek között',
+				'type'       => \Elementor\Controls_Manager::SLIDER,
+				'size_units' => [ 'px', 'em', 'rem' ],
+				'range'      => [ 'px' => [ 'min' => 0, 'max' => 50 ] ],
+				'default'    => [ 'unit' => 'px', 'size' => 8 ],
+				'selectors'  => [
+					'{{WRAPPER}} .sz-status-badges' => 'gap: {{SIZE}}{{UNIT}};',
 				],
-				'description' => 'A "Középen" / "Lent" akkor látszik, ha a widget magasabb a tartalmánál - ehhez kapcsold be alább a magasság-kitöltést.',
-				'selectors'   => [
-					'{{WRAPPER}} .szeducate-status-wrapper' => 'align-items: {{VALUE}}; align-content: {{VALUE}};',
+			]
+		);
+
+		$this->add_responsive_control(
+			'later_gap',
+			[
+				'label'      => 'Térköz a "Később" sor előtt',
+				'type'       => \Elementor\Controls_Manager::SLIDER,
+				'size_units' => [ 'px', 'em' ],
+				'range'      => [ 'px' => [ 'min' => 0, 'max' => 40 ] ],
+				'default'    => [ 'unit' => 'px', 'size' => 6 ],
+				'selectors'  => [
+					'{{WRAPPER}} .sz-period-later' => 'margin-top: {{SIZE}}{{UNIT}};',
 				],
 			]
 		);
@@ -228,41 +266,31 @@ class SZEducate_Status_Widget extends \Elementor\Widget_Base {
 				'label_off'    => 'Nem',
 				'return_value' => 'yes',
 				'default'      => '',
-				'description'  => 'Ha a widget egy magasabb konténerben ül (pl. hero kép fölött), ezzel a tartalom a "Függőleges igazítás" szerint tolható fel / le.',
+				'separator'    => 'before',
+				'description'  => 'Ha a widget egy magasabb konténerben ül (pl. hero kép fölött), ez teszi lehetővé a függőleges pozicionálást.',
 				'selectors'    => [
-					'{{WRAPPER}}'                              => 'align-self: stretch;',
-					'{{WRAPPER}} .elementor-widget-container'  => 'height: 100%;',
-					'{{WRAPPER}} .szeducate-status-wrapper'    => 'min-height: 100%;',
-				],
-			]
-		);
-
-		$this->add_control(
-			'direction',
-			[
-				'label' => 'Irány (Több adat esetén)',
-				'type' => \Elementor\Controls_Manager::SELECT,
-				'options' => [
-					'row' => 'Egymás mellett',
-					'column' => 'Egymás alatt',
-				],
-				'default' => 'row',
-				'selectors' => [
-					'{{WRAPPER}} .szeducate-status-wrapper' => 'flex-direction: {{VALUE}};',
+					'{{WRAPPER}}'                             => 'align-self: stretch;',
+					'{{WRAPPER}} .elementor-widget-container' => 'height: 100%;',
+					'{{WRAPPER}} .szeducate-status-wrapper'   => 'min-height: 100%;',
 				],
 			]
 		);
 
 		$this->add_responsive_control(
-			'gap',
+			'valignment',
 			[
-				'label' => 'Térköz az elemek között',
-				'type' => \Elementor\Controls_Manager::SLIDER,
-				'size_units' => [ 'px', 'em', 'rem' ],
-				'range' => [ 'px' => [ 'min' => 0, 'max' => 50 ] ],
-				'default' => [ 'unit' => 'px', 'size' => 15 ],
-				'selectors' => [
-					'{{WRAPPER}} .szeducate-status-wrapper' => 'gap: {{SIZE}}{{UNIT}};',
+				'label'       => 'Függőleges igazítás',
+				'type'        => \Elementor\Controls_Manager::CHOOSE,
+				'default'     => 'flex-start',
+				'options'     => [
+					'flex-start' => [ 'title' => 'Fent', 'icon' => 'eicon-v-align-top' ],
+					'center'     => [ 'title' => 'Középen', 'icon' => 'eicon-v-align-middle' ],
+					'flex-end'   => [ 'title' => 'Lent', 'icon' => 'eicon-v-align-bottom' ],
+				],
+				'condition'   => [ 'fill_height' => 'yes' ],
+				'description' => 'Hova kerüljön a tartalom a widget magasságán belül.',
+				'selectors'   => [
+					'{{WRAPPER}} .szeducate-status-wrapper' => 'justify-content: {{VALUE}};',
 				],
 			]
 		);
@@ -512,48 +540,42 @@ class SZEducate_Status_Widget extends \Elementor\Widget_Base {
 		$css_group = "display:inline-flex; align-items:stretch; overflow:hidden;";
 		$css_part = "display:flex; align-items:center; padding:8px 14px;";
 
-		echo '<div class="szeducate-status-wrapper" style="display:flex; flex-wrap:wrap;">';
+		// A badge-eket és a "Később" sort előbb stringbe építjük, hogy a fix szerkezetet
+		// (wrapper = oszlop → badge-ek sora + alatta a "Később" sor) egyben tudjuk kiírni.
+		$badges_html = '';
 
 		if ( $is_active ) {
-			$main_text = 'JELENTKEZÉS NYITVA';
+			$main_text   = 'JELENTKEZÉS NYITVA';
 			$state_class = 'sz-state-active';
 		} else {
-			$main_text = $is_expired ? 'JELENTKEZÉS LEZÁRULT' : 'JELENLEG NEM INDUL';
+			$main_text   = $is_expired ? 'JELENTKEZÉS LEZÁRULT' : 'JELENLEG NEM INDUL';
 			$state_class = 'sz-state-inactive';
 		}
 
-		echo "<div class='sz-status-group {$state_class}' style='{$css_group}'>";
-			echo "<div class='sz-status-part sz-status-main' style='{$css_part}'>";
-			echo $icon_calendar . esc_html( $main_text );
-			echo "</div>";
-			
-			if ( $is_active && ! empty( $expiry ) && strtotime( $expiry ) !== false ) {
-
-				$formatted_date = date('Y. m. d.', strtotime($expiry)) . ' határidő';
-				echo "<div class='sz-status-part sz-status-sub' style='{$css_part}'>";
-				echo esc_html( $formatted_date );
-				echo "</div>";
-			}
-		echo "</div>";
+		$badges_html .= "<div class='sz-status-group {$state_class}' style='{$css_group}'>";
+		$badges_html .= "<div class='sz-status-part sz-status-main' style='{$css_part}'>" . $icon_calendar . esc_html( $main_text ) . "</div>";
+		if ( $is_active && ! empty( $expiry ) && strtotime( $expiry ) !== false ) {
+			$formatted_date = date( 'Y. m. d.', strtotime( $expiry ) ) . ' határidő';
+			$badges_html   .= "<div class='sz-status-part sz-status-sub' style='{$css_part}'>" . esc_html( $formatted_date ) . "</div>";
+		}
+		$badges_html .= "</div>";
 
 		$checked_periods = is_array( $start_period )
 			? $start_period
 			: array_map( 'trim', preg_split( '/;/', (string) $start_period ) );
-		$ordered = $this->resolve_periods( $checked_periods, isset( $settings['periods'] ) ? $settings['periods'] : array() );
+		$ordered         = $this->resolve_periods( $checked_periods, isset( $settings['periods'] ) ? $settings['periods'] : array() );
+		$periods_enabled = ( ! isset( $settings['periods_enabled'] ) ) || $settings['periods_enabled'] === 'yes';
+		$later_html      = '';
 
 		if ( ! empty( $ordered ) ) {
-			$periods_enabled = ( ! isset( $settings['periods_enabled'] ) ) || $settings['periods_enabled'] === 'yes';
-
 			if ( $periods_enabled ) {
 				$next        = array_shift( $ordered );
 				$next_prefix = isset( $settings['next_prefix'] ) ? trim( $settings['next_prefix'] ) : 'Következő indulás:';
 				$next_text   = $next_prefix !== '' ? ( $next_prefix . ' ' . $next['label'] ) : $next['label'];
 
-				echo "<div class='sz-status-group sz-group-info' style='{$css_group}'>";
-					echo "<div class='sz-status-part sz-status-main' style='{$css_part}'>";
-					echo $icon_calendar . esc_html( $next_text );
-					echo "</div>";
-				echo "</div>";
+				$badges_html .= "<div class='sz-status-group sz-group-info' style='{$css_group}'>";
+				$badges_html .= "<div class='sz-status-part sz-status-main' style='{$css_part}'>" . $icon_calendar . esc_html( $next_text ) . "</div>";
+				$badges_html .= "</div>";
 
 				$show_later = ( ! isset( $settings['show_later'] ) ) || $settings['show_later'] === 'yes';
 				if ( $show_later && ! empty( $ordered ) ) {
@@ -561,19 +583,20 @@ class SZEducate_Status_Widget extends \Elementor\Widget_Base {
 					$later_labels = array();
 					foreach ( $ordered as $p ) { $later_labels[] = $p['label']; }
 					$later_text = ( $later_prefix !== '' ? $later_prefix . ' ' : '' ) . implode( ' · ', $later_labels );
-					echo "<div class='sz-period-later' style='width:100%; padding:2px 2px 0; font-size:12px; line-height:1.4;'>" . esc_html( $later_text ) . "</div>";
+					$later_html = "<div class='sz-period-later' style='font-size:12px; line-height:1.4;'>" . esc_html( $later_text ) . "</div>";
 				}
 			} else {
 				$all_labels = array();
 				foreach ( $ordered as $p ) { $all_labels[] = $p['label']; }
-				echo "<div class='sz-status-group sz-group-info' style='{$css_group}'>";
-					echo "<div class='sz-status-part sz-status-main' style='{$css_part}'>";
-					echo $icon_info . esc_html( implode( ', ', $all_labels ) );
-					echo "</div>";
-				echo "</div>";
+				$badges_html .= "<div class='sz-status-group sz-group-info' style='{$css_group}'>";
+				$badges_html .= "<div class='sz-status-part sz-status-main' style='{$css_part}'>" . $icon_info . esc_html( implode( ', ', $all_labels ) ) . "</div>";
+				$badges_html .= "</div>";
 			}
 		}
 
+		echo '<div class="szeducate-status-wrapper" style="display:flex; flex-direction:column;">';
+			echo '<div class="sz-status-badges" style="display:flex; flex-wrap:wrap;">' . $badges_html . '</div>';
+			echo $later_html;
 		echo '</div>';
 	}
 }
