@@ -151,6 +151,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.37
+
+- Hotfix: a „SZEducate: Feltételes fülek" vezérlő-szekció mostantól **csak a klasszikus** Harmonika (`accordion`) widgetbe kerül be. A **nested** Harmonikába való beszúrása a szerkesztőben megbontotta a widget belső `items` ↔ gyerek-konténer szinkronját (fantom, üres konténerek). Nested harmonikán a fül tartalmi **konténerére** tett SZEducate Láthatóság a megoldás – a frontend fejléc-eltávolítás (0.9.36) ehhez változatlanul működik.
+
 ### 0.9.36
 
 - Harmonika feltételes fülek (0.9.35) kiterjesztve az **újabb, „nested" Harmonika** widgetre is (a mostani Elementorban ez az alapértelmezett). A „SZEducate: Feltételes fülek" szekció generikus hookon jelenik meg mindkét változatnál. Nested harmonikán ráadásul elég a fül **tartalmi konténerére** rátenni a szokásos SZEducate Láthatóságot – ilyenkor a hozzá tartozó fül-fejléc is eltűnik (nem marad árva cím). A kimenet-szűrő a `.e-n-accordion-item` (`<details>`) elemeket is kezeli.

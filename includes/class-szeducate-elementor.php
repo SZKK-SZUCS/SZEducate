@@ -215,26 +215,21 @@ class SZEducate_Elementor {
 
 	// --- Harmonika (accordion) füleinek feltételes elrejtése -------------------------
 
-	// Generikus szakasz-vég hook: az első lezárt szakasz után egyszer beszúrjuk a
-	// "Feltételes fülek" szekciót - a klasszikus 'accordion' és az újabb
-	// 'nested-accordion' widgethez egyaránt (eltérő szakasz-azonosítók miatt).
+	// Csak a KLASSZIKUS 'accordion' widgethez szúrjuk be a "Feltételes fülek" szekciót.
+	// A 'nested-accordion' a saját "items" repeaterét és a gyerek-konténereit szigorúan
+	// szinkronban tartja - egy külső vezérlő-szekció beszúrása a szerkesztőben megbontja
+	// (fantom konténerek). Ott a fül tartalmi KONTÉNERÉRE tett SZEducate Láthatóság a
+	// megoldás (lásd filter_accordion_conditional_tabs get_children() ága).
 	public function maybe_add_accordion_item_visibility( $element, $section_id, $args ) {
 		if ( ! is_object( $element ) || ! method_exists( $element, 'get_name' ) ) return;
-		$name = $element->get_name();
-		if ( $name !== 'accordion' && $name !== 'nested-accordion' ) return;
+		if ( $element->get_name() !== 'accordion' ) return;
 
 		static $added = array();
-		static $seen  = array();
 		$oid = spl_object_id( $element );
 		if ( isset( $added[ $oid ] ) ) return;
 
-		$seen[ $oid ] = isset( $seen[ $oid ] ) ? $seen[ $oid ] + 1 : 1;
-
-		// Ideális pozíció: közvetlenül az elemek/fülek szakasza után. Ha azt az
-		// azonosítót nem ismerjük fel (Elementor-verziónként eltérhet), legkésőbb a
-		// 3. lezárt szakasz után szúrjuk be - így sosem marad ki, és nem a legelejére kerül.
-		$items_sections = array( 'section_tabs', 'section_items', 'section_layout', 'layout_section' );
-		if ( in_array( $section_id, $items_sections, true ) || $seen[ $oid ] >= 3 ) {
+		// A klasszikus Accordion elemei a 'section_tabs' szakaszban vannak - utána szúrjuk be.
+		if ( $section_id === 'section_tabs' ) {
 			$added[ $oid ] = true;
 			$this->add_accordion_item_visibility_section( $element );
 		}
@@ -255,7 +250,7 @@ class SZEducate_Elementor {
 			'szeducate_accordion_note',
 			array(
 				'type'            => \Elementor\Controls_Manager::RAW_HTML,
-				'raw'             => 'Csak Képzés (sz_course) oldalon hat. A "Fül sorszáma" a fenti elem-lista pozíciója (1 = első). Ha a feltétel teljesül, a fül fejléce ÉS tartalma is eltűnik. (Klasszikus és "nested" harmonikára egyaránt.)',
+				'raw'             => 'Csak Képzés (sz_course) oldalon hat. A "Fül sorszáma" a fenti "Harmonika elemek" lista pozíciója (1 = első). Ha a feltétel teljesül, a fül fejléce ÉS tartalma is eltűnik.',
 				'content_classes' => 'elementor-descriptor',
 			)
 		);
