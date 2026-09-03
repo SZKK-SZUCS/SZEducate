@@ -151,6 +151,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.27
+
+- Repeater widget: **Oszloponkénti igazítás** Stílus-szekció – a kiválasztott Repeater mező minden oszlopához külön állítható a szöveg vízszintes (balra/középre/jobbra) és függőleges (felülre/középre/alulra) igazítása, reszponzívan is. Az összevont (rowspan) cellák igazítása inline `!important`-tal középre-középre kényszerítve marad.
+
 ### 0.9.26
 
 - Repeater widget: az összevont (több sort átfogó) celláknál a tartalom vízszintesen és függőlegesen is középre igazodik; a többi cella marad felül.
