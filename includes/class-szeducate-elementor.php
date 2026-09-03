@@ -19,9 +19,11 @@ class SZEducate_Elementor {
 		add_filter( 'elementor/frontend/column/should_render', array( $this, 'should_render_element' ), 10, 2 );
 		add_filter( 'elementor/frontend/container/should_render', array( $this, 'should_render_element' ), 10, 2 );
 
-		// Az alap Elementor "Harmonika" widget füleit egyenként SZEducate-láthatósághoz
-		// kötő extra vezérlő + a rejtett fülek szerver oldali kiszűrése a kimenetből.
-		add_action( 'elementor/element/accordion/section_tabs/after_section_end', array( $this, 'add_accordion_item_visibility' ), 10, 2 );
+		// Az Elementor "Harmonika" widget (klasszikus 'accordion' ÉS az újabb
+		// 'nested-accordion') füleit egyenként SZEducate-láthatósághoz kötő extra
+		// vezérlő + a rejtett fülek szerver oldali kiszűrése a kimenetből. Generikus
+		// hookot használunk, mert a két widget szakasz-azonosítói eltérnek.
+		add_action( 'elementor/element/after_section_end', array( $this, 'maybe_add_accordion_item_visibility' ), 10, 3 );
 		add_filter( 'elementor/widget/render_content', array( $this, 'filter_accordion_conditional_tabs' ), 10, 2 );
 	}
 
@@ -163,6 +165,31 @@ class SZEducate_Elementor {
 		$element->end_controls_section();
 	}
 
+	// A "SZEducate Láthatóság" szekció beállításai alapján el kell-e rejteni az elemet.
+	// ($settings = az elem get_settings_for_display()-e, $data = a képzés adatai.)
+	private function element_visibility_hidden( $settings, $data ) {
+		if ( empty( $settings['szeducate_hide_if_empty_keys'] ) || ! is_array( $settings['szeducate_hide_if_empty_keys'] ) ) {
+			return false;
+		}
+		$keys   = $settings['szeducate_hide_if_empty_keys'];
+		$rule   = isset( $settings['szeducate_hide_rule'] ) ? $settings['szeducate_hide_rule'] : 'empty';
+		$target = isset( $settings['szeducate_hide_value'] ) ? $settings['szeducate_hide_value'] : '';
+		$logic  = isset( $settings['szeducate_hide_logic'] ) ? $settings['szeducate_hide_logic'] : 'all_match';
+
+		$match_count = 0;
+		$total_keys  = count( $keys );
+		foreach ( $keys as $key ) {
+			$actual = isset( $data[ $key ] ) ? $data[ $key ] : '';
+			if ( $this->sz_rule_matches( $actual, $rule, $target ) ) {
+				$match_count++;
+			}
+		}
+
+		return ( $logic === 'all_match' )
+			? ( $total_keys > 0 && $match_count === $total_keys )
+			: ( $match_count > 0 );
+	}
+
 	public function should_render_element( $should_render, $element ) {
 		if ( ! $should_render ) return $should_render;
 
@@ -183,33 +210,37 @@ class SZEducate_Elementor {
 		$data = SZEducate_Client::get_course_data_for_post( $post_id );
 		if ( ! is_array( $data ) ) return false;
 
-		$keys_to_check = $settings['szeducate_hide_if_empty_keys'];
-		$rule          = isset( $settings['szeducate_hide_rule'] ) ? $settings['szeducate_hide_rule'] : 'empty';
-		$target_val    = isset( $settings['szeducate_hide_value'] ) ? $settings['szeducate_hide_value'] : '';
-		$logic         = isset( $settings['szeducate_hide_logic'] ) ? $settings['szeducate_hide_logic'] : 'all_match';
-
-		$match_count = 0;
-		$total_keys  = count( $keys_to_check );
-
-		foreach ( $keys_to_check as $key ) {
-			$actual_val = isset( $data[ $key ] ) ? $data[ $key ] : '';
-			if ( $this->sz_rule_matches( $actual_val, $rule, $target_val ) ) {
-				$match_count++;
-			}
-		}
-
-		if ( $logic === 'all_match' ) {
-			if ( $total_keys > 0 && $match_count === $total_keys ) return false;
-		} else {
-			if ( $match_count > 0 ) return false;
-		}
-
-		return $should_render;
+		return $this->element_visibility_hidden( $settings, $data ) ? false : $should_render;
 	}
 
 	// --- Harmonika (accordion) füleinek feltételes elrejtése -------------------------
 
-	public function add_accordion_item_visibility( $element, $args ) {
+	// Generikus szakasz-vég hook: az első lezárt szakasz után egyszer beszúrjuk a
+	// "Feltételes fülek" szekciót - a klasszikus 'accordion' és az újabb
+	// 'nested-accordion' widgethez egyaránt (eltérő szakasz-azonosítók miatt).
+	public function maybe_add_accordion_item_visibility( $element, $section_id, $args ) {
+		if ( ! is_object( $element ) || ! method_exists( $element, 'get_name' ) ) return;
+		$name = $element->get_name();
+		if ( $name !== 'accordion' && $name !== 'nested-accordion' ) return;
+
+		static $added = array();
+		static $seen  = array();
+		$oid = spl_object_id( $element );
+		if ( isset( $added[ $oid ] ) ) return;
+
+		$seen[ $oid ] = isset( $seen[ $oid ] ) ? $seen[ $oid ] + 1 : 1;
+
+		// Ideális pozíció: közvetlenül az elemek/fülek szakasza után. Ha azt az
+		// azonosítót nem ismerjük fel (Elementor-verziónként eltérhet), legkésőbb a
+		// 3. lezárt szakasz után szúrjuk be - így sosem marad ki, és nem a legelejére kerül.
+		$items_sections = array( 'section_tabs', 'section_items', 'section_layout', 'layout_section' );
+		if ( in_array( $section_id, $items_sections, true ) || $seen[ $oid ] >= 3 ) {
+			$added[ $oid ] = true;
+			$this->add_accordion_item_visibility_section( $element );
+		}
+	}
+
+	private function add_accordion_item_visibility_section( $element ) {
 		$options = $this->get_field_options();
 
 		$element->start_controls_section(
@@ -224,7 +255,7 @@ class SZEducate_Elementor {
 			'szeducate_accordion_note',
 			array(
 				'type'            => \Elementor\Controls_Manager::RAW_HTML,
-				'raw'             => 'Csak Képzés (sz_course) oldalon hat. A "Fül sorszáma" a fenti "Harmonika elemek" listában elfoglalt pozíció (1 = első). Ha a feltétel teljesül, a fül fejléce ÉS tartalma is eltűnik.',
+				'raw'             => 'Csak Képzés (sz_course) oldalon hat. A "Fül sorszáma" a fenti elem-lista pozíciója (1 = első). Ha a feltétel teljesül, a fül fejléce ÉS tartalma is eltűnik. (Klasszikus és "nested" harmonikára egyaránt.)',
 				'content_classes' => 'elementor-descriptor',
 			)
 		);
@@ -277,13 +308,17 @@ class SZEducate_Elementor {
 	}
 
 	public function filter_accordion_conditional_tabs( $content, $widget ) {
-		if ( ! is_object( $widget ) || ! method_exists( $widget, 'get_name' ) || $widget->get_name() !== 'accordion' ) {
+		if ( ! is_object( $widget ) || ! method_exists( $widget, 'get_name' ) ) {
+			return $content;
+		}
+		$name = $widget->get_name();
+		if ( $name !== 'accordion' && $name !== 'nested-accordion' ) {
 			return $content;
 		}
 		if ( \Elementor\Plugin::$instance->editor->is_edit_mode() ) {
 			return $content;
 		}
-		if ( strpos( $content, 'elementor-accordion-item' ) === false ) {
+		if ( strpos( $content, 'accordion' ) === false ) {
 			return $content;
 		}
 
@@ -295,7 +330,11 @@ class SZEducate_Elementor {
 		$settings = $widget->get_settings_for_display();
 		$rules    = isset( $settings['szeducate_conditional_tabs'] ) && is_array( $settings['szeducate_conditional_tabs'] )
 			? $settings['szeducate_conditional_tabs'] : array();
-		if ( empty( $rules ) ) {
+
+		$children = ( $name === 'nested-accordion' && method_exists( $widget, 'get_children' ) )
+			? $widget->get_children() : array();
+
+		if ( empty( $rules ) && empty( $children ) ) {
 			return $content;
 		}
 
@@ -306,6 +345,8 @@ class SZEducate_Elementor {
 		}
 
 		$hide = array();
+
+		// 1. A widgetre felvett "SZEducate: Feltételes fülek" szabályok (sorszám alapján).
 		foreach ( $rules as $r ) {
 			$n   = isset( $r['tab_number'] ) ? intval( $r['tab_number'] ) : 0;
 			$key = isset( $r['field_key'] ) ? trim( (string) $r['field_key'] ) : '';
@@ -317,6 +358,21 @@ class SZEducate_Elementor {
 				$hide[ $n ] = true;
 			}
 		}
+
+		// 2. Nested harmonika: a fül tartalmi konténerére felvett SZEducate Láthatóság is
+		//    számít - a konténer tartalma amúgy is elrejtődik (should_render_element),
+		//    itt a hozzá tartozó fül-fejlécet is kivesszük, hogy ne maradjon árva cím.
+		if ( is_array( $children ) ) {
+			$ci = 0;
+			foreach ( $children as $child ) {
+				$ci++;
+				if ( ! is_object( $child ) || ! method_exists( $child, 'get_settings_for_display' ) ) continue;
+				if ( $this->element_visibility_hidden( $child->get_settings_for_display(), $data ) ) {
+					$hide[ $ci ] = true;
+				}
+			}
+		}
+
 		if ( empty( $hide ) ) {
 			return $content;
 		}
@@ -324,7 +380,8 @@ class SZEducate_Elementor {
 		return $this->remove_accordion_items( $content, array_keys( $hide ) );
 	}
 
-	// A megadott (1-alapú) sorszámú .elementor-accordion-item elemeket kiveszi a HTML-ből.
+	// A megadott (1-alapú) sorszámú harmonika-fül elemeket kiveszi a HTML-ből
+	// (klasszikus: .elementor-accordion-item ; nested: .e-n-accordion-item = <details>).
 	// Ha a szerkezet nem az elvárt, vagy a DOM-feldolgozás hibázik, az eredetit adja vissza.
 	private function remove_accordion_items( $html, $indexes ) {
 		if ( ! class_exists( 'DOMDocument' ) || trim( $html ) === '' ) {
@@ -349,14 +406,20 @@ class SZEducate_Elementor {
 			return $html;
 		}
 
+		$has_class = function( $cls ) {
+			return 'contains(concat(" ", normalize-space(@class), " "), " ' . $cls . ' ")';
+		};
+
 		$xpath = new DOMXPath( $dom );
-		$items = $xpath->query(
-			'//*[contains(concat(" ", normalize-space(@class), " "), " elementor-accordion ")]' .
-			'/*[contains(concat(" ", normalize-space(@class), " "), " elementor-accordion-item ")]'
-		);
+		$items = null;
+		foreach ( array( 'elementor-accordion', 'e-n-accordion' ) as $wrap ) {
+			$item = ( $wrap === 'e-n-accordion' ) ? 'e-n-accordion-item' : 'elementor-accordion-item';
+			$q = $xpath->query( '//*[' . $has_class( $wrap ) . ']/*[' . $has_class( $item ) . ']' );
+			if ( $q && $q->length > 0 ) { $items = $q; break; }
+		}
 		if ( ! $items || $items->length === 0 ) {
-			// Tartalék: bármely accordion-item, dokumentum-sorrendben.
-			$items = $xpath->query( '//*[contains(concat(" ", normalize-space(@class), " "), " elementor-accordion-item ")]' );
+			// Tartalék: bármely *-accordion-item, dokumentum-sorrendben.
+			$items = $xpath->query( '//*[' . $has_class( 'elementor-accordion-item' ) . ' or ' . $has_class( 'e-n-accordion-item' ) . ']' );
 		}
 		if ( ! $items || $items->length === 0 ) {
 			return $html;
