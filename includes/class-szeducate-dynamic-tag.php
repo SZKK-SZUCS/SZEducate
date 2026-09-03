@@ -54,12 +54,30 @@ class SZEducate_Dynamic_Tag extends \Elementor\Core\DynamicTags\Tag {
 		$this->add_control(
 			'array_separator',
 			array(
-				'label'     => 'Elválasztó (több elem esetén)',
-				'type'      => \Elementor\Controls_Manager::TEXT,
-				'default'   => ', ',
-				'condition' => array( 'field_key!' => '' ),
+				'label'       => 'Elválasztó (több elem esetén)',
+				'type'        => \Elementor\Controls_Manager::TEXT,
+				'default'     => ', ',
+				'description' => 'Pl. ", " vagy " • ". Írj \n-t, ha minden elem külön sorba kerüljön. A jelölőnégyzet (több opciós) mezőkre akkor is hat, ha az érték ";"-vel elválasztott szövegként van tárolva.',
+				'condition'   => array( 'field_key!' => '' ),
 			)
 		);
+	}
+
+	// A megadott kulcsú séma-mező jelölőnégyzet (több opció) típusú-e - ezeknél a
+	// ";"-vel elválasztott szöveges tárolást is listaként kezeljük, hogy az
+	// elválasztó-vezérlő rá is hasson.
+	private function is_multi_value_field( $key ) {
+		$schema = json_decode( get_option( 'szeducate_local_schema', '[]' ), true );
+		if ( ! is_array( $schema ) ) return false;
+		foreach ( $schema as $group ) {
+			if ( empty( $group['fields'] ) || ! is_array( $group['fields'] ) ) continue;
+			foreach ( $group['fields'] as $field ) {
+				if ( isset( $field['key'] ) && $field['key'] === $key ) {
+					return isset( $field['type'] ) && $field['type'] === 'checkbox';
+				}
+			}
+		}
+		return false;
 	}
 
 	public function render() {
@@ -77,23 +95,45 @@ class SZEducate_Dynamic_Tag extends \Elementor\Core\DynamicTags\Tag {
 
 		$value = $data[ $field_key ];
 
+		// Több opciós mező ";"-vel elválasztott szövegként tárolva -> listává alakítjuk,
+		// hogy ne nyersen (a tárolt ";"-kkel) íródjon ki, hanem az elválasztó-vezérlő
+		// szerint. (A séma-szintű tárolás mezőnként ingadozik: hol JSON tömb, hol string.)
+		if ( is_string( $value ) && strpos( $value, ';' ) !== false && $this->is_multi_value_field( $field_key ) ) {
+			$parts = array_values( array_filter( array_map( 'trim', explode( ';', $value ) ), 'strlen' ) );
+			if ( count( $parts ) > 1 ) {
+				$value = $parts;
+			}
+		}
+
 		if ( is_array( $value ) ) {
 			// Struktúrált (repeater / links) mezőknél a tömb elemei maguk is tömbök -
 			// ezekre a "Repeater" ill. "Linkek" Widget való, itt (sima szöveges Dynamic
 			// Tag-ként) csak egyszerű, lapos listákat tudunk értelmesen megjeleníteni.
-			// Enélkül az implode() "Array"-t írt volna ki minden elemre.
 			$is_flat = true;
 			foreach ( $value as $v ) {
 				if ( is_array( $v ) ) { $is_flat = false; break; }
 			}
 			if ( ! $is_flat ) return;
 
-			$separator = $this->get_settings( 'array_separator' );
-			echo esc_html( implode( $separator, $value ) );
+			$parts = array();
+			foreach ( $value as $v ) {
+				$v = trim( (string) $v );
+				if ( $v !== '' ) $parts[] = esc_html( $v );
+			}
+			if ( empty( $parts ) ) return;
+
+			$raw_sep = $this->get_settings( 'array_separator' );
+			if ( $raw_sep === null || $raw_sep === '' ) $raw_sep = ', ';
+			// "\n" a szövegmezőben (két karakter) VAGY valódi sortörés -> <br>
+			$glue = ( strpos( $raw_sep, '\\n' ) !== false || strpos( $raw_sep, "\n" ) !== false )
+				? '<br>'
+				: esc_html( $raw_sep );
+
+			echo implode( $glue, $parts );
 		} elseif ( is_bool( $value ) ) {
 			echo $value ? 'Igen' : 'Nem';
 		} else {
-			echo wp_kses_post( $value ); 
+			echo wp_kses_post( $value );
 		}
 	}
 }
