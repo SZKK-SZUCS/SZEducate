@@ -151,6 +151,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.34
+
+- „Képzés Adat" Dynamic Tag: az **„Elválasztó (több elem esetén)"** vezérlő mostantól a jelölőnégyzet (több opciós) mezőkre akkor is hat, ha az érték `;`-vel elválasztott szövegként van tárolva (eddig ilyenkor nyersen, a tárolt `;`-kkel íródott ki, pl. `Győr; Budapest; …`). Az elemek külön-külön escape-elődnek; `\n` elválasztóval minden elem külön sorba (`<br>`) kerül.
+
 ### 0.9.33
 
 - Státusz widget – elrendezés újragondolva. A markup mostantól fix szerkezetű: a wrapper mindig függőleges (oszlop), fent a badge-ek sora, alul a „Később" sor. Így:
