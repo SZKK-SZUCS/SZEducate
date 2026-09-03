@@ -50,6 +50,133 @@ class SZEducate_Status_Widget extends \Elementor\Widget_Base {
 
 		$this->end_controls_section();
 
+		// --- Meghirdetési időszakok: "Következő indulás" kiemelése ---
+		$this->start_controls_section(
+			'periods_section',
+			[
+				'label' => 'Meghirdetési időszakok',
+				'tab'   => \Elementor\Controls_Manager::TAB_CONTENT,
+			]
+		);
+
+		$this->add_control(
+			'periods_enabled',
+			[
+				'label'        => 'Következő indulás kiemelése',
+				'type'         => \Elementor\Controls_Manager::SWITCHER,
+				'label_on'     => 'Be',
+				'label_off'    => 'Ki',
+				'return_value' => 'yes',
+				'default'      => 'yes',
+				'description'  => 'A mai dátum alapján a soron következő meghirdetést emeli ki, a többit halványan alálistázza. Kikapcsolva egyszerű felsorolás jelenik meg.',
+			]
+		);
+
+		$this->add_control(
+			'next_prefix',
+			[
+				'label'   => '"Következő" felirat',
+				'type'    => \Elementor\Controls_Manager::TEXT,
+				'default' => 'Következő indulás:',
+			]
+		);
+
+		$this->add_control(
+			'show_later',
+			[
+				'label'        => 'A további időszakok listázása',
+				'type'         => \Elementor\Controls_Manager::SWITCHER,
+				'label_on'     => 'Be',
+				'label_off'    => 'Ki',
+				'return_value' => 'yes',
+				'default'      => 'yes',
+				'condition'    => [ 'periods_enabled' => 'yes' ],
+			]
+		);
+
+		$this->add_control(
+			'later_prefix',
+			[
+				'label'     => '"Később" felirat',
+				'type'      => \Elementor\Controls_Manager::TEXT,
+				'default'   => 'Később:',
+				'condition' => [ 'periods_enabled' => 'yes', 'show_later' => 'yes' ],
+			]
+		);
+
+		$period_repeater = new \Elementor\Repeater();
+		$period_repeater->add_control(
+			'opt_value',
+			[
+				'label'       => 'Séma-opció (pontos szöveg)',
+				'type'        => \Elementor\Controls_Manager::TEXT,
+				'description' => 'Ahogy az "Indulás időszaka" mezőben szerepel.',
+			]
+		);
+		$period_repeater->add_control(
+			'short_label',
+			[
+				'label' => 'Rövid címke',
+				'type'  => \Elementor\Controls_Manager::TEXT,
+			]
+		);
+		$period_repeater->add_control(
+			'deadline_month',
+			[
+				'label'   => 'Jelentkezési határidő – hónap',
+				'type'    => \Elementor\Controls_Manager::SELECT,
+				'default' => '2',
+				'options' => [
+					'1' => 'Január', '2' => 'Február', '3' => 'Március', '4' => 'Április',
+					'5' => 'Május', '6' => 'Június', '7' => 'Július', '8' => 'Augusztus',
+					'9' => 'Szeptember', '10' => 'Október', '11' => 'November', '12' => 'December',
+				],
+			]
+		);
+		$period_repeater->add_control(
+			'deadline_day',
+			[
+				'label'   => 'Nap',
+				'type'    => \Elementor\Controls_Manager::NUMBER,
+				'min'     => 1,
+				'max'     => 31,
+				'default' => 15,
+			]
+		);
+
+		$this->add_control(
+			'periods',
+			[
+				'label'       => 'Időszakok és határidők',
+				'type'        => \Elementor\Controls_Manager::REPEATER,
+				'fields'      => $period_repeater->get_controls(),
+				'title_field' => '{{{ short_label || opt_value }}}',
+				'description' => 'A "határidő" csak a sorrendhez kell (melyik indulás jön előbb). Nem kell pontosnak lennie, a hónap általában elég.',
+				'default'     => [
+					[
+						'opt_value'      => 'Szeptemberi általános eljárás',
+						'short_label'    => 'Szeptemberi felvételi',
+						'deadline_month' => '2',
+						'deadline_day'   => 15,
+					],
+					[
+						'opt_value'      => 'Szeptemberi pótfelvételi eljárás',
+						'short_label'    => 'Pótfelvételi',
+						'deadline_month' => '8',
+						'deadline_day'   => 7,
+					],
+					[
+						'opt_value'      => 'Februári keresztféléves eljárás',
+						'short_label'    => 'Keresztféléves',
+						'deadline_month' => '11',
+						'deadline_day'   => 15,
+					],
+				],
+			]
+		);
+
+		$this->end_controls_section();
+
 		$this->start_controls_section(
 			'style_layout_section',
 			[
@@ -230,7 +357,7 @@ class SZEducate_Status_Widget extends \Elementor\Widget_Base {
 		$this->add_control(
 			'color_info_bg',
 			[
-				'label' => 'Indulás (Info blokk) - Háttér',
+				'label' => 'Következő indulás - Háttér',
 				'type' => \Elementor\Controls_Manager::COLOR,
 				'default' => '#242943',
 				'selectors' => [ '{{WRAPPER}} .sz-group-info .sz-status-main' => 'background-color: {{VALUE}};' ],
@@ -240,14 +367,71 @@ class SZEducate_Status_Widget extends \Elementor\Widget_Base {
 		$this->add_control(
 			'color_info_text',
 			[
-				'label' => 'Indulás (Info blokk) - Szöveg',
+				'label' => 'Következő indulás - Szöveg',
 				'type' => \Elementor\Controls_Manager::COLOR,
 				'default' => '#FFFFFF',
 				'selectors' => [ '{{WRAPPER}} .sz-group-info .sz-status-main' => 'color: {{VALUE}}; fill: {{VALUE}};' ],
 			]
 		);
 
+		$this->add_control(
+			'color_later_text',
+			[
+				'label' => '"Később" felsorolás - Szöveg',
+				'type' => \Elementor\Controls_Manager::COLOR,
+				'default' => '#6B7280',
+				'selectors' => [ '{{WRAPPER}} .sz-period-later' => 'color: {{VALUE}};' ],
+			]
+		);
+
 		$this->end_controls_section();
+	}
+
+	// A bejelölt indulási időszakokat a "Időszakok és határidők" repeater alapján
+	// rendezi: melyik jön előbb a mai naptól számítva (év végén körbefordulva). A
+	// repeaterben nem szereplő, de bejelölt értékek a lista végére kerülnek, eredeti
+	// szövegükkel. Visszaad: [ ['label'=>string, 'ts'=>int], ... ], a legközelebbi elöl.
+	private function resolve_periods( $checked, $periods_cfg ) {
+		$checked = array_values( array_filter( array_map( 'trim', (array) $checked ) ) );
+		if ( empty( $checked ) ) return array();
+
+		$today    = strtotime( current_time( 'Y-m-d' ) );
+		$cur_year = (int) date( 'Y', $today );
+		$out      = array();
+		$seen_lc  = array();
+
+		foreach ( (array) $periods_cfg as $p ) {
+			if ( ! is_array( $p ) ) continue;
+			$ov = isset( $p['opt_value'] ) ? trim( (string) $p['opt_value'] ) : '';
+			if ( $ov === '' ) continue;
+
+			$hit = false;
+			foreach ( $checked as $c ) {
+				if ( mb_strtolower( $c, 'UTF-8' ) === mb_strtolower( $ov, 'UTF-8' ) ) { $hit = true; break; }
+			}
+			if ( ! $hit ) continue;
+
+			$m  = max( 1, min( 12, (int) ( isset( $p['deadline_month'] ) ? $p['deadline_month'] : 1 ) ) );
+			$d  = max( 1, min( 31, (int) ( isset( $p['deadline_day'] ) ? $p['deadline_day'] : 1 ) ) );
+			$ts = strtotime( sprintf( '%04d-%02d-%02d', $cur_year, $m, $d ) );
+			if ( $ts === false ) $ts = strtotime( sprintf( '%04d-%02d-01', $cur_year, $m ) );
+			if ( $ts !== false && $ts < $today ) $ts = strtotime( '+1 year', $ts );
+
+			$label = ( isset( $p['short_label'] ) && trim( (string) $p['short_label'] ) !== '' )
+				? trim( (string) $p['short_label'] ) : $ov;
+
+			$out[]     = array( 'label' => $label, 'ts' => $ts ? $ts : PHP_INT_MAX );
+			$seen_lc[] = mb_strtolower( $ov, 'UTF-8' );
+		}
+
+		foreach ( $checked as $c ) {
+			if ( ! in_array( mb_strtolower( $c, 'UTF-8' ), $seen_lc, true ) ) {
+				$out[] = array( 'label' => $c, 'ts' => PHP_INT_MAX );
+			}
+		}
+
+		usort( $out, function( $a, $b ) { return $a['ts'] <=> $b['ts']; } );
+		return $out;
 	}
 
 	protected function render() {
@@ -316,13 +500,42 @@ class SZEducate_Status_Widget extends \Elementor\Widget_Base {
 			}
 		echo "</div>";
 
-		if ( ! empty( $start_period ) ) {
-			$start_text = is_array( $start_period ) ? implode( ', ', $start_period ) : (string)$start_period;
-			echo "<div class='sz-status-group sz-group-info' style='{$css_group}'>";
-				echo "<div class='sz-status-part sz-status-main' style='{$css_part}'>";
-				echo $icon_info . esc_html( $start_text );
+		$checked_periods = is_array( $start_period )
+			? $start_period
+			: array_map( 'trim', preg_split( '/;/', (string) $start_period ) );
+		$ordered = $this->resolve_periods( $checked_periods, isset( $settings['periods'] ) ? $settings['periods'] : array() );
+
+		if ( ! empty( $ordered ) ) {
+			$periods_enabled = ( ! isset( $settings['periods_enabled'] ) ) || $settings['periods_enabled'] === 'yes';
+
+			if ( $periods_enabled ) {
+				$next        = array_shift( $ordered );
+				$next_prefix = isset( $settings['next_prefix'] ) ? trim( $settings['next_prefix'] ) : 'Következő indulás:';
+				$next_text   = $next_prefix !== '' ? ( $next_prefix . ' ' . $next['label'] ) : $next['label'];
+
+				echo "<div class='sz-status-group sz-group-info' style='{$css_group}'>";
+					echo "<div class='sz-status-part sz-status-main' style='{$css_part}'>";
+					echo $icon_calendar . esc_html( $next_text );
+					echo "</div>";
 				echo "</div>";
-			echo "</div>";
+
+				$show_later = ( ! isset( $settings['show_later'] ) ) || $settings['show_later'] === 'yes';
+				if ( $show_later && ! empty( $ordered ) ) {
+					$later_prefix = isset( $settings['later_prefix'] ) ? trim( $settings['later_prefix'] ) : 'Később:';
+					$later_labels = array();
+					foreach ( $ordered as $p ) { $later_labels[] = $p['label']; }
+					$later_text = ( $later_prefix !== '' ? $later_prefix . ' ' : '' ) . implode( ' · ', $later_labels );
+					echo "<div class='sz-period-later' style='width:100%; padding:2px 2px 0; font-size:12px; line-height:1.4;'>" . esc_html( $later_text ) . "</div>";
+				}
+			} else {
+				$all_labels = array();
+				foreach ( $ordered as $p ) { $all_labels[] = $p['label']; }
+				echo "<div class='sz-status-group sz-group-info' style='{$css_group}'>";
+					echo "<div class='sz-status-part sz-status-main' style='{$css_part}'>";
+					echo $icon_info . esc_html( implode( ', ', $all_labels ) );
+					echo "</div>";
+				echo "</div>";
+			}
 		}
 
 		echo '</div>';
