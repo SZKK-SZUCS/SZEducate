@@ -15,6 +15,16 @@ class SZEducate_Repeater_Widget extends \Elementor\Widget_Base {
 	public function get_icon() { return 'eicon-table'; }
 	public function get_categories() { return [ 'general' ]; }
 
+	// Egy repeater-oszlop (al-mező) egyedi CSS osztálya - a repeater-mező kulcsát is
+	// belefűzzük, hogy két különböző repeater azonos kulcsú oszlopa se keveredjen.
+	private function col_class( $repeater_key, $sub_key ) {
+		$rk = sanitize_html_class( $repeater_key );
+		$sk = sanitize_html_class( $sub_key );
+		if ( $rk === '' ) $rk = 'r' . substr( md5( (string) $repeater_key ), 0, 8 );
+		if ( $sk === '' ) $sk = 'c' . substr( md5( (string) $sub_key ), 0, 8 );
+		return 'sz-repeater-col-' . $rk . '__' . $sk;
+	}
+
 	private function get_repeater_fields() {
 		$schema_json = get_option( 'szeducate_local_schema', '[]' );
 		$schema = json_decode( $schema_json, true );
@@ -259,6 +269,87 @@ class SZEducate_Repeater_Widget extends \Elementor\Widget_Base {
 				],
 			]
 		);
+
+		$this->end_controls_section();
+
+		// --- Oszloponkénti igazítás (táblázat nézet) ---
+		// A séma minden repeater-mezőjének minden al-mezőjéhez legenerálunk egy
+		// vízszintes + függőleges igazítás vezérlőt, feltételhez kötve, hogy csak a
+		// kiválasztott mezőé jelenjen meg. Az összevont (rowspan) cellák igazítását
+		// a render() inline "!important"-tal középre kényszeríti, ezt itt nem lehet
+		// felülírni - szándékosan.
+		$this->start_controls_section(
+			'style_col_align_section',
+			[
+				'label'     => 'Oszloponkénti igazítás',
+				'tab'       => \Elementor\Controls_Manager::TAB_STYLE,
+				'condition' => [ 'layout' => 'table' ],
+			]
+		);
+
+		$halign_options = [
+			'left'   => [ 'title' => 'Balra',   'icon' => 'eicon-text-align-left' ],
+			'center' => [ 'title' => 'Középre', 'icon' => 'eicon-text-align-center' ],
+			'right'  => [ 'title' => 'Jobbra',  'icon' => 'eicon-text-align-right' ],
+		];
+		$valign_options = [
+			'top'    => [ 'title' => 'Felülre', 'icon' => 'eicon-v-align-top' ],
+			'middle' => [ 'title' => 'Középre', 'icon' => 'eicon-v-align-middle' ],
+			'bottom' => [ 'title' => 'Alulra',  'icon' => 'eicon-v-align-bottom' ],
+		];
+
+		$has_any_align = false;
+		foreach ( $repeater_fields as $rk => $rfield ) {
+			$subs = ! empty( $rfield['sub_fields'] ) ? $rfield['sub_fields'] : array();
+			foreach ( $subs as $sf ) {
+				if ( empty( $sf['key'] ) ) continue;
+				$has_any_align = true;
+				$sk  = $sf['key'];
+				$lbl = ! empty( $sf['label'] ) ? $sf['label'] : $sk;
+				$cid = preg_replace( '/[^a-z0-9_]/i', '_', $rk . '__' . $sk );
+				$sel = '{{WRAPPER}} .' . $this->col_class( $rk, $sk );
+
+				$this->add_control(
+					"colalign_head_{$cid}",
+					[
+						'label'     => $lbl,
+						'type'      => \Elementor\Controls_Manager::HEADING,
+						'separator' => 'before',
+						'condition' => [ 'repeater_field_key' => $rk ],
+					]
+				);
+				$this->add_responsive_control(
+					"colalign_h_{$cid}",
+					[
+						'label'     => 'Vízszintes',
+						'type'      => \Elementor\Controls_Manager::CHOOSE,
+						'options'   => $halign_options,
+						'condition' => [ 'repeater_field_key' => $rk ],
+						'selectors' => [ $sel => 'text-align: {{VALUE}};' ],
+					]
+				);
+				$this->add_responsive_control(
+					"colalign_v_{$cid}",
+					[
+						'label'     => 'Függőleges',
+						'type'      => \Elementor\Controls_Manager::CHOOSE,
+						'options'   => $valign_options,
+						'condition' => [ 'repeater_field_key' => $rk ],
+						'selectors' => [ $sel => 'vertical-align: {{VALUE}};' ],
+					]
+				);
+			}
+		}
+
+		if ( ! $has_any_align ) {
+			$this->add_control(
+				'colalign_empty_note',
+				[
+					'type' => \Elementor\Controls_Manager::RAW_HTML,
+					'raw'  => 'A sémában nincs al-mezőkkel rendelkező Repeater mező.',
+				]
+			);
+		}
 
 		$this->end_controls_section();
 
@@ -511,13 +602,21 @@ class SZEducate_Repeater_Widget extends \Elementor\Widget_Base {
 			return;
 		}
 
+		// Alap-igazítás: alacsony specificitású, nem scope-olt szabály, hogy az
+		// "Oszloponkénti igazítás" Elementor-vezérlők ({{WRAPPER}} .sz-repeater-col-*,
+		// magasabb specificitás) felül tudják írni. Az összevont cellák inline
+		// !important-ja mindkettőt veri. Csak egyszer írjuk ki (több widget-példány
+		// esetén a duplikált szabály ártalmatlan).
+		echo '<style>.sz-repeater-th{text-align:left}.sz-repeater-td{vertical-align:top}</style>';
+
 		echo '<div class="sz-repeater-wrapper sz-repeater-table-wrap" style="width:100%; overflow-x:auto;">';
 		echo '<table class="sz-repeater-table-el" style="width:100%; border-collapse:collapse;">';
 
 		if ( $settings['show_header'] === 'yes' ) {
 			echo '<thead><tr>';
 			foreach ( $sub_fields as $sf ) {
-				echo '<th class="sz-repeater-th" style="text-align:left;">' . esc_html( $sf['label'] ) . '</th>';
+				$cls = 'sz-repeater-th ' . $this->col_class( $field_key, $sf['key'] );
+				echo '<th class="' . esc_attr( $cls ) . '">' . esc_html( $sf['label'] ) . '</th>';
 			}
 			echo '</tr></thead>';
 		}
@@ -555,21 +654,19 @@ class SZEducate_Repeater_Widget extends \Elementor\Widget_Base {
 				if ( $merge && isset( $rowspans[ $ci ][ $index ] ) && $rowspans[ $ci ][ $index ] === 0 ) {
 					continue; // ezt a cellát a fölötte lévő egyesített cella lefedi
 				}
-				$val      = isset( $row[ $sf['key'] ] ) ? $row[ $sf['key'] ] : '';
-				$span_n   = ( $merge && ! empty( $rowspans[ $ci ][ $index ] ) ) ? intval( $rowspans[ $ci ][ $index ] ) : 1;
-				$span     = $span_n > 1 ? ' rowspan="' . $span_n . '"' : '';
-				// Az összevont (több sort átfogó) cellában a tartalom vízszintesen és
-				// függőlegesen is középre; a többi cella marad felül, hogy a csoport
-				// tetejéhez igazodjon. Merge nélkül nincs inline stílus (a Stílus-vezérlők
-				// dolgoznak) - itt sincs text-align/vertical-align vezérlő, így nincs ütközés.
-				if ( ! $merge ) {
-					$td_style = '';
-				} elseif ( $span_n > 1 ) {
-					$td_style = ' style="vertical-align:middle; text-align:center;"';
-				} else {
-					$td_style = ' style="vertical-align:top;"';
-				}
-				echo '<td class="sz-repeater-td"' . $span . $td_style . '>' . $this->render_cell_value( $val, $sf ) . '</td>';
+				$val    = isset( $row[ $sf['key'] ] ) ? $row[ $sf['key'] ] : '';
+				$span_n = ( $merge && ! empty( $rowspans[ $ci ][ $index ] ) ) ? intval( $rowspans[ $ci ][ $index ] ) : 1;
+				$span   = $span_n > 1 ? ' rowspan="' . $span_n . '"' : '';
+				// Az összevont (több sort átfogó) cellában a tartalom vízszintesen ÉS
+				// függőlegesen is középre - inline !important-tal kényszerítve, hogy az
+				// oszloponkénti igazítás-vezérlő se tudja elrontani. A nem összevont
+				// cellák az "Oszloponkénti igazítás" vezérlőt (ill. az alap felül/balra
+				// szabályt) követik, ezért ott nincs inline stílus.
+				$td_style = ( $span_n > 1 )
+					? ' style="vertical-align:middle !important;text-align:center !important;"'
+					: '';
+				$cls = 'sz-repeater-td ' . $this->col_class( $field_key, $sf['key'] );
+				echo '<td class="' . esc_attr( $cls ) . '"' . $span . $td_style . '>' . $this->render_cell_value( $val, $sf ) . '</td>';
 			}
 			echo '</tr>';
 		}
