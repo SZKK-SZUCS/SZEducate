@@ -151,6 +151,11 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.35
+
+- Új: az **alap Elementor „Harmonika" (Accordion) widget** fülei **egyenként** SZEducate-láthatósághoz köthetők. A widget Tartalom fülén megjelenik a **„SZEducate: Feltételes fülek"** szekció – soronként megadható: `fül sorszáma` + `vizsgált mező` + `feltétel` (ÜRES / NEM ÜRES / EGYENLŐ / NEM EGYENLŐ / TARTALMAZZA). Ha a feltétel teljesül, a fül fejléce **és** tartalma is kimarad a kimenetből (szerver oldalon, csak `sz_course` oldalon). A rejtés a rendezett fülsorrend szerinti pozíción alapul.
+- Belső: a láthatóság-feltétel kiértékelése közös helyre került (`sz_rule_matches()`); a strukturált mezők üresség-vizsgálata (0.9.24) itt is érvényes.
+
 ### 0.9.34
 
 - „Képzés Adat" Dynamic Tag: az **„Elválasztó (több elem esetén)"** vezérlő mostantól a jelölőnégyzet (több opciós) mezőkre akkor is hat, ha az érték `;`-vel elválasztott szövegként van tárolva (eddig ilyenkor nyersen, a tárolt `;`-kkel íródott ki, pl. `Győr; Budapest; …`). Az elemek külön-külön escape-elődnek; `\n` elválasztóval minden elem külön sorba (`<br>`) kerül.
