@@ -151,6 +151,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.29
+
+- Szaklista widget: a listaelemek **Hover** stílusa mostantól az **inaktív** szakokra is érvényes (eddig csak az aktívakra vonatkozott, mert a hover-szelektor a `.sz-course-active:hover`-t célozta – most a közös `.sz-course-link:hover`-t).
+
 ### 0.9.28
 
 - Státusz widget: a meghirdetési időszakok (szeptemberi általános / pótfelvételi / februári keresztféléves) újragondolt megjelenítése. A widget a mai dátum alapján kiemeli a **soron következő indulást**, a többit halványan alálistázza („Később: …"). Új „Meghirdetési időszakok" szekció: időszakonként rövid címke + tájékoztató jelentkezési határidő (hónap/nap) a sorrendhez, előre kitöltött alapértékekkel. Ki is kapcsolható (akkor egyszerű felsorolás).
