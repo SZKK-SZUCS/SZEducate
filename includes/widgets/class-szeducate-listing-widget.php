@@ -475,9 +475,13 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 		$this->add_control( 'item_icon_color', [ 'label' => 'Ikon Színe', 'type' => \Elementor\Controls_Manager::COLOR, 'default' => '#50ADC9', 'selectors' => [ '{{WRAPPER}} .sz-course-active .sz-item-icon' => 'color: {{VALUE}} !important; fill: {{VALUE}} !important;', '{{WRAPPER}} .sz-course-active .sz-item-icon i' => 'color: {{VALUE}} !important;', '{{WRAPPER}} .sz-course-active .sz-item-icon svg' => 'fill: {{VALUE}} !important;', '{{WRAPPER}} .sz-course-active .sz-item-icon svg path' => 'fill: {{VALUE}} !important;' ] ] );
 		$this->end_controls_tab();
 
+		// A hover az ÖSSZES listaelemre vonatkozik (aktív és inaktív egyaránt) - a
+		// .sz-course-link a közös osztály mindkét állapoton. Korábban csak a
+		// .sz-course-active:hover volt megcélozva, ezért az inaktív szakok nem kaptak
+		// hover-kiemelést.
 		$this->start_controls_tab( 'tab_item_hover', [ 'label' => 'Hover' ] );
-		$this->add_control( 'item_hover_color', [ 'label' => 'Szövegszín', 'type' => \Elementor\Controls_Manager::COLOR, 'default' => '#50ADC9', 'selectors' => [ '{{WRAPPER}} .sz-course-active:hover' => 'color: {{VALUE}};' ] ] );
-		$this->add_control( 'item_icon_hover_color', [ 'label' => 'Ikon Színe', 'type' => \Elementor\Controls_Manager::COLOR, 'selectors' => [ '{{WRAPPER}} .sz-course-active:hover .sz-item-icon' => 'color: {{VALUE}} !important; fill: {{VALUE}} !important;', '{{WRAPPER}} .sz-course-active:hover .sz-item-icon i' => 'color: {{VALUE}} !important;', '{{WRAPPER}} .sz-course-active:hover .sz-item-icon svg' => 'fill: {{VALUE}} !important;', '{{WRAPPER}} .sz-course-active:hover .sz-item-icon svg path' => 'fill: {{VALUE}} !important;' ] ] );
+		$this->add_control( 'item_hover_color', [ 'label' => 'Szövegszín', 'type' => \Elementor\Controls_Manager::COLOR, 'default' => '#50ADC9', 'description' => 'Aktív és inaktív listaelemre egyaránt.', 'selectors' => [ '{{WRAPPER}} .sz-course-link:hover' => 'color: {{VALUE}};' ] ] );
+		$this->add_control( 'item_icon_hover_color', [ 'label' => 'Ikon Színe', 'type' => \Elementor\Controls_Manager::COLOR, 'selectors' => [ '{{WRAPPER}} .sz-course-link:hover .sz-item-icon' => 'color: {{VALUE}} !important; fill: {{VALUE}} !important;', '{{WRAPPER}} .sz-course-link:hover .sz-item-icon i' => 'color: {{VALUE}} !important;', '{{WRAPPER}} .sz-course-link:hover .sz-item-icon svg' => 'fill: {{VALUE}} !important;', '{{WRAPPER}} .sz-course-link:hover .sz-item-icon svg path' => 'fill: {{VALUE}} !important;' ] ] );
 		$this->end_controls_tab();
 
 		$this->start_controls_tab( 'tab_item_inactive', [ 'label' => 'Inaktív' ] );
