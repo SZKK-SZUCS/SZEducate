@@ -23,9 +23,11 @@ class SZEducate_Elementor {
 	public function register_dynamic_tags( $dynamic_tags_manager ) {
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-dynamic-tag.php';
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-image-dynamic-tag.php';
+		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-video-dynamic-tag.php';
 		$dynamic_tags_manager->register_group( 'szeducate', array( 'title' => 'SZEducate Adatok' ) );
 		$dynamic_tags_manager->register( new SZEducate_Dynamic_Tag() );
 		$dynamic_tags_manager->register( new SZEducate_Image_Dynamic_Tag() );
+		$dynamic_tags_manager->register( new SZEducate_Video_Dynamic_Tag() );
 	}
 
 	public function register_widgets( $widgets_manager ) {
@@ -36,6 +38,7 @@ class SZEducate_Elementor {
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/widgets/class-szeducate-search-widget.php';
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/widgets/class-szeducate-repeater-widget.php';
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/widgets/class-szeducate-pricing-table-widget.php';
+		require_once SZEDUCATE_PLUGIN_DIR . 'includes/widgets/class-szeducate-video-widget.php';
 
 		$widgets_manager->register( new SZEducate_Search_Widget() );
 		$widgets_manager->register( new SZEducate_Links_Widget() );
@@ -44,6 +47,7 @@ class SZEducate_Elementor {
 		$widgets_manager->register( new SZEducate_Keywords_Widget() );
 		$widgets_manager->register( new SZEducate_Repeater_Widget() );
 		$widgets_manager->register( new SZEducate_Pricing_Table_Widget() );
+		$widgets_manager->register( new SZEducate_Video_Widget() );
 	}
 
 	public function add_visibility_controls( $element, $args ) {

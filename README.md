@@ -151,6 +151,11 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.31
+
+- Új **SZEducate Képzés Videó** widget: egy „Link" típusú séma-mezőben (alapból `video`) tárolt hivatkozást beágyazott lejátszóként jeleníti meg. YouTube / Vimeo / stb. a WordPress beépített oEmbed-en át (nincs API-kulcs), közvetlen `.mp4`/`.webm` fájl natív `<video>`-ként, minden más nyers hivatkozásként. Vezérlők: képarány (16:9 / 4:3 / 21:9 / 1:1 / 9:16), max. szélesség, igazítás, lekerekítés, árnyék; a lejátszó reszponzívan kitölti az arány-dobozt. Ingyenes Elementorral is működik.
+- Új **Képzés Videó URL (SZEducate)** URL-kategóriás Dynamic Tag (Elementor PRO): az Elementor beépített Videó widgetjének „Link" mezőjébe dinamikus forrásként beköthető, így a natív widget teljes felszerelése (előnézeti kép, lightbox stb.) használható.
+
 ### 0.9.30
 
 - Okos Kereső widget – teljes stílus-átdolgozás. Eddig szinte minden a JS által generált HTML-be volt inline-olva, ezért az Elementor Stílus-vezérlők nem hatottak. Mostantól:
