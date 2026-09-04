@@ -151,6 +151,12 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.38
+
+- Linkek widget:
+  - Új **méret-vezérlők**: Szélesség (px/%/vw), Minimális szélesség, Minimális magasság – mindkét megjelenéshez. Eddig csak a belső margó volt állítható.
+  - Új **„Megjelenés"** választó (Tartalom fül): **Gomb** (eddigi) vagy **Csak szöveg (link)**. „Csak szöveg" módban nincs háttér / keret / árnyék / belső margó – a linkek sima szövegként jelennek meg, saját szövegszínnel és opcionális hover-aláhúzással. A gomb-specifikus vezérlők (háttér, keret, padding, lekerekítés…) csak „Gomb" módban jelennek meg.
+
 ### 0.9.37
 
 - Hotfix: a „SZEducate: Feltételes fülek" vezérlő-szekció mostantól **csak a klasszikus** Harmonika (`accordion`) widgetbe kerül be. A **nested** Harmonikába való beszúrása a szerkesztőben megbontotta a widget belső `items` ↔ gyerek-konténer szinkronját (fantom, üres konténerek). Nested harmonikán a fül tartalmi **konténerére** tett SZEducate Láthatóság a megoldás – a frontend fejléc-eltávolítás (0.9.36) ehhez változatlanul működik.

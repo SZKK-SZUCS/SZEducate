@@ -48,6 +48,20 @@ class SZEducate_Links_Widget extends \Elementor\Widget_Base {
 		);
 
 		$this->add_control(
+			'link_style',
+			[
+				'label'     => 'Megjelenés',
+				'type'      => \Elementor\Controls_Manager::SELECT,
+				'default'   => 'button',
+				'options'   => [
+					'button' => 'Gomb',
+					'text'   => 'Csak szöveg (link)',
+				],
+				'separator' => 'before',
+			]
+		);
+
+		$this->add_control(
 			'link_icon',
 			[
 				'label'   => 'Globális Ikon a linkekhez (Opcionális)',
@@ -102,7 +116,7 @@ class SZEducate_Links_Widget extends \Elementor\Widget_Base {
 		$this->add_responsive_control(
 			'gap',
 			[
-				'label'      => 'Térköz a gombok között',
+				'label'      => 'Térköz a linkek között',
 				'type'       => \Elementor\Controls_Manager::SLIDER,
 				'size_units' => [ 'px', 'em', 'rem' ],
 				'range'      => [ 'px' => [ 'min' => 0, 'max' => 50 ] ],
@@ -118,7 +132,7 @@ class SZEducate_Links_Widget extends \Elementor\Widget_Base {
 		$this->start_controls_section(
 			'style_button_section',
 			[
-				'label' => 'Gomb / Link Dizájn',
+				'label' => 'Link megjelenés',
 				'tab'   => \Elementor\Controls_Manager::TAB_STYLE,
 			]
 		);
@@ -138,6 +152,48 @@ class SZEducate_Links_Widget extends \Elementor\Widget_Base {
 			]
 		);
 
+		// --- Méret (mindkét megjelenéshez) ---
+		$this->add_responsive_control(
+			'button_width',
+			[
+				'label'       => 'Szélesség',
+				'type'        => \Elementor\Controls_Manager::SLIDER,
+				'size_units'  => [ 'px', '%', 'vw' ],
+				'range'       => [ 'px' => [ 'min' => 40, 'max' => 800 ], '%' => [ 'min' => 5, 'max' => 100 ] ],
+				'description' => 'Üresen hagyva a szélesség a tartalomhoz igazodik.',
+				'selectors'   => [
+					'{{WRAPPER}} .sz-link-item' => 'width: {{SIZE}}{{UNIT}};',
+				],
+			]
+		);
+
+		$this->add_responsive_control(
+			'button_min_width',
+			[
+				'label'      => 'Minimális szélesség',
+				'type'       => \Elementor\Controls_Manager::SLIDER,
+				'size_units' => [ 'px', '%' ],
+				'range'      => [ 'px' => [ 'min' => 0, 'max' => 500 ] ],
+				'selectors'  => [
+					'{{WRAPPER}} .sz-link-item' => 'min-width: {{SIZE}}{{UNIT}};',
+				],
+			]
+		);
+
+		$this->add_responsive_control(
+			'button_min_height',
+			[
+				'label'      => 'Minimális magasság',
+				'type'       => \Elementor\Controls_Manager::SLIDER,
+				'size_units' => [ 'px', 'em' ],
+				'range'      => [ 'px' => [ 'min' => 0, 'max' => 120 ] ],
+				'selectors'  => [
+					'{{WRAPPER}} .sz-link-item' => 'min-height: {{SIZE}}{{UNIT}};',
+				],
+			]
+		);
+
+		// --- Gomb-specifikus (csak "Gomb" megjelenésnél) ---
 		$this->add_responsive_control(
 			'button_padding',
 			[
@@ -148,6 +204,8 @@ class SZEducate_Links_Widget extends \Elementor\Widget_Base {
 					'top' => 10, 'right' => 20, 'bottom' => 10, 'left' => 20,
 					'unit' => 'px', 'isLinked' => false,
 				],
+				'separator'  => 'before',
+				'condition'  => [ 'link_style' => 'button' ],
 				'selectors'  => [
 					'{{WRAPPER}} .sz-link-item' => 'padding: {{TOP}}{{UNIT}} {{RIGHT}}{{UNIT}} {{BOTTOM}}{{UNIT}} {{LEFT}}{{UNIT}};',
 				],
@@ -164,8 +222,26 @@ class SZEducate_Links_Widget extends \Elementor\Widget_Base {
 					'top' => 4, 'right' => 4, 'bottom' => 4, 'left' => 4,
 					'unit' => 'px', 'isLinked' => true,
 				],
+				'condition'  => [ 'link_style' => 'button' ],
 				'selectors'  => [
 					'{{WRAPPER}} .sz-link-item' => 'border-radius: {{TOP}}{{UNIT}} {{RIGHT}}{{UNIT}} {{BOTTOM}}{{UNIT}} {{LEFT}}{{UNIT}};',
+				],
+			]
+		);
+
+		// --- "Csak szöveg" megjelenés extra vezérlője ---
+		$this->add_control(
+			'text_hover_underline',
+			[
+				'label'        => 'Aláhúzás egérrel rámutatáskor',
+				'type'         => \Elementor\Controls_Manager::SWITCHER,
+				'label_on'     => 'Igen',
+				'label_off'    => 'Nem',
+				'return_value' => 'underline',
+				'default'      => 'underline',
+				'condition'    => [ 'link_style' => 'text' ],
+				'selectors'    => [
+					'{{WRAPPER}} .sz-link-item:hover' => 'text-decoration: {{VALUE}};',
 				],
 			]
 		);
@@ -183,7 +259,23 @@ class SZEducate_Links_Widget extends \Elementor\Widget_Base {
 				'label'     => 'Szövegszín',
 				'type'      => \Elementor\Controls_Manager::COLOR,
 				'default'   => '#FFFFFF',
-				'selectors' => [ 
+				'condition' => [ 'link_style' => 'button' ],
+				'selectors' => [
+					'{{WRAPPER}} .sz-link-item' => 'color: {{VALUE}};',
+					'{{WRAPPER}} .sz-link-item svg' => 'fill: {{VALUE}};',
+					'{{WRAPPER}} .sz-link-item i' => 'color: {{VALUE}};',
+				],
+			]
+		);
+
+		$this->add_control(
+			'text_link_color',
+			[
+				'label'     => 'Szövegszín',
+				'type'      => \Elementor\Controls_Manager::COLOR,
+				'default'   => '#007cba',
+				'condition' => [ 'link_style' => 'text' ],
+				'selectors' => [
 					'{{WRAPPER}} .sz-link-item' => 'color: {{VALUE}};',
 					'{{WRAPPER}} .sz-link-item svg' => 'fill: {{VALUE}};',
 					'{{WRAPPER}} .sz-link-item i' => 'color: {{VALUE}};',
@@ -197,6 +289,7 @@ class SZEducate_Links_Widget extends \Elementor\Widget_Base {
 				'label'     => 'Háttérszín',
 				'type'      => \Elementor\Controls_Manager::COLOR,
 				'default'   => '#007cba',
+				'condition' => [ 'link_style' => 'button' ],
 				'selectors' => [ '{{WRAPPER}} .sz-link-item' => 'background-color: {{VALUE}};' ],
 			]
 		);
@@ -204,16 +297,18 @@ class SZEducate_Links_Widget extends \Elementor\Widget_Base {
 		$this->add_group_control(
 			\Elementor\Group_Control_Border::get_type(),
 			[
-				'name'     => 'button_border',
-				'selector' => '{{WRAPPER}} .sz-link-item',
+				'name'      => 'button_border',
+				'selector'  => '{{WRAPPER}} .sz-link-item',
+				'condition' => [ 'link_style' => 'button' ],
 			]
 		);
 
 		$this->add_group_control(
 			\Elementor\Group_Control_Box_Shadow::get_type(),
 			[
-				'name'     => 'button_box_shadow',
-				'selector' => '{{WRAPPER}} .sz-link-item',
+				'name'      => 'button_box_shadow',
+				'selector'  => '{{WRAPPER}} .sz-link-item',
+				'condition' => [ 'link_style' => 'button' ],
 			]
 		);
 
@@ -230,7 +325,23 @@ class SZEducate_Links_Widget extends \Elementor\Widget_Base {
 				'label'     => 'Szövegszín',
 				'type'      => \Elementor\Controls_Manager::COLOR,
 				'default'   => '#FFFFFF',
-				'selectors' => [ 
+				'condition' => [ 'link_style' => 'button' ],
+				'selectors' => [
+					'{{WRAPPER}} .sz-link-item:hover' => 'color: {{VALUE}};',
+					'{{WRAPPER}} .sz-link-item:hover svg' => 'fill: {{VALUE}};',
+					'{{WRAPPER}} .sz-link-item:hover i' => 'color: {{VALUE}};',
+				],
+			]
+		);
+
+		$this->add_control(
+			'text_link_hover_color',
+			[
+				'label'     => 'Szövegszín',
+				'type'      => \Elementor\Controls_Manager::COLOR,
+				'default'   => '#005a87',
+				'condition' => [ 'link_style' => 'text' ],
+				'selectors' => [
 					'{{WRAPPER}} .sz-link-item:hover' => 'color: {{VALUE}};',
 					'{{WRAPPER}} .sz-link-item:hover svg' => 'fill: {{VALUE}};',
 					'{{WRAPPER}} .sz-link-item:hover i' => 'color: {{VALUE}};',
@@ -244,6 +355,7 @@ class SZEducate_Links_Widget extends \Elementor\Widget_Base {
 				'label'     => 'Háttérszín',
 				'type'      => \Elementor\Controls_Manager::COLOR,
 				'default'   => '#005a87',
+				'condition' => [ 'link_style' => 'button' ],
 				'selectors' => [ '{{WRAPPER}} .sz-link-item:hover' => 'background-color: {{VALUE}};' ],
 			]
 		);
@@ -251,16 +363,18 @@ class SZEducate_Links_Widget extends \Elementor\Widget_Base {
 		$this->add_group_control(
 			\Elementor\Group_Control_Border::get_type(),
 			[
-				'name'     => 'button_hover_border',
-				'selector' => '{{WRAPPER}} .sz-link-item:hover',
+				'name'      => 'button_hover_border',
+				'selector'  => '{{WRAPPER}} .sz-link-item:hover',
+				'condition' => [ 'link_style' => 'button' ],
 			]
 		);
 
 		$this->add_group_control(
 			\Elementor\Group_Control_Box_Shadow::get_type(),
 			[
-				'name'     => 'button_hover_box_shadow',
-				'selector' => '{{WRAPPER}} .sz-link-item:hover',
+				'name'      => 'button_hover_box_shadow',
+				'selector'  => '{{WRAPPER}} .sz-link-item:hover',
+				'condition' => [ 'link_style' => 'button' ],
 			]
 		);
 
@@ -371,7 +485,9 @@ class SZEducate_Links_Widget extends \Elementor\Widget_Base {
 			$hover_class = ' elementor-animation-' . esc_attr( $settings['hover_animation'] );
 		}
 
-		echo '<div class="sz-links-wrapper" style="display:flex; flex-wrap:wrap;">';
+		$style = ( isset( $settings['link_style'] ) && $settings['link_style'] === 'text' ) ? 'text' : 'button';
+
+		echo '<div class="sz-links-wrapper sz-links-style-' . esc_attr( $style ) . '" style="display:flex; flex-wrap:wrap;">';
 		
 		foreach ( $links as $link ) {
 			if ( empty( $link['url'] ) || empty( $link['title'] ) ) continue;
