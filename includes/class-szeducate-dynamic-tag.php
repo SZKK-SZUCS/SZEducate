@@ -66,25 +66,24 @@ class SZEducate_Dynamic_Tag extends \Elementor\Core\DynamicTags\Tag {
 		$this->add_control(
 			'render_as',
 			array(
-				'label'       => 'Megjelenítés',
-				'type'        => \Elementor\Controls_Manager::SELECT,
-				'default'     => 'text',
-				'options'     => array(
+				'label'     => 'Megjelenítés',
+				'type'      => \Elementor\Controls_Manager::SELECT,
+				'default'   => 'text',
+				'options'   => array(
 					'text' => 'Szövegként (alap)',
 					'link' => 'Kattintható hivatkozásként',
 				),
-				'description' => '„Kattintható hivatkozásként": a mező értékét (egy URL-t, pl. a „Nyelvi követelmények" mezőét) <a> elemként írja ki a megadott felirattal, így egy Címsor / Szövegszerkesztő widgetben is elhelyezhető inline hivatkozásként. Csak „Link" (url) típusú mezőnél / URL értéknél van értelme.',
-				'condition'   => array( 'field_key!' => '' ),
+				'condition' => array( 'field_key!' => '' ),
 			)
 		);
 
 		$this->add_control(
 			'link_prefix',
 			array(
-				'label'       => 'Bevezető szöveg (opcionális)',
+				'label'       => 'Bevezető szöveg',
 				'type'        => \Elementor\Controls_Manager::TEXT,
 				'default'     => '',
-				'description' => 'A hivatkozás elé kerül, sima szövegként. Pl. „Teljesítendő kimeneti nyelvi követelmény részletek: ".',
+				'placeholder' => 'pl. „Részletek: "',
 				'condition'   => array( 'field_key!' => '', 'render_as' => 'link' ),
 			)
 		);
@@ -95,7 +94,7 @@ class SZEducate_Dynamic_Tag extends \Elementor\Core\DynamicTags\Tag {
 				'label'       => 'Hivatkozás szövege',
 				'type'        => \Elementor\Controls_Manager::TEXT,
 				'default'     => 'Kattints ide',
-				'description' => 'Üresen hagyva maga az URL lesz a felirat.',
+				'placeholder' => 'üresen: az URL',
 				'condition'   => array( 'field_key!' => '', 'render_as' => 'link' ),
 			)
 		);

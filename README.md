@@ -151,6 +151,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.40
+
+- Hotfix a 0.9.39-hez: a „Képzés Adat" tag link-módú vezérlőiről (`Megjelenítés`, `Bevezető szöveg`, `Hivatkozás szövege`) lekerültek a hosszú leírások – a Dynamic Tag beállító-panel túl magas lett, egyes képernyőkön kilógott. A tippek mostantól rövid helyőrző-szövegben (`placeholder`) jelennek meg, nem növelik a panel magasságát. Működés változatlan.
+
 ### 0.9.39
 
 - „Képzés Adat" Dynamic Tag: új **„Megjelenítés"** választó – _Szövegként (alap)_ vagy _Kattintható hivatkozásként_. Link-módban a mező értékét (egy URL-t, pl. a „Nyelvi követelmények" mezőét) `<a>` elemként írja ki a megadott felirattal (alap: „Kattints ide"; üresen maga az URL), opcionális **bevezető szöveggel** (pl. „Teljesítendő kimeneti nyelvi követelmény részletek: ") és **„Új lapon nyíljon"** kapcsolóval (`rel="noopener noreferrer"`). Így egy Címsor / Szövegszerkesztő widgetben is elhelyezhető egy dinamikus URL-re mutató inline hivatkozás, nem csak nyers URL-ként. Érvénytelen / üres URL esetén nincs kimenet (a tag Fallback mezője él). Meglévő tag-példányok változatlanul szövegként jelennek meg.
