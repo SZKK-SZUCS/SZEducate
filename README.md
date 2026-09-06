@@ -114,7 +114,7 @@ A bővítmény telepítése a standard WordPress módszerrel történik. **Ne a 
 
 Az oldalak szerkesztésekor az Elementor panelen a _SZEducate_ kategóriában találod a widgeteket:
 
-- **SZEducate Okos Kereső:** Bárhova elhelyezhető. Beállítható benne, hogy "Enter" ütése esetén melyik URL-re vigye a látogatót (Céloldal).
+- **SZEducate Okos Kereső:** Bárhova elhelyezhető. Beállítható benne, hogy "Enter" ütése esetén melyik URL-re vigye a látogatót (Céloldal). A **„Szűrés (aloldalakhoz)"** szekcióban egy vagy több séma-mezőre (pl. Képzési Forma = BSc) korlátozható, hogy egy szűrt aloldalon csak az oda illő képzésekben keressen.
 - **SZEducate Szaklista:** A fő archívum widget. Megadhatod benne az alapértelmezett csoportosítást (pl. Képzési Terület szerint), és egyedi sorrendet is felállíthatsz. Automatikusan reagál, ha a Keresőből vagy a Kulcsszavak widgetből érkezik a látogató.
 - **SZEducate Kulcsszavak:** Kiteszi egy adott szak címkéit. Ha megadod a "Szaklista" oldalad URL-jét a beállításaiban, a címkék kattinthatóvá válnak.
 
@@ -150,6 +150,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 4.  A weboldalak WordPress rendszere ezt érzékelni fogja, és felajánlja az adminisztrátoroknak a frissítést.
 
 ## Changelog
+
+### 0.9.41
+
+- Okos Kereső widget: új **„Szűrés (aloldalakhoz)"** tartalmi szekció. A sémában lévő minden egyválasztós / jelölőnégyzetes mezőhöz megjelenik egy legördülő (pl. „Szűrés: Képzési Forma"). Ha beállítasz egyet vagy többet, a kereső csak az azoknak megfelelő képzésekben keres – így egy BSc-aloldalra tett kereső csak a BSc-képzéseket találja meg. Több szűrő ÉS kapcsolatban van. Szűrt módban a legördülő nem ajánl fel „mappa" (kategória) találatokat, mert azok kivezetnének a szűrt nézetből. Üresen hagyva a működés változatlan; a meglévő kereső-példányok nem változnak. (A „Szűrés (aloldalakhoz)" szekció ugyanazt a séma-vezérelt logikát használja, mint a Szaklista widget dinamikus szűrői – érdemes a kereső „Archívum URL"-jét is a szűrt aloldalra állítani.)
 
 ### 0.9.40
 

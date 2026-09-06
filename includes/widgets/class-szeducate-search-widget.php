@@ -12,6 +12,41 @@ class SZEducate_Search_Widget extends \Elementor\Widget_Base {
 
 	protected function register_controls() {
 
+		// Séma-vezérelt szűrők: minden select / radio / checkbox mezőből egy legördülő,
+		// ugyanúgy, ahogy a Szaklista widget építi őket – így a kliens ugyanazt a
+		// felületet kapja, amit ott már ismer.
+		$schema          = json_decode( get_option( 'szeducate_local_schema', '[]' ), true );
+		$dynamic_filters = array();
+		if ( is_array( $schema ) ) {
+			foreach ( $schema as $group ) {
+				if ( empty( $group['fields'] ) || ! is_array( $group['fields'] ) ) {
+					continue;
+				}
+				foreach ( $group['fields'] as $field ) {
+					if ( ! in_array( $field['type'], [ 'select', 'radio', 'checkbox' ], true ) || empty( $field['options'] ) ) {
+						continue;
+					}
+					// A séma több képzési-forma csoportban ismételheti ugyanazt a kulcsot
+					// (pl. munkarend, nyelv) - az elsőt tartjuk meg, a duplikált vezérlőt
+					// az Elementor amúgy is eldobná.
+					if ( isset( $dynamic_filters[ $field['key'] ] ) ) {
+						continue;
+					}
+					$choices = array( '' => '-- Mindegy --' );
+					foreach ( array_map( 'trim', explode( ';', $field['options'] ) ) as $opt ) {
+						if ( $opt !== '' ) {
+							$choices[ $opt ] = $opt;
+						}
+					}
+					$dynamic_filters[ $field['key'] ] = array(
+						'key'     => $field['key'],
+						'label'   => $field['label'],
+						'choices' => $choices,
+					);
+				}
+			}
+		}
+
 		// ------------------------------------------------------------------
 		// Tartalom
 		// ------------------------------------------------------------------
@@ -68,6 +103,42 @@ class SZEducate_Search_Widget extends \Elementor\Widget_Base {
 		);
 
 		$this->end_controls_section();
+
+		// ------------------------------------------------------------------
+		// Tartalom: Szűrés (aloldalakhoz)
+		// ------------------------------------------------------------------
+		if ( ! empty( $dynamic_filters ) ) {
+			$this->start_controls_section(
+				'filter_section',
+				[
+					'label' => 'Szűrés (aloldalakhoz)',
+					'tab'   => \Elementor\Controls_Manager::TAB_CONTENT,
+				]
+			);
+
+			$this->add_control(
+				'filter_note',
+				[
+					'type'            => \Elementor\Controls_Manager::RAW_HTML,
+					'raw'             => 'Ha beállítasz egy vagy több szűrőt, a kereső csak az azoknak megfelelő képzésekben keres (pl. „Képzési Forma = BSc" egy BSc-aloldalon), és a legördülőben nem ajánl fel „mappa" (kategória) találatokat. Üresen hagyva minden képzésben keres.',
+					'content_classes' => 'elementor-descriptor',
+				]
+			);
+
+			foreach ( $dynamic_filters as $filter ) {
+				$this->add_control(
+					'filter_' . $filter['key'],
+					[
+						'label'   => 'Szűrés: ' . $filter['label'],
+						'type'    => \Elementor\Controls_Manager::SELECT,
+						'options' => $filter['choices'],
+						'default' => '',
+					]
+				);
+			}
+
+			$this->end_controls_section();
+		}
 
 		// ------------------------------------------------------------------
 		// Stílus: Beviteli mező
@@ -511,6 +582,19 @@ class SZEducate_Search_Widget extends \Elementor\Widget_Base {
 
 		$show_dots   = ( ! isset( $settings['show_dots'] ) ) || $settings['show_dots'] === 'yes';
 		$distinguish = ( ! isset( $settings['distinguish_status'] ) ) || $settings['distinguish_status'] === 'yes';
+
+		// Aktív séma-szűrők begyűjtése (ugyanaz a minta, mint a Szaklista widgetben):
+		// minden 'filter_<kulcs>' vezérlő nem üres értéke. A nyers opció-értéket adjuk
+		// tovább, a végpont slug-osít és hasonlít.
+		$active_filters = array();
+		foreach ( $settings as $key => $val ) {
+			if ( strpos( $key, 'filter_' ) !== 0 || $key === 'filter_note' ) {
+				continue;
+			}
+			if ( is_string( $val ) && $val !== '' ) {
+				$active_filters[ substr( $key, 7 ) ] = $val;
+			}
+		}
 		?>
 		<div class="sz-search-wrapper" id="<?php echo esc_attr( $root_id ); ?>">
 			<form action="<?php echo $archive_url; ?>" method="GET" class="sz-search-form" id="sz-search-form-<?php echo esc_attr( $widget_id ); ?>">
@@ -563,7 +647,16 @@ class SZEducate_Search_Widget extends \Elementor\Widget_Base {
 			var SHOW_DOTS    = <?php echo $show_dots ? 'true' : 'false'; ?>;
 			var DISTINGUISH  = <?php echo $distinguish ? 'true' : 'false'; ?>;
 			var archiveUrl   = <?php echo wp_json_encode( $archive_url ); ?>.replace(/\/$/, "");
+			var FILTERS      = <?php echo wp_json_encode( (object) $active_filters ); ?>;
 			var debounceTimer;
+
+			function buildSearchUrl(query) {
+				var url = '/wp-json/szeducate/v1/client/search?q=' + encodeURIComponent(query);
+				Object.keys(FILTERS).forEach(function(k) {
+					url += '&f[' + encodeURIComponent(k) + ']=' + encodeURIComponent(FILTERS[k]);
+				});
+				return url;
+			}
 
 			function slugify(text) {
 				var a = 'àáäâãåăæąçćčđďèéěėëêęğǵḧìíïîįłḿǹńňñöôœőõöøóòřsşšșťțùúüûųůűűưũýÿýżžź';
@@ -598,7 +691,7 @@ class SZEducate_Search_Widget extends \Elementor\Widget_Base {
 				if (spinner) spinner.style.display = 'block';
 
 				debounceTimer = setTimeout(function() {
-					fetch('/wp-json/szeducate/v1/client/search?q=' + encodeURIComponent(query))
+					fetch(buildSearchUrl(query))
 					.then(function(r){ return r.json(); })
 					.then(function(data) {
 						if (spinner) spinner.style.display = 'none';
