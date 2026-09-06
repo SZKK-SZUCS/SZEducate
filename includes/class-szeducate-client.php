@@ -1206,6 +1206,21 @@ class SZEducate_Client {
 			return rest_ensure_response( array() );
 		}
 
+		// Opcionális mező-szűrők az Okos Kereső widgetből (?f[kulcs]=érték). A widget
+		// nyers opció-értéket küld; itt és a képzés-adaton is slug-osítunk, ugyanúgy,
+		// ahogy a Szaklista widget teszi.
+		$filters     = array();
+		$filters_raw = $request->get_param( 'f' );
+		if ( is_array( $filters_raw ) ) {
+			foreach ( $filters_raw as $fk => $fv ) {
+				$fk = sanitize_text_field( (string) $fk );
+				$fv = is_scalar( $fv ) ? sanitize_title( (string) $fv ) : '';
+				if ( $fk !== '' && $fv !== '' ) {
+					$filters[ $fk ] = $fv;
+				}
+			}
+		}
+
 		$table_name = $wpdb->prefix . 'szeducate_courses_data';
 		if ( $wpdb->get_var( "SHOW TABLES LIKE '$table_name'" ) != $table_name ) {
 			return rest_ensure_response( array() );
@@ -1238,6 +1253,28 @@ class SZEducate_Client {
 
 			if ( isset( $data['public'] ) && ( $data['public'] === 0 || $data['public'] === '0' || $data['public'] === false || $data['public'] === 'false' ) ) {
 				continue;
+			}
+
+			// Minden megadott szűrőnek illeszkednie kell (AND). Checkbox mezők tömbként
+			// vagy ';'-stringként is jöhetnek - mindkettőt kezeljük.
+			if ( ! empty( $filters ) ) {
+				$passes_filters = true;
+				foreach ( $filters as $f_key => $f_val_slug ) {
+					$actual_val = isset( $data[ $f_key ] ) ? $data[ $f_key ] : '';
+					if ( is_array( $actual_val ) ) {
+						if ( ! in_array( $f_val_slug, array_map( 'sanitize_title', $actual_val ), true ) ) {
+							$passes_filters = false;
+							break;
+						}
+					} else {
+						$parts = array_map( 'sanitize_title', explode( ';', (string) $actual_val ) );
+						if ( ! in_array( $f_val_slug, $parts, true ) && sanitize_title( (string) $actual_val ) !== $f_val_slug ) {
+							$passes_filters = false;
+							break;
+						}
+					}
+				}
+				if ( ! $passes_filters ) continue;
 			}
 
 			$score = 0;
@@ -1324,7 +1361,9 @@ class SZEducate_Client {
 			return strcmp( $a['title'], $b['title'] );
 		});
 
-		$final_categories = array_slice( $category_results, 0, 3 );
+		// Szűrt keresésnél (pl. BSc-aloldal) a "mappa" javaslatok félrevezetők lennének
+		// - a linkjük kivezetne a szűrt nézetből -, ezért ilyenkor elhagyjuk őket.
+		$final_categories = empty( $filters ) ? array_slice( $category_results, 0, 3 ) : array();
 		$final_courses = array_slice( $course_results, 0, 7 );
 
 		return rest_ensure_response( array_merge( $final_categories, $final_courses ) );
