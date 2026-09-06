@@ -58,7 +58,58 @@ class SZEducate_Dynamic_Tag extends \Elementor\Core\DynamicTags\Tag {
 				'type'        => \Elementor\Controls_Manager::TEXT,
 				'default'     => ', ',
 				'description' => 'Pl. ", " vagy " • ". Írj \n-t, ha minden elem külön sorba kerüljön. A jelölőnégyzet (több opciós) mezőkre akkor is hat, ha az érték ";"-vel elválasztott szövegként van tárolva.',
+				// Link-módban nincs értelme (egyetlen URL-t írunk ki hivatkozásként).
+				'condition'   => array( 'field_key!' => '', 'render_as' => 'text' ),
+			)
+		);
+
+		$this->add_control(
+			'render_as',
+			array(
+				'label'       => 'Megjelenítés',
+				'type'        => \Elementor\Controls_Manager::SELECT,
+				'default'     => 'text',
+				'options'     => array(
+					'text' => 'Szövegként (alap)',
+					'link' => 'Kattintható hivatkozásként',
+				),
+				'description' => '„Kattintható hivatkozásként": a mező értékét (egy URL-t, pl. a „Nyelvi követelmények" mezőét) <a> elemként írja ki a megadott felirattal, így egy Címsor / Szövegszerkesztő widgetben is elhelyezhető inline hivatkozásként. Csak „Link" (url) típusú mezőnél / URL értéknél van értelme.',
 				'condition'   => array( 'field_key!' => '' ),
+			)
+		);
+
+		$this->add_control(
+			'link_prefix',
+			array(
+				'label'       => 'Bevezető szöveg (opcionális)',
+				'type'        => \Elementor\Controls_Manager::TEXT,
+				'default'     => '',
+				'description' => 'A hivatkozás elé kerül, sima szövegként. Pl. „Teljesítendő kimeneti nyelvi követelmény részletek: ".',
+				'condition'   => array( 'field_key!' => '', 'render_as' => 'link' ),
+			)
+		);
+
+		$this->add_control(
+			'link_text',
+			array(
+				'label'       => 'Hivatkozás szövege',
+				'type'        => \Elementor\Controls_Manager::TEXT,
+				'default'     => 'Kattints ide',
+				'description' => 'Üresen hagyva maga az URL lesz a felirat.',
+				'condition'   => array( 'field_key!' => '', 'render_as' => 'link' ),
+			)
+		);
+
+		$this->add_control(
+			'link_new_tab',
+			array(
+				'label'        => 'Új lapon nyíljon',
+				'type'         => \Elementor\Controls_Manager::SWITCHER,
+				'label_on'     => 'Igen',
+				'label_off'    => 'Nem',
+				'return_value' => 'yes',
+				'default'      => 'yes',
+				'condition'    => array( 'field_key!' => '', 'render_as' => 'link' ),
 			)
 		);
 	}
@@ -103,6 +154,30 @@ class SZEducate_Dynamic_Tag extends \Elementor\Core\DynamicTags\Tag {
 			if ( count( $parts ) > 1 ) {
 				$value = $parts;
 			}
+		}
+
+		// „Kattintható hivatkozásként" megjelenítés: a mező (string) értékét egyetlen URL-nek
+		// vesszük és <a> elemként írjuk ki a megadott felirattal. Így egy sima szöveges
+		// kontextusban (Címsor / Szövegszerkesztő) is elhelyezhető egy dinamikus URL-re
+		// mutató inline hivatkozás (pl. „Kattints ide"), nem csak nyers URL-ként.
+		if ( $this->get_settings( 'render_as' ) === 'link' && is_string( $value ) ) {
+			$url = esc_url( trim( $value ) );
+			if ( $url === '' ) return; // érvénytelen / nem támogatott protokoll -> a Fallback él
+
+			$link_text = $this->get_settings( 'link_text' );
+			if ( $link_text === null || $link_text === '' ) $link_text = $value;
+
+			$prefix = $this->get_settings( 'link_prefix' );
+			if ( is_string( $prefix ) && $prefix !== '' ) {
+				echo esc_html( $prefix );
+			}
+
+			$target = ( $this->get_settings( 'link_new_tab' ) === 'yes' )
+				? ' target="_blank" rel="noopener noreferrer"'
+				: '';
+
+			echo '<a href="' . $url . '"' . $target . '>' . esc_html( $link_text ) . '</a>';
+			return;
 		}
 
 		if ( is_array( $value ) ) {
