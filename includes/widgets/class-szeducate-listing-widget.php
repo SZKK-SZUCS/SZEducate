@@ -121,6 +121,18 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 				'return_value' => 'yes',
 				'default'      => 'yes',
 				'separator'    => 'before',
+				'description'  => 'Csak az EXTRA szűrést írja ki (kereső / kategórialink). A widgetben beállított alap szűrő (pl. „Képzési Forma = MSc") nem jelenik meg badge-ként.',
+			]
+		);
+
+		$this->add_control(
+			'reset_filter_text',
+			[
+				'label'       => 'Szűrő-törlő link szövege',
+				'type'        => \Elementor\Controls_Manager::TEXT,
+				'default'     => 'Szűrő törlése',
+				'condition'   => [ 'show_active_filter' => 'yes' ],
+				'description' => 'Az aktív szűrő badge mellett jelenik meg; visszavezet az alap (widgetben beállított) nézetre. Üresen hagyva nincs link.',
 			]
 		);
 
@@ -218,6 +230,25 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 				'selectors'  => [
 					'{{WRAPPER}} .sz-active-filter-badge' => 'margin-bottom: {{SIZE}}{{UNIT}};',
 				],
+			]
+		);
+
+		$this->add_control(
+			'reset_filter_heading',
+			[
+				'label'     => 'Szűrő-törlő link',
+				'type'      => \Elementor\Controls_Manager::HEADING,
+				'separator' => 'before',
+			]
+		);
+
+		$this->add_control(
+			'reset_filter_color',
+			[
+				'label'     => 'Link színe',
+				'type'      => \Elementor\Controls_Manager::COLOR,
+				'default'   => '#8C8F94',
+				'selectors' => [ '{{WRAPPER}} .sz-reset-filter' => 'color: {{VALUE}};' ],
 			]
 		);
 
@@ -563,27 +594,43 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 			}
 		}
 
-		$active_filters = array();
+		// Alap szűrők: a widgetben beállított 'filter_<kulcs>' vezérlők. Ezek MINDIG
+		// érvényesek a lekérdezésre, de sosem jelennek meg eltávolítható badge-ként
+		// (ez a "nem törölhető alap szűrés" - pl. egy MSc-aloldalon a Képzési Forma).
+		$base_filters = array();
 		foreach ( $settings as $key => $val ) {
 			if ( strpos( $key, 'filter_' ) === 0 && $key !== 'filter_heading' && ! empty( $val ) ) {
 				$actual_key = str_replace( 'filter_', '', $key );
-				$active_filters[$actual_key] = sanitize_title( $val ); 
+				$base_filters[$actual_key] = sanitize_title( $val );
 			}
 		}
 
+		// Extra szűrés kategórialinkből (pretty URL) - a régi viselkedés szerint ez
+		// FELÜLÍRJA az alapot a lekérdezésben.
 		$seo_field   = get_query_var('sz_seo_field');
 		$seo_keyword = get_query_var('sz_seo_keyword');
-		if ( ! empty($seo_field) && ! empty($seo_keyword) ) {
-			$active_filters = array( sanitize_text_field($seo_field) => sanitize_title($seo_keyword) );
-		}
+		$seo_active  = ( ! empty($seo_field) && ! empty($seo_keyword) );
+
+		$active_filters = $seo_active
+			? array( sanitize_text_field($seo_field) => sanitize_title($seo_keyword) )
+			: $base_filters;
 
 		$free_text_search = isset($_GET['sz_search']) ? trim(sanitize_text_field($_GET['sz_search'])) : '';
 		$free_text_search_lower = mb_strtolower($free_text_search, 'UTF-8');
 
+		// Badge + "Szűrő törlése" link CSAK extra szűrésnél (szabadszavas keresés vagy
+		// kategórialink). Az alap widget-szűrő önmagában nem ír ki semmit.
+		$badge_enabled = ( isset($settings['show_active_filter']) && $settings['show_active_filter'] === 'yes' );
+		$reset_label   = isset($settings['reset_filter_text']) ? trim($settings['reset_filter_text']) : '';
+
 		$display_filter_text = '';
-		if ( ! empty( $free_text_search ) && $settings['show_active_filter'] === 'yes' ) {
-			$display_filter_text = sprintf( 'Keresés eredménye: "%s"', esc_html( $_GET['sz_search'] ) );
-		} elseif ( ! empty( $active_filters ) && $settings['show_active_filter'] === 'yes' ) {
+		$reset_url           = '';
+
+		if ( $badge_enabled && $free_text_search !== '' ) {
+			$display_filter_text = sprintf( 'Keresés eredménye: "%s"', $free_text_search );
+			// A keresés eltávolítása után az alap (widget-config) nézet marad.
+			$reset_url = remove_query_arg( array( 'sz_search' ) );
+		} elseif ( $badge_enabled && $seo_active ) {
 			reset($active_filters);
 			$f_key = key($active_filters);
 			$f_val_slug = current($active_filters);
@@ -613,6 +660,22 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 				}
 			}
 			$display_filter_text = sprintf( 'Szűrés: %s - %s', $f_label, $f_val_display );
+
+			// A kategórialink a path-ban ül; a törlés a tiszta oldal-permalinkre visz.
+			$reset_url = get_permalink( get_queried_object_id() );
+			if ( empty( $reset_url ) ) {
+				$pn = get_query_var( 'pagename' );
+				$reset_url = $pn ? home_url( user_trailingslashit( $pn ) ) : home_url( '/' );
+			}
+		}
+
+		$filter_badge_html = '';
+		if ( $display_filter_text !== '' ) {
+			$filter_badge_html = '<div class="sz-active-filter-badge">' . esc_html( $display_filter_text );
+			if ( $reset_label !== '' && ! empty( $reset_url ) ) {
+				$filter_badge_html .= ' <a href="' . esc_url( $reset_url ) . '" class="sz-reset-filter" rel="nofollow" style="margin-left:8px; white-space:nowrap;">' . esc_html( $reset_label ) . '</a>';
+			}
+			$filter_badge_html .= '</div>';
 		}
 
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-client.php';
@@ -726,9 +789,7 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 			if ( \Elementor\Plugin::$instance->editor->is_edit_mode() ) {
 				echo '<p style="color:#666; font-style:italic;">A beállított szűrőknek megfelelő képzés jelenleg nem található.</p>';
 			} else {
-				if ( ! empty( $display_filter_text ) ) {
-					echo '<div class="sz-active-filter-badge">' . esc_html( $display_filter_text ) . '</div>';
-				}
+				echo $filter_badge_html;
 				echo '<p style="color:#888; font-style:italic; padding:20px; text-align:center;">Sajnos nem találtunk a keresésnek megfelelő képzést.</p>';
 			}
 			return;
@@ -763,9 +824,7 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 			});
 		}
 
-		if ( ! empty( $display_filter_text ) ) {
-			echo '<div class="sz-active-filter-badge">' . esc_html( $display_filter_text ) . '</div>';
-		}
+		echo $filter_badge_html;
 
 		$grid_class = ! empty( $group_key ) ? 'sz-listing-grid' : 'sz-listing-single';
 		$grid_style = ! empty( $group_key ) ? 'display:grid; width:100%;' : 'width:100%;';

@@ -115,7 +115,7 @@ A bővítmény telepítése a standard WordPress módszerrel történik. **Ne a 
 Az oldalak szerkesztésekor az Elementor panelen a _SZEducate_ kategóriában találod a widgeteket:
 
 - **SZEducate Okos Kereső:** Bárhova elhelyezhető. Beállítható benne, hogy "Enter" ütése esetén melyik URL-re vigye a látogatót (Céloldal). A **„Szűrés (aloldalakhoz)"** szekcióban egy vagy több séma-mezőre (pl. Képzési Forma = BSc) korlátozható, hogy egy szűrt aloldalon csak az oda illő képzésekben keressen.
-- **SZEducate Szaklista:** A fő archívum widget. Megadhatod benne az alapértelmezett csoportosítást (pl. Képzési Terület szerint), és egyedi sorrendet is felállíthatsz. Automatikusan reagál, ha a Keresőből vagy a Kulcsszavak widgetből érkezik a látogató.
+- **SZEducate Szaklista:** A fő archívum widget. Megadhatod benne az alapértelmezett csoportosítást (pl. Képzési Terület szerint), és egyedi sorrendet is felállíthatsz. Automatikusan reagál, ha a Keresőből vagy a Kulcsszavak widgetből érkezik a látogató. A **Dinamikus Szűrők** közül beállított alap szűrő (pl. csak MSc) mindig érvényes, de nem jelenik meg badge-ként; ha a látogató keresésből érkezik, a badge mellett egy „Szűrő törlése" link visszavezet a teljes (alap-szűrt) listára.
 - **SZEducate Kulcsszavak:** Kiteszi egy adott szak címkéit. Ha megadod a "Szaklista" oldalad URL-jét a beállításaiban, a címkék kattinthatóvá válnak.
 
 ---
@@ -150,6 +150,13 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 4.  A weboldalak WordPress rendszere ezt érzékelni fogja, és felajánlja az adminisztrátoroknak a frissítést.
 
 ## Changelog
+
+### 0.9.42
+
+- Szaklista widget:
+  - **Az alap (widgetben beállított) szűrő már nem jelenik meg aktív szűrő badge-ként.** Eddig egy MSc-listázó oldal a saját `Képzési Forma = MSc` szűrőjét is kiírta „Szűrés: Képzési Forma - MSc" formában – ez félrevezető volt, mert azt sugallta, hogy eltávolítható. Mostantól a badge **csak extra szűrésnél** jelenik meg: szabadszavas keresés (`?sz_search=`) vagy kategórialink. _(Viselkedésváltozás: ha eddig valahol tudatosan az alap szűrő kiírására támaszkodtál, az a felirat eltűnik.)_
+  - Új **„Szűrő-törlő link szövege"** vezérlő (alap: „Szűrő törlése"). Az aktív szűrő badge mellett megjelenő link visszavezet az alap nézetre – kereséskor eltávolítja az `sz_search` paramétert (az alap szűrő, pl. MSc, megmarad), kategórialinknél a tiszta oldal-URL-re visz. Üresen hagyva nincs link. Színe a Stílus fülön állítható.
+  - Így egy MSc/BSc-aloldalon a fenti kereső Enterrel rászűr, a látogató pedig egy kattintással visszaléphet a teljes (alap-szűrt) listára.
 
 ### 0.9.41
 
