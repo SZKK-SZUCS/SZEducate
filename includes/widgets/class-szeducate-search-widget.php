@@ -714,6 +714,11 @@ class SZEducate_Search_Widget extends \Elementor\Widget_Base {
 			var spinner   = document.getElementById('sz-spinner-<?php echo esc_js( $widget_id ); ?>');
 			if ( ! input || ! resultsBox ) return;
 
+			// Ne kössünk kétszer eseményt ugyanarra a mezőre (duplikált widget-példány
+			// azonos id-vel, vagy optimalizáló plugin által újrafuttatott inline script).
+			if ( input.getAttribute('data-sz-bound') === '1' ) return;
+			input.setAttribute('data-sz-bound', '1');
+
 			var SHOW_DOTS    = <?php echo $show_dots ? 'true' : 'false'; ?>;
 			var DISTINGUISH  = <?php echo $distinguish ? 'true' : 'false'; ?>;
 			var archiveUrl   = <?php echo wp_json_encode( $archive_url ); ?>.replace(/\/$/, "");
@@ -721,6 +726,34 @@ class SZEducate_Search_Widget extends \Elementor\Widget_Base {
 			var ENABLE_CAT   = <?php echo $enable_categories ? 'true' : 'false'; ?>;
 			var CAT_KEYS     = <?php echo wp_json_encode( array_values( $category_keys ) ); ?>;
 			var debounceTimer;
+
+			// A találati doboz újrarajzolásakor egyes témák / optimalizáló pluginek
+			// (pl. „Delay JS") re-renderelnek a DOM-változásra, és ilyenkor a beviteli
+			// mező elveszti a fókuszt és a kurzort. A mező node-ja túléli (a beírt
+			// szöveg megmarad), ezért a fókuszt + kurzorpozíciót körbevesszük és
+			// visszaállítjuk – szinkron, majd a következő képkockán és röviddel utána is.
+			function withFocusKept(mutate) {
+				var active = document.activeElement === input;
+				var selStart = active ? input.selectionStart : null;
+				var selEnd   = active ? input.selectionEnd   : null;
+				mutate();
+				if ( ! active ) return;
+				var restore = function() {
+					var ae = document.activeElement;
+					if ( ae === input ) return;
+					// Csak akkor kérjük vissza a fókuszt, ha "a semmibe" veszett
+					// (body / <html> / null). Ha a felhasználó szándékosan másra
+					// kattintott (link, másik mező), ne rángassuk vissza.
+					if ( ae && ae !== document.body && ae !== document.documentElement ) return;
+					try {
+						input.focus({ preventScroll: true });
+						if ( selStart !== null ) { input.setSelectionRange(selStart, selEnd); }
+					} catch (err) {}
+				};
+				restore();
+				if ( window.requestAnimationFrame ) { requestAnimationFrame(restore); }
+				setTimeout(restore, 60);
+			}
 
 			function buildSearchUrl(query) {
 				var url = '/wp-json/szeducate/v1/client/search?q=' + encodeURIComponent(query);
@@ -773,11 +806,14 @@ class SZEducate_Search_Widget extends \Elementor\Widget_Base {
 					fetch(buildSearchUrl(query))
 					.then(function(r){ return r.json(); })
 					.then(function(data) {
-						if (spinner) spinner.style.display = 'none';
-						resultsBox.innerHTML = '';
+						// Közben tovább gépelt → ez már elavult válasz, ne rajzoljunk vele.
+						if ( input.value.trim() !== query ) return;
 
+						if (spinner) spinner.style.display = 'none';
+
+						var html = '';
 						if (data && data.length > 0) {
-							var html = '<ul>';
+							html = '<ul>';
 
 							data.forEach(function(item) {
 								if (item.type === 'category') {
@@ -803,12 +839,15 @@ class SZEducate_Search_Widget extends \Elementor\Widget_Base {
 							<?php endif; ?>
 
 							html += '</ul>';
+						} else {
+							html = '<div class="sz-search-empty">Nincs a keresésnek megfelelő képzés.</div>';
+						}
+
+						// EGY DOM-mutáció, a fókusz megőrzésével.
+						withFocusKept(function() {
 							resultsBox.innerHTML = html;
 							resultsBox.style.display = 'block';
-						} else {
-							resultsBox.innerHTML = '<div class="sz-search-empty">Nincs a keresésnek megfelelő képzés.</div>';
-							resultsBox.style.display = 'block';
-						}
+						});
 					})
 					.catch(function(){
 						if (spinner) spinner.style.display = 'none';

@@ -151,6 +151,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.52
+
+- **Okos Kereső – javítva: a beviteli mező elvesztette a fókuszt, amikor a találati lista megjelent.** Gépelés közben, ~0,4 mp múlva (a legördülő felugrásakor) a kurzor kiesett a mezőből, vissza kellett kattintani. Mostantól a widget a lista kirajzolása körül megőrzi és visszaállítja a fókuszt és a kurzorpozíciót (ha „a semmibe” veszett – ha közben szándékosan másra kattintasz, nem ránt vissza). Emellett: a találati doboz egy lépésben frissül, az elavult (közben túlgépelt) válaszokat eldobja, és ugyanarra a mezőre nem köt kétszer eseményt.
+
 ### 0.9.51
 
 - **Okos Kereső – a mappa-javaslatok mostantól a szűrt aloldalakon is megjelennek.** Eddig, ha a keresőn be volt állítva egy „Szűrés (aloldalakhoz)” érték (pl. egy BSc-aloldalon `Képzési Forma = BSc`), a legördülő **egyetlen** mappa-javaslatot sem mutatott – így pl. a `győr` vagy a `pótfelvételi` keresésre nem lehetett a Telephelyre / Indulás időszakára ugrani. Mostantól a mappa-javaslatokat csak a „Mappa-javaslatok mutatása” kapcsoló kikapcsolása tünteti el; a szűrt aloldal csak a **már szűrt mezőre** nem ajánl mappát (az redundáns lenne), a többire igen. _(A mappa-link a saját dimenziójára szűr; a widget egyéb „Szűrés (aloldalakhoz)” szűkítése nem öröklődik a linkbe.)_
