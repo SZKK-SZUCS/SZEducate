@@ -947,7 +947,9 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 
 		$grouped_data = array();
 		$today_time = strtotime( current_time( 'Y-m-d' ) );
-		$priority_keys = ['kepzesi_forma', 'kulcsszavak', 'kepzesi_terulet', 'indulas_idoszaka'];
+		// A 'kepzesiterulet' az élő séma kulcsa (a korábbi 'kepzesi_terulet' elgépelés
+		// sosem talált) - a szabadszavas keresés így ad neki pont-többletet.
+		$priority_keys = ['kepzesi_forma', 'kulcsszavak', 'kepzesiterulet', 'indulas_idoszaka'];
 
 		foreach ( $courses as $course ) {
 			$post_id = $course['local_post_id'];
