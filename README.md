@@ -151,6 +151,11 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.50
+
+- **Okos Kereső – a „kategória-mezők” mostantól widgetből állíthatók.** Új „Kategória-mezők (mappa-forrás + pont-többlet)” vezérlő az Okos Kereső widgetben (Tartalom → Kereső Beállításai): a séma bármely mezője kijelölhető. Ezekből a mezőkből ajánl a legördülő „mappa” (ugorj a szűrt listához) találatot, és a rájuk eső egyezés ad több pontot a szaknak a rangsorban. Új kapcsoló: „Mappa-javaslatok mutatása” (ki állásban egy mappa-javaslat sem jelenik meg). Üresen hagyott mezőlistánál az alapkészlet fut.
+- **Javítás: a „Képzési terület” mappa-javaslat újra működik.** A kereső motorja eddig a `kepzesi_terulet` kulcsot kereste, miközben az élő séma kulcsa `kepzesiterulet` (alsóvonás nélkül) – így erre a mezőre nem született sem mappa-javaslat, sem pont-többlet. A meglévő kereső-példányok az új vezérlő alapértéke révén automatikusan a javított készletet kapják. Ugyanez az elgépelés a Szaklista widget szabadszavas keresésének pontozásában is javítva.
+
 ### 0.9.49
 
 - **Szaklista – helyes magyar ábécé szerinti rendezés.** Eddig az ékezetes kezdőbetűjű kategóriák és szakok a lista végére kerültek (nyers bájtsorrend). Mostantól az „á" az „a" után, a „b" előtt jön – a csoport-kártyáknál és a csoporton belüli szaklistában egyaránt. Ahol elérhető az `intl` PHP-kiterjesztés, a rendezés a `hu_HU` Collatort használja; e nélkül ékezet-hajtogatásos tartalék lép be, ami szintén a helyükön tartja az ékezetes betűket.

@@ -17,12 +17,21 @@ class SZEducate_Search_Widget extends \Elementor\Widget_Base {
 		// felületet kapja, amit ott már ismer.
 		$schema          = json_decode( get_option( 'szeducate_local_schema', '[]' ), true );
 		$dynamic_filters = array();
+		// A "kategória-kulcsok" vezérlőhöz a séma MINDEN mezője kell (nem csak az
+		// opció-listásak), hogy a kliens szabadon állíthassa, mely mezőkből
+		// ajánljon a kereső "mappát" és melyik adjon pont-többletet.
+		$all_fields = array();
 		if ( is_array( $schema ) ) {
 			foreach ( $schema as $group ) {
 				if ( empty( $group['fields'] ) || ! is_array( $group['fields'] ) ) {
 					continue;
 				}
 				foreach ( $group['fields'] as $field ) {
+					if ( ! empty( $field['key'] ) && ! isset( $all_fields[ $field['key'] ] ) ) {
+						$all_fields[ $field['key'] ] = ( isset( $field['label'] ) && $field['label'] !== '' )
+							? $field['label'] . ' (' . $field['key'] . ')'
+							: $field['key'];
+					}
 					if ( ! in_array( $field['type'], [ 'select', 'radio', 'checkbox' ], true ) || empty( $field['options'] ) ) {
 						continue;
 					}
@@ -45,6 +54,18 @@ class SZEducate_Search_Widget extends \Elementor\Widget_Base {
 					);
 				}
 			}
+		}
+
+		// A korábban bedrótozott "kategória-mezők". Mindkét képzési-terület-kulcs
+		// szerepel a jelöltek közt (a régi 'kepzesi_terulet' és az élő sémabeli
+		// 'kepzesiterulet'), a metszet dönti el, melyik van ténylegesen a sémában.
+		$default_category_keys = array_values( array_intersect(
+			[ 'kepzesi_forma', 'kulcsszavak', 'kepzesiterulet', 'kepzesi_terulet', 'indulas_idoszaka', 'telephely' ],
+			array_keys( $all_fields )
+		) );
+		if ( empty( $default_category_keys ) ) {
+			// Séma nélkül (pl. friss telepítés) is legyen értelmes alapérték.
+			$default_category_keys = [ 'kepzesi_forma', 'kulcsszavak', 'kepzesiterulet', 'indulas_idoszaka', 'telephely' ];
 		}
 
 		// ------------------------------------------------------------------
@@ -99,6 +120,42 @@ class SZEducate_Search_Widget extends \Elementor\Widget_Base {
 				'return_value' => 'yes',
 				'default'      => 'yes',
 				'description'  => 'Kikapcsolva minden találat egyformán jelenik meg (a pötty is egy színű).',
+			]
+		);
+
+		$this->add_control(
+			'category_keys_heading',
+			[
+				'label'     => 'Mappa (csoport) javaslatok',
+				'type'      => \Elementor\Controls_Manager::HEADING,
+				'separator' => 'before',
+			]
+		);
+
+		$this->add_control(
+			'enable_category_suggestions',
+			[
+				'label'        => 'Mappa-javaslatok mutatása',
+				'type'         => \Elementor\Controls_Manager::SWITCHER,
+				'label_on'     => 'Igen',
+				'label_off'    => 'Nem',
+				'return_value' => 'yes',
+				'default'      => 'yes',
+				'description'  => 'A legördülő tetején felkínált „ugorj a szűrt listához” jellegű sorok (pl. „Informatika – Képzési terület”).',
+			]
+		);
+
+		$this->add_control(
+			'category_keys',
+			[
+				'label'       => 'Kategória-mezők (mappa-forrás + pont-többlet)',
+				'type'        => \Elementor\Controls_Manager::SELECT2,
+				'multiple'    => true,
+				'label_block' => true,
+				'options'     => $all_fields,
+				'default'     => $default_category_keys,
+				'condition'   => [ 'enable_category_suggestions' => 'yes' ],
+				'description'  => 'Ezeket a mezőket veszi „kategóriának” a kereső: ezekből lesz mappa-javaslat, és a rájuk eső találat több pontot ad a szaknak. Üresen hagyva az alapértelmezett készlet fut (Képzési Forma, Kulcsszavak, Képzési terület, Indulás időszaka, Telephely).',
 			]
 		);
 
@@ -595,6 +652,19 @@ class SZEducate_Search_Widget extends \Elementor\Widget_Base {
 				$active_filters[ substr( $key, 7 ) ] = $val;
 			}
 		}
+
+		// Kategória-mezők a widget beállításából (→ &ck[]=kulcs a végpontnak). A
+		// kapcsoló "nem" állásában a &nocat=1 minden mappa-javaslatot elnyom.
+		$enable_categories = ( ! isset( $settings['enable_category_suggestions'] ) ) || $settings['enable_category_suggestions'] === 'yes';
+		$category_keys     = array();
+		if ( $enable_categories && ! empty( $settings['category_keys'] ) && is_array( $settings['category_keys'] ) ) {
+			foreach ( $settings['category_keys'] as $ck ) {
+				$ck = sanitize_text_field( (string) $ck );
+				if ( $ck !== '' ) {
+					$category_keys[] = $ck;
+				}
+			}
+		}
 		?>
 		<div class="sz-search-wrapper" id="<?php echo esc_attr( $root_id ); ?>">
 			<form action="<?php echo $archive_url; ?>" method="GET" class="sz-search-form" id="sz-search-form-<?php echo esc_attr( $widget_id ); ?>">
@@ -648,6 +718,8 @@ class SZEducate_Search_Widget extends \Elementor\Widget_Base {
 			var DISTINGUISH  = <?php echo $distinguish ? 'true' : 'false'; ?>;
 			var archiveUrl   = <?php echo wp_json_encode( $archive_url ); ?>.replace(/\/$/, "");
 			var FILTERS      = <?php echo wp_json_encode( (object) $active_filters ); ?>;
+			var ENABLE_CAT   = <?php echo $enable_categories ? 'true' : 'false'; ?>;
+			var CAT_KEYS     = <?php echo wp_json_encode( array_values( $category_keys ) ); ?>;
 			var debounceTimer;
 
 			function buildSearchUrl(query) {
@@ -655,6 +727,13 @@ class SZEducate_Search_Widget extends \Elementor\Widget_Base {
 				Object.keys(FILTERS).forEach(function(k) {
 					url += '&f[' + encodeURIComponent(k) + ']=' + encodeURIComponent(FILTERS[k]);
 				});
+				if ( ! ENABLE_CAT ) {
+					url += '&nocat=1';
+				} else {
+					CAT_KEYS.forEach(function(k) {
+						url += '&ck[]=' + encodeURIComponent(k);
+					});
+				}
 				return url;
 			}
 

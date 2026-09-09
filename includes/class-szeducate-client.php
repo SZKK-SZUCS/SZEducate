@@ -1241,8 +1241,30 @@ class SZEducate_Client {
 
 		$course_results = array();
 		$category_results = array();
-		
-		$allowed_category_keys = ['kepzesi_forma', 'kulcsszavak', 'kepzesi_terulet', 'indulas_idoszaka', 'telephely'];
+
+		// A "kategória-mezők" elsődlegesen a hívó Okos Kereső widgetből jönnek
+		// (?ck[]=kulcs). Ez a lista dönti el, mely mezőkből lesz "mappa" javaslat,
+		// és mely mezőben talált egyezés ad pont-többletet a szaknak.
+		// Ha a hívó nem küld listát (régi widget-példány vagy közvetlen API-hívás),
+		// a javított alapkészlet fut - a korábbi 'kepzesi_terulet' elgépelés helyett
+		// az élő sémabeli 'kepzesiterulet' kulccsal.
+		$allowed_category_keys = array();
+		$ck_raw = $request->get_param( 'ck' );
+		if ( is_array( $ck_raw ) ) {
+			foreach ( $ck_raw as $ck ) {
+				$ck = sanitize_text_field( (string) $ck );
+				if ( $ck !== '' ) {
+					$allowed_category_keys[] = $ck;
+				}
+			}
+		}
+		if ( empty( $allowed_category_keys ) ) {
+			$allowed_category_keys = array( 'kepzesi_forma', 'kulcsszavak', 'kepzesiterulet', 'indulas_idoszaka', 'telephely' );
+		}
+
+		// Mappa-javaslatok elnyomása: szűrt nézetben (aloldal) a "mappa" linkek
+		// kivezetnének a szűrt listából; a widget kapcsolójával kézzel is kikapcsolható.
+		$suppress_categories = ! empty( $filters ) || (bool) $request->get_param( 'nocat' );
 
 		foreach ( $courses as $course ) {
 			$post_id = $course['local_post_id'];
@@ -1361,9 +1383,9 @@ class SZEducate_Client {
 			return strcmp( $a['title'], $b['title'] );
 		});
 
-		// Szűrt keresésnél (pl. BSc-aloldal) a "mappa" javaslatok félrevezetők lennének
-		// - a linkjük kivezetne a szűrt nézetből -, ezért ilyenkor elhagyjuk őket.
-		$final_categories = empty( $filters ) ? array_slice( $category_results, 0, 3 ) : array();
+		// Szűrt keresésnél (pl. BSc-aloldal), vagy ha a widget kikapcsolta, a "mappa"
+		// javaslatokat elhagyjuk (a linkjük kivezetne a szűrt nézetből).
+		$final_categories = $suppress_categories ? array() : array_slice( $category_results, 0, 3 );
 		$final_courses = array_slice( $course_results, 0, 7 );
 
 		return rest_ensure_response( array_merge( $final_categories, $final_courses ) );
