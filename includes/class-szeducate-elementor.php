@@ -81,14 +81,32 @@ class SZEducate_Elementor {
 		// üres tömbnél tényleg üres ("[]"), kitöltöttnél nem.
 		$actual_str = is_array( $actual_val ) ? wp_json_encode( $actual_val ) : (string) $actual_val;
 		$is_empty   = ( trim( $actual_str ) === '' || $actual_str === '[]' || $actual_str === '{}' );
-		$target_val = (string) $target_val;
+
+		if ( $rule === 'empty' )     return $is_empty;
+		if ( $rule === 'not_empty' ) return ! $is_empty;
+
+		// equals / not_equals / contains: a "Vizsgált érték" több sort is tartalmazhat,
+		// soronként egy vizsgálandó értékkel, VAGY-kapcsolatban (pl. külön sorban "bsc",
+		// "msc", "mikrokepzes" -> rejtsd el, ha bármelyikkel egyezik). Egyetlen sor
+		// pontosan a korábbi viselkedést adja - a meglévő beállításokat nem érinti.
+		// Sortörés a szeparátor (nem vessző): a forma/kategória jellegű mezők mentett
+		// értékében nincs sortörés, vesszős címke viszont előfordulhat.
+		$targets = preg_split( '/[\r\n]+/', (string) $target_val );
+		$targets = array_values( array_filter( array_map( 'trim', $targets ), function ( $t ) { return $t !== ''; } ) );
+		if ( empty( $targets ) ) {
+			$targets = array( '' ); // üres "vizsgált érték" - a régi logika szerint üres stringgel hasonlítunk
+		}
 
 		switch ( $rule ) {
-			case 'empty':      return $is_empty;
-			case 'not_empty':  return ! $is_empty;
-			case 'equals':     return $actual_str === $target_val;
-			case 'not_equals': return $actual_str !== $target_val;
-			case 'contains':   return $target_val !== '' && strpos( $actual_str, $target_val ) !== false;
+			case 'equals':
+				foreach ( $targets as $t ) { if ( $actual_str === $t ) return true; }
+				return false;
+			case 'not_equals':
+				foreach ( $targets as $t ) { if ( $actual_str === $t ) return false; }
+				return true;
+			case 'contains':
+				foreach ( $targets as $t ) { if ( $t !== '' && strpos( $actual_str, $t ) !== false ) return true; }
+				return false;
 		}
 		return false;
 	}
@@ -137,9 +155,11 @@ class SZEducate_Elementor {
 		$element->add_control(
 			'szeducate_hide_value',
 			array(
-				'label'     => 'Vizsgált érték (Szöveg)',
-				'type'      => \Elementor\Controls_Manager::TEXT,
-				'condition' => array(
+				'label'       => 'Vizsgált érték',
+				'type'        => \Elementor\Controls_Manager::TEXTAREA,
+				'rows'        => 3,
+				'description' => 'Több érték is megadható, soronként egy - VAGY-kapcsolatban. Pl. külön sorban "bsc", "msc", "mikrokepzes": EGYENLŐ / TARTALMAZZA esetén elrejt, ha bármelyikkel egyezik ill. bármelyiket tartalmazza; NEM EGYENLŐ esetén, ha egyikkel sem egyezik.',
+				'condition'   => array(
 					'szeducate_hide_rule'           => array( 'equals', 'not_equals', 'contains' ),
 					'szeducate_hide_if_empty_keys!' => '',
 				),
@@ -282,9 +302,11 @@ class SZEducate_Elementor {
 		$repeater->add_control(
 			'value',
 			array(
-				'label'     => 'Érték',
-				'type'      => \Elementor\Controls_Manager::TEXT,
-				'condition' => array( 'rule' => array( 'equals', 'not_equals', 'contains' ) ),
+				'label'       => 'Érték',
+				'type'        => \Elementor\Controls_Manager::TEXTAREA,
+				'rows'        => 3,
+				'description' => 'Több érték: soronként egy, VAGY-kapcsolatban.',
+				'condition'   => array( 'rule' => array( 'equals', 'not_equals', 'contains' ) ),
 			)
 		);
 

@@ -151,6 +151,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.44
+
+- **SZEducate Láthatóság – a feltétel több értéket is vizsgálhat (VAGY).** A „Vizsgált érték" mező mostantól többsoros: az `EGYENLŐ` / `NEM EGYENLŐ` / `TARTALMAZZA` feltétel **soronként egy** értéket vesz, VAGY-kapcsolatban. Pl. külön sorban `bsc`, `msc`, `mikrokepzes` → a blokk elrejthető, ha a mező bármelyikkel egyezik (ill. bármelyiket tartalmazza); `NEM EGYENLŐ` esetén akkor rejt, ha egyikkel sem egyezik. Ugyanez a harmonika „SZEducate: Feltételes fülek" `Érték` mezőjében is. Egyetlen sor = a korábbi viselkedés, a meglévő beállítások változatlanok. (Szeparátor a sortörés, nem a vessző.)
+
 ### 0.9.43
 
 - **React szerkesztő – vágólapos sor/táblázat átvitel a Lista (repeater) mezőkben (pl. Intézményi pontok, Munkarend-csoportok › Variánsok).** A használat: két böngészőlapon két szak nyitva, az egyikről a másikra vágólapon (JSON-string) átvihető egy sor vagy az egész táblázat, minden értékkel.
