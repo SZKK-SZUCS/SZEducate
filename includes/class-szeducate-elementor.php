@@ -74,6 +74,18 @@ class SZEducate_Elementor {
 		return $options;
 	}
 
+	// A plugin boolean-konvenciója: üres / "0" / "false" / "hamis" / "nem" stb. = hamis.
+	// Ugyanaz, mint a Szaklista szűrőpanel uf_truthy()-ja és a React szerkesztő
+	// toBoolValue()-ja. Kell, mert a Kapcsoló (boolean) mező a course_data-ban
+	// többféle alakban él: JSON true/false (szerkesztő), "1"/"0" (CSV/Excel import),
+	// null vagy hiányzó kulcs - egyik string-egyenlőség sem fogja meg mindet.
+	private function sz_is_truthy( $v ) {
+		if ( is_bool( $v ) )  return $v;
+		if ( is_array( $v ) ) return ! empty( $v );
+		$n = function_exists( 'mb_strtolower' ) ? mb_strtolower( trim( (string) $v ), 'UTF-8' ) : strtolower( trim( (string) $v ) );
+		return ! in_array( $n, array( '', '0', 'false', 'hamis', 'nem', 'no', 'n' ), true );
+	}
+
 	// Egy mezőérték illeszkedik-e a szabályra. (Közös a szakasz/oszlop/konténer/widget
 	// láthatóság és a harmonika-fül feltételek között.)
 	private function sz_rule_matches( $actual_val, $rule, $target_val ) {
@@ -84,6 +96,10 @@ class SZEducate_Elementor {
 
 		if ( $rule === 'empty' )     return $is_empty;
 		if ( $rule === 'not_empty' ) return ! $is_empty;
+
+		// Kapcsoló (boolean) mezőhöz: érték nélküli feltétel, a truthy-konvencióval.
+		if ( $rule === 'is_true' )  return $this->sz_is_truthy( $actual_val );
+		if ( $rule === 'is_false' ) return ! $this->sz_is_truthy( $actual_val );
 
 		// equals / not_equals / contains: a "Vizsgált érték" több sort is tartalmazhat,
 		// soronként egy vizsgálandó értékkel, VAGY-kapcsolatban (pl. külön sorban "bsc",
@@ -141,6 +157,8 @@ class SZEducate_Elementor {
 				'options'   => array(
 					'empty'      => 'A mező ÜRES',
 					'not_empty'  => 'A mező NEM ÜRES',
+					'is_true'    => 'IGAZ (Kapcsoló be van kapcsolva)',
+					'is_false'   => 'HAMIS (Kapcsoló nincs bekapcsolva)',
 					'equals'     => 'EGYENLŐ a megadott értékkel',
 					'not_equals' => 'NEM EGYENLŐ a megadott értékkel',
 					'contains'   => 'TARTALMAZZA a megadott értéket',
@@ -293,6 +311,8 @@ class SZEducate_Elementor {
 				'options' => array(
 					'empty'      => 'ÜRES',
 					'not_empty'  => 'NEM ÜRES',
+					'is_true'    => 'IGAZ (Kapcsoló be)',
+					'is_false'   => 'HAMIS (Kapcsoló ki)',
 					'equals'     => 'EGYENLŐ ezzel',
 					'not_equals' => 'NEM EGYENLŐ ezzel',
 					'contains'   => 'TARTALMAZZA ezt',

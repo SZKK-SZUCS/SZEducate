@@ -151,6 +151,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.47
+
+- **SZEducate Láthatóság – Kapcsoló (boolean) mező vizsgálata.** Két új feltétel a „Feltétel" listában: **`IGAZ (Kapcsoló be van kapcsolva)`** és **`HAMIS (Kapcsoló nincs bekapcsolva)`**, érték megadása nélkül. Ugyanez a harmonika „SZEducate: Feltételes fülek" `Elrejtés, ha a mező...` listájában is (`IGAZ` / `HAMIS`). A vizsgálat a plugin egységes boolean-konvencióját használja (üres, `0`, `false`, `hamis`, `nem`, `no`, `n` = hamis, minden más igaz), így akkor is helyesen működik, ha a Kapcsoló értéke logikai `true`/`false` (szerkesztő), `"1"`/`"0"` szöveg (CSV/Excel import), üres vagy nincs beállítva. Pl. „rejtsd el ezt a gombot, ha a `dualis` nincs bekapcsolva" → Feltétel: `HAMIS`.
+
 ### 0.9.45
 
 - **Szaklista látogatói szűrők – az Igen/Nem szűrő kivehető rádiógomb.** A boolean szűrők (Duális képzésben elérhető, Emelt szintű érettségi) két jelölőnégyzet helyett **rádiógomb** (Igen / Nem), amelynek a bejelölt gombjára újra kattintva **törölhető a jelölés** – így három állapot lehetséges: `Igen`, `Nem`, illetve *egyik sem* (nincs szűrés erre a mezőre). A Munkarend / Nyelv szűrő továbbra is többválasztós jelölőnégyzet.
