@@ -141,7 +141,7 @@ class SZEducate_Search_Widget extends \Elementor\Widget_Base {
 				'label_off'    => 'Nem',
 				'return_value' => 'yes',
 				'default'      => 'yes',
-				'description'  => 'A legördülő tetején felkínált „ugorj a szűrt listához” jellegű sorok (pl. „Informatika – Képzési terület”).',
+				'description'  => 'A legördülő tetején felkínált „ugorj a szűrt listához” jellegű sorok (pl. „Győr – Telephely”). Szűrt aloldalon (lásd lent a „Szűrés (aloldalakhoz)” szekciót) is megjelennek – a már szűrt mezőre nem, a többire igen. Kikapcsolva egy sem.',
 			]
 		);
 
