@@ -1238,6 +1238,114 @@ const RichTextCellControl = ({ value, onChange, disabled }) => {
   );
 };
 
+// --- Táblázatos szerkesztő: sor / táblázat vágólapra másolása és beillesztése ---
+// A használat: két böngészőlapon két szak nyitva, az egyikről a másikra a
+// vágólapon (JSON-string) átvihető egy sor vagy az egész táblázat, minden
+// értékkel. A "__szeducate" marker mezőből ismerjük fel, hogy tényleg SZEducate
+// táblázat-adat van a vágólapon, és nem próbálunk vakon bármilyen JSON-t beolvasni.
+const SZ_CLIP_MARKER = "szeducate-repeater-v1";
+
+// Csak az al-mező-kulcsoknak megfelelő értékeket tartjuk meg, a többit eldobjuk;
+// a hiányzó al-mezőket a típusuknak megfelelő üres értékkel pótoljuk - így egy
+// kicsit eltérő sémájú másik szak sora is baj nélkül beilleszthető.
+const coerceRepeaterRow = (row, subFields) => {
+  const out = {};
+  subFields.forEach((sf) => {
+    const v = row ? row[sf.key] : undefined;
+    if (sf.type === "repeater") {
+      // Mély másolat: a duplikált / beillesztett sor ne ossza meg a beágyazott
+      // lista tömbjét az eredetivel (a séma max. 1 szint mélységet enged, sima adat).
+      out[sf.key] = Array.isArray(v) ? JSON.parse(JSON.stringify(v)) : [];
+    } else if (sf.type === "boolean") {
+      out[sf.key] = toBoolValue(v);
+    } else if (v === undefined || v === null || typeof v === "object") {
+      out[sf.key] = "";
+    } else {
+      out[sf.key] = v;
+    }
+  });
+  return out;
+};
+
+const buildClipText = (kind, field, subFields, rowsArr) => {
+  return JSON.stringify({
+    __szeducate: SZ_CLIP_MARKER,
+    kind, // "row" | "table"
+    fieldKey: field.key,
+    fieldLabel: typeof field.label === "string" ? field.label : "",
+    subKeys: subFields.map((sf) => sf.key),
+    rows: rowsArr.map((r) => coerceRepeaterRow(r || {}, subFields)),
+  });
+};
+
+const writeClipText = async (text) => {
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (e) {}
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.top = "-1000px";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    if (ok) return true;
+  } catch (e) {}
+  // Végső tartalék (pl. nem biztonságos kontextus): a felhasználó maga másol.
+  window.prompt(
+    "Másold ki ezt (Ctrl+C), a másik lapon a beillesztő gombbal illeszd be:",
+    text,
+  );
+  return true;
+};
+
+const readClipText = async () => {
+  try {
+    if (navigator.clipboard && navigator.clipboard.readText) {
+      const t = await navigator.clipboard.readText();
+      if (t && t.trim()) return t;
+    }
+  } catch (e) {}
+  // A Firefox nem engedi a readText-et weboldalnak - kézi beillesztés prompttal.
+  return (
+    window.prompt(
+      "Illeszd be ide a másik lapon kimásolt sort/táblázatot (Ctrl+V):",
+      "",
+    ) || ""
+  );
+};
+
+const parseClipText = (text) => {
+  let obj;
+  try {
+    obj = JSON.parse(String(text).trim());
+  } catch (e) {
+    return {
+      error:
+        "A vágólap tartalma nem értelmezhető. Előbb másolj ki egy sort vagy táblázatot a másik lapon.",
+    };
+  }
+  if (!obj || obj.__szeducate !== SZ_CLIP_MARKER || !Array.isArray(obj.rows)) {
+    return {
+      error:
+        "A vágólapon nincs SZEducate sor vagy táblázat. Előbb másolj ki egyet a másik lapon.",
+    };
+  }
+  return {
+    kind: obj.kind === "table" ? "table" : "row",
+    fieldKey: typeof obj.fieldKey === "string" ? obj.fieldKey : "",
+    fieldLabel: typeof obj.fieldLabel === "string" ? obj.fieldLabel : "",
+    rows: obj.rows,
+  };
+};
+
 const RepeaterControl = ({
   label,
   field,
@@ -1281,6 +1389,113 @@ const RepeaterControl = ({
     );
     onChange(field.key, newRows);
   };
+
+  // Vágólap-műveletek visszajelzése (2-3 mp-ig látszó rövid szöveg a gombsor mellett).
+  const [clipMsg, setClipMsg] = useState(null); // { type: "ok" | "err", text }
+  const clipTimer = useRef(null);
+  const flashClip = (type, text) => {
+    setClipMsg({ type, text });
+    if (clipTimer.current) window.clearTimeout(clipTimer.current);
+    clipTimer.current = window.setTimeout(() => setClipMsg(null), 3500);
+  };
+  useEffect(
+    () => () => {
+      if (clipTimer.current) window.clearTimeout(clipTimer.current);
+    },
+    [],
+  );
+
+  const copyRow = async (index) => {
+    await writeClipText(buildClipText("row", field, subFields, [rows[index]]));
+    flashClip("ok", "Sor a vágólapra másolva. A másik lapon: „Sor beillesztése”.");
+  };
+  const duplicateRow = (index) => {
+    const clone = coerceRepeaterRow(rows[index] || {}, subFields);
+    onChange(field.key, [
+      ...rows.slice(0, index + 1),
+      clone,
+      ...rows.slice(index + 1),
+    ]);
+  };
+  const copyTable = async () => {
+    if (rows.length === 0) {
+      flashClip("err", "Nincs másolható sor.");
+      return;
+    }
+    await writeClipText(buildClipText("table", field, subFields, rows));
+    flashClip("ok", `Táblázat a vágólapra másolva (${rows.length} sor).`);
+  };
+  // mode: "append" (a végére fűz) | "replace" (teljes csere)
+  const pasteRows = async (mode) => {
+    const text = await readClipText();
+    if (!text) return;
+    const parsed = parseClipText(text);
+    if (parsed.error) {
+      flashClip("err", parsed.error);
+      return;
+    }
+    if (parsed.fieldKey && parsed.fieldKey !== field.key) {
+      const label = parsed.fieldLabel ? ` („${parsed.fieldLabel}”)` : "";
+      if (
+        !window.confirm(
+          `A vágólap tartalma másik mezőből származik${label}. Biztosan ide illeszted be?`,
+        )
+      ) {
+        return;
+      }
+    }
+    const incoming = parsed.rows.map((r) => coerceRepeaterRow(r || {}, subFields));
+    if (incoming.length === 0) {
+      flashClip("err", "A vágólapon üres a táblázat.");
+      return;
+    }
+    if (mode === "replace") {
+      if (
+        rows.length > 0 &&
+        !window.confirm(
+          `Lecseréli a jelenlegi ${rows.length} sort a vágólap ${incoming.length} sorára?`,
+        )
+      ) {
+        return;
+      }
+      onChange(field.key, incoming);
+      flashClip("ok", `Táblázat beillesztve (${incoming.length} sor).`);
+    } else {
+      onChange(field.key, [...rows, ...incoming]);
+      flashClip(
+        "ok",
+        incoming.length === 1
+          ? "1 sor beillesztve a végére."
+          : `${incoming.length} sor beillesztve a végére.`,
+      );
+    }
+  };
+
+  const rowActionButtons = (index) => (
+    <>
+      <Button
+        isSecondary
+        isSmall
+        onClick={() => copyRow(index)}
+        label="Sor másolása a vágólapra">
+        Másolás
+      </Button>
+      <Button
+        isSecondary
+        isSmall
+        onClick={() => duplicateRow(index)}
+        label="Sor duplikálása közvetlenül alá">
+        Duplikálás
+      </Button>
+      <Button
+        isDestructive
+        isSmall
+        onClick={() => removeRow(index)}
+        label="Sor eltávolítása">
+        &times;
+      </Button>
+    </>
+  );
 
   const renderCellControl = (sf, row, index) => {
     if (PRICE_LIKE_SUBFIELD_KEYS.includes(sf.key) && isStateFundedRow(row)) {
@@ -1432,14 +1647,15 @@ const RepeaterControl = ({
                       </div>
                     ))}
                   {!isReadonly && (
-                    <Button
-                      isDestructive
-                      isSmall
-                      onClick={() => removeRow(index)}
-                      label="Sor eltávolítása"
-                      style={{ marginBottom: "2px" }}>
-                      &times; Sor törlése
-                    </Button>
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "6px",
+                        flexWrap: "wrap",
+                        marginBottom: "2px",
+                      }}>
+                      {rowActionButtons(index)}
+                    </div>
                   )}
                 </div>
                 {subFields
@@ -1479,7 +1695,9 @@ const RepeaterControl = ({
                     {sf.label}
                   </th>
                 ))}
-                {!isReadonly && <th style={{ width: "50px" }}></th>}
+                {!isReadonly && (
+                  <th style={{ width: "1%", whiteSpace: "nowrap" }}></th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -1500,15 +1718,16 @@ const RepeaterControl = ({
                       style={{
                         padding: "8px",
                         borderBottom: "1px solid #eee",
-                        textAlign: "center",
+                        whiteSpace: "nowrap",
                       }}>
-                      <Button
-                        isDestructive
-                        isSmall
-                        onClick={() => removeRow(index)}
-                        label="Sor eltávolítása">
-                        &times;
-                      </Button>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "4px",
+                          justifyContent: "flex-end",
+                        }}>
+                        {rowActionButtons(index)}
+                      </div>
                     </td>
                   )}
                 </tr>
@@ -1517,9 +1736,52 @@ const RepeaterControl = ({
           </table>
         )}
         {!isReadonly && (
-          <Button isSecondary onClick={addRow} style={{ marginTop: "12px" }}>
-            + Sor hozzáadása
-          </Button>
+          <div
+            style={{
+              display: "flex",
+              gap: "8px",
+              flexWrap: "wrap",
+              alignItems: "center",
+              marginTop: "12px",
+            }}>
+            <Button isSecondary onClick={addRow}>
+              + Sor hozzáadása
+            </Button>
+            <Button
+              isSecondary
+              onClick={() => pasteRows("append")}
+              label="A vágólapon lévő sor(ok) hozzáfűzése a végére">
+              Sor beillesztése
+            </Button>
+            <span
+              style={{
+                width: "1px",
+                alignSelf: "stretch",
+                background: "#dcdcde",
+              }}
+            />
+            <Button
+              isSecondary
+              onClick={copyTable}
+              label="Az egész táblázat a vágólapra">
+              Táblázat másolása
+            </Button>
+            <Button
+              isSecondary
+              onClick={() => pasteRows("replace")}
+              label="A táblázat teljes cseréje a vágólap tartalmára">
+              Táblázat beillesztése
+            </Button>
+            {clipMsg && (
+              <span
+                style={{
+                  fontSize: "12px",
+                  color: clipMsg.type === "err" ? "#b32d2e" : "#1e7b34",
+                }}>
+                {clipMsg.text}
+              </span>
+            )}
+          </div>
         )}
       </div>
     </div>

@@ -188,6 +188,234 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 
 		$this->end_controls_section();
 
+		// --- Látogatói szűrőpanel -------------------------------------------------
+		// A "Dinamikus Szűrők" fentebb az admin által rögzített ALAP szűrés (nem
+		// látszik a látogatónak). Ez a szekció ezzel szemben egy a lista fölött
+		// megjelenő, kliensoldali (JS, újratöltés nélküli) szűrőpanelt kapcsol be,
+		// amit a látogató maga állítgat. Szűrőnként külön kapcsolható, hogy melyik
+		// widgeten legyen rá szükség.
+		$this->start_controls_section(
+			'user_filters_section',
+			[
+				'label' => 'Látogatói szűrők (panel)',
+				'tab'   => \Elementor\Controls_Manager::TAB_CONTENT,
+			]
+		);
+
+		$this->add_control(
+			'uf_title',
+			[
+				'label'   => 'Panel címe',
+				'type'    => \Elementor\Controls_Manager::TEXT,
+				'default' => 'Szűrés',
+			]
+		);
+
+		$this->add_control(
+			'uf_reset_text',
+			[
+				'label'   => 'Szűrő-törlő link szövege',
+				'type'    => \Elementor\Controls_Manager::TEXT,
+				'default' => 'Szűrő törlése',
+			]
+		);
+
+		$this->add_control(
+			'uf_no_results_text',
+			[
+				'label'   => '„Nincs találat” szöveg',
+				'type'    => \Elementor\Controls_Manager::TEXT,
+				'default' => 'Nincs a szűrésnek megfelelő képzés.',
+			]
+		);
+
+		$this->add_control(
+			'uf_munkarend',
+			[
+				'label'        => 'Munkarend szűrő',
+				'type'         => \Elementor\Controls_Manager::SWITCHER,
+				'label_on'     => 'Be',
+				'label_off'    => 'Ki',
+				'return_value' => 'yes',
+				'default'      => '',
+				'separator'    => 'before',
+			]
+		);
+		$this->add_control(
+			'uf_munkarend_label',
+			[
+				'label'     => 'Munkarend – felirat',
+				'type'      => \Elementor\Controls_Manager::TEXT,
+				'default'   => 'Munkarend',
+				'condition' => [ 'uf_munkarend' => 'yes' ],
+			]
+		);
+
+		$this->add_control(
+			'uf_nyelv',
+			[
+				'label'        => 'Nyelv szűrő',
+				'type'         => \Elementor\Controls_Manager::SWITCHER,
+				'label_on'     => 'Be',
+				'label_off'    => 'Ki',
+				'return_value' => 'yes',
+				'default'      => '',
+				'separator'    => 'before',
+			]
+		);
+		$this->add_control(
+			'uf_nyelv_label',
+			[
+				'label'     => 'Nyelv – felirat',
+				'type'      => \Elementor\Controls_Manager::TEXT,
+				'default'   => 'Nyelv',
+				'condition' => [ 'uf_nyelv' => 'yes' ],
+			]
+		);
+
+		$this->add_control(
+			'uf_dualis',
+			[
+				'label'        => 'Duális képzés szűrő',
+				'type'         => \Elementor\Controls_Manager::SWITCHER,
+				'label_on'     => 'Be',
+				'label_off'    => 'Ki',
+				'return_value' => 'yes',
+				'default'      => '',
+				'separator'    => 'before',
+			]
+		);
+		$this->add_control(
+			'uf_dualis_label',
+			[
+				'label'     => 'Duális – felirat',
+				'type'      => \Elementor\Controls_Manager::TEXT,
+				'default'   => 'Duális képzésben elérhető',
+				'condition' => [ 'uf_dualis' => 'yes' ],
+			]
+		);
+
+		$this->add_control(
+			'uf_emelt',
+			[
+				'label'        => 'Emelt szintű érettségi szűrő',
+				'type'         => \Elementor\Controls_Manager::SWITCHER,
+				'label_on'     => 'Be',
+				'label_off'    => 'Ki',
+				'return_value' => 'yes',
+				'default'      => '',
+				'separator'    => 'before',
+			]
+		);
+		$this->add_control(
+			'uf_emelt_label',
+			[
+				'label'     => 'Emelt érettségi – felirat',
+				'type'      => \Elementor\Controls_Manager::TEXT,
+				'default'   => 'Emelt szintű érettségi kell',
+				'condition' => [ 'uf_emelt' => 'yes' ],
+			]
+		);
+
+		$this->add_control(
+			'uf_bool_yes',
+			[
+				'label'     => 'Igen/Nem szűrők – „Igen” címke',
+				'type'      => \Elementor\Controls_Manager::TEXT,
+				'default'   => 'Igen',
+				'separator' => 'before',
+			]
+		);
+		$this->add_control(
+			'uf_bool_no',
+			[
+				'label'   => 'Igen/Nem szűrők – „Nem” címke',
+				'type'    => \Elementor\Controls_Manager::TEXT,
+				'default' => 'Nem',
+			]
+		);
+
+		$this->end_controls_section();
+
+		// A szekció csak akkor jelenik meg, ha legalább egy szűrő be van kapcsolva
+		// (OR-feltétel: az sima 'condition' tömb AND-et jelentene).
+		$this->start_controls_section(
+			'style_user_filters_section',
+			[
+				'label'      => 'Látogatói szűrőpanel',
+				'tab'        => \Elementor\Controls_Manager::TAB_STYLE,
+				'conditions' => [
+					'relation' => 'or',
+					'terms'    => [
+						[ 'name' => 'uf_munkarend', 'operator' => '===', 'value' => 'yes' ],
+						[ 'name' => 'uf_nyelv',     'operator' => '===', 'value' => 'yes' ],
+						[ 'name' => 'uf_dualis',    'operator' => '===', 'value' => 'yes' ],
+						[ 'name' => 'uf_emelt',     'operator' => '===', 'value' => 'yes' ],
+					],
+				],
+			]
+		);
+
+		$this->add_control(
+			'uf_panel_bg',
+			[
+				'label'     => 'Panel háttérszín',
+				'type'      => \Elementor\Controls_Manager::COLOR,
+				'default'   => '#F7F9FB',
+				'selectors' => [ '{{WRAPPER}} .sz-listing-filters' => 'background-color: {{VALUE}};' ],
+			]
+		);
+		$this->add_control(
+			'uf_panel_border_color',
+			[
+				'label'     => 'Panel keretszín',
+				'type'      => \Elementor\Controls_Manager::COLOR,
+				'default'   => '#E3E8EE',
+				'selectors' => [ '{{WRAPPER}} .sz-listing-filters' => 'border-color: {{VALUE}};' ],
+			]
+		);
+		$this->add_control(
+			'uf_panel_text_color',
+			[
+				'label'     => 'Szövegszín',
+				'type'      => \Elementor\Controls_Manager::COLOR,
+				'default'   => '#242943',
+				'selectors' => [ '{{WRAPPER}} .sz-listing-filters' => 'color: {{VALUE}};' ],
+			]
+		);
+		$this->add_control(
+			'uf_panel_accent',
+			[
+				'label'     => 'Jelölőnégyzet színe',
+				'type'      => \Elementor\Controls_Manager::COLOR,
+				'default'   => '#50ADC9',
+				'selectors' => [ '{{WRAPPER}} .sz-listing-filters input[type=checkbox]' => 'accent-color: {{VALUE}};' ],
+			]
+		);
+		$this->add_responsive_control(
+			'uf_panel_radius',
+			[
+				'label'      => 'Lekerekítés',
+				'type'       => \Elementor\Controls_Manager::SLIDER,
+				'size_units' => [ 'px', 'em' ],
+				'default'    => [ 'unit' => 'px', 'size' => 10 ],
+				'selectors'  => [ '{{WRAPPER}} .sz-listing-filters' => 'border-radius: {{SIZE}}{{UNIT}};' ],
+			]
+		);
+		$this->add_responsive_control(
+			'uf_panel_margin',
+			[
+				'label'      => 'Alsó margó',
+				'type'       => \Elementor\Controls_Manager::SLIDER,
+				'size_units' => [ 'px', 'em' ],
+				'range'      => [ 'px' => [ 'min' => 0, 'max' => 80 ] ],
+				'default'    => [ 'unit' => 'px', 'size' => 24 ],
+				'selectors'  => [ '{{WRAPPER}} .sz-listing-filters' => 'margin-bottom: {{SIZE}}{{UNIT}};' ],
+			]
+		);
+
+		$this->end_controls_section();
+
 		$this->start_controls_section(
 			'style_active_filter_section',
 			[
@@ -566,6 +794,42 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 		$schema_json = get_option( 'szeducate_local_schema', '[]' );
 		$schema = json_decode( $schema_json, true );
 
+		// --- Látogatói szűrők konfigurációja ------------------------------------
+		// A négy ismert szűrő. A "bool" a boolean mezőkhöz Igen/Nem jelölőt ad;
+		// a többihez a séma opció-listájából épül a jelölőnégyzet-sor. A course_data
+		// kulcs eltérhet a szűrő-kulcstól (pl. "emelt" -> "emelt_kovetelmeny").
+		$uf_label = function( $key, $default ) use ( $settings ) {
+			return ( isset( $settings[ $key ] ) && trim( (string) $settings[ $key ] ) !== '' ) ? $settings[ $key ] : $default;
+		};
+		$uf_specs = array(
+			'munkarend' => array(
+				'on'    => ( isset( $settings['uf_munkarend'] ) && $settings['uf_munkarend'] === 'yes' ),
+				'label' => $uf_label( 'uf_munkarend_label', 'Munkarend' ),
+				'opts'  => $this->uf_schema_options( $schema, 'munkarend', array( 'Nappali', 'Levelező', 'Távoktatás' ) ),
+				'bool'  => false,
+			),
+			'nyelv' => array(
+				'on'    => ( isset( $settings['uf_nyelv'] ) && $settings['uf_nyelv'] === 'yes' ),
+				'label' => $uf_label( 'uf_nyelv_label', 'Nyelv' ),
+				'opts'  => $this->uf_schema_options( $schema, 'nyelv', array( 'Magyar', 'Angol' ) ),
+				'bool'  => false,
+			),
+			'dualis' => array(
+				'on'    => ( isset( $settings['uf_dualis'] ) && $settings['uf_dualis'] === 'yes' ),
+				'label' => $uf_label( 'uf_dualis_label', 'Duális képzésben elérhető' ),
+				'bool'  => true,
+			),
+			'emelt' => array(
+				'on'    => ( isset( $settings['uf_emelt'] ) && $settings['uf_emelt'] === 'yes' ),
+				'label' => $uf_label( 'uf_emelt_label', 'Emelt szintű érettségi kell' ),
+				'bool'  => true,
+			),
+		);
+		$uf_any = false;
+		foreach ( $uf_specs as $s ) { if ( $s['on'] ) { $uf_any = true; break; } }
+		$uf_yes = $uf_label( 'uf_bool_yes', 'Igen' );
+		$uf_no  = $uf_label( 'uf_bool_no', 'Nem' );
+
 		$active_icon_html = '';
 		$active_icon = isset($settings['active_icon']) ? $settings['active_icon'] : [];
 		if ( ! empty( $active_icon['value'] ) ) {
@@ -756,6 +1020,40 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 				}
 			}
 
+			// Látogatói szűrőkhöz: Munkarend / Nyelv a beágyazott "munkarend_csoportok"
+			// listából (tartalék az archivált felső szintű mező), a Duális / Emelt a
+			// felső szintű boolean mezőkből. Csak akkor számoljuk, ha van bekapcsolt szűrő.
+			$f_vals = array( 'munkarend' => array(), 'nyelv' => array(), 'dualis' => '0', 'emelt' => '0' );
+			if ( $uf_any ) {
+				$mr = array();
+				$ny = array();
+				if ( isset( $data['munkarend_csoportok'] ) && is_array( $data['munkarend_csoportok'] ) ) {
+					foreach ( $data['munkarend_csoportok'] as $mg ) {
+						if ( ! is_array( $mg ) ) continue;
+						if ( isset( $mg['munkarend'] ) && trim( (string) $mg['munkarend'] ) !== '' ) {
+							$mr[] = trim( (string) $mg['munkarend'] );
+						}
+						if ( isset( $mg['variansok'] ) && is_array( $mg['variansok'] ) ) {
+							foreach ( $mg['variansok'] as $vr ) {
+								if ( is_array( $vr ) && isset( $vr['nyelv'] ) && trim( (string) $vr['nyelv'] ) !== '' ) {
+									$ny[] = trim( (string) $vr['nyelv'] );
+								}
+							}
+						}
+					}
+				}
+				if ( empty( $mr ) && isset( $data['munkarend'] ) ) {
+					$mr = is_array( $data['munkarend'] ) ? $data['munkarend'] : array_map( 'trim', explode( ';', (string) $data['munkarend'] ) );
+				}
+				if ( empty( $ny ) && isset( $data['nyelv'] ) ) {
+					$ny = is_array( $data['nyelv'] ) ? $data['nyelv'] : array_map( 'trim', explode( ';', (string) $data['nyelv'] ) );
+				}
+				$f_vals['munkarend'] = array_values( array_unique( array_filter( array_map( 'sanitize_title', $mr ) ) ) );
+				$f_vals['nyelv']     = array_values( array_unique( array_filter( array_map( 'sanitize_title', $ny ) ) ) );
+				$f_vals['dualis'] = ( isset( $data['dualis'] ) && self::uf_truthy( $data['dualis'] ) ) ? '1' : '0';
+				$f_vals['emelt']  = ( isset( $data['emelt_kovetelmeny'] ) && self::uf_truthy( $data['emelt_kovetelmeny'] ) ) ? '1' : '0';
+			}
+
 			$groups_for_course = array();
 			if ( ! empty( $group_key ) ) {
 				$gv_raw = isset( $data[ $group_key ] ) ? $data[ $group_key ] : '';
@@ -780,7 +1078,8 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 					'title'     => $course['title'],
 					'url'       => get_permalink( $post_id ),
 					'is_active' => $is_active,
-					'score'     => $score
+					'score'     => $score,
+					'f'         => $f_vals,
 				);
 			}
 		}
@@ -824,26 +1123,40 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 			});
 		}
 
+		$wid = $this->get_id();
+		echo '<div class="sz-listing-widget" id="sz-listing-' . esc_attr( $wid ) . '">';
+
+		echo $this->uf_render_panel( $uf_specs, $uf_any, $uf_yes, $uf_no, $uf_label );
+
 		echo $filter_badge_html;
 
 		$grid_class = ! empty( $group_key ) ? 'sz-listing-grid' : 'sz-listing-single';
 		$grid_style = ! empty( $group_key ) ? 'display:grid; width:100%;' : 'width:100%;';
 
 		echo "<div class=\"{$grid_class}\" style=\"{$grid_style}\">";
-		
+
 		foreach ( $grouped_data as $group_name => $items ) {
 			echo '<div class="sz-group-block" style="display:flex; flex-direction:column; overflow:hidden;">';
-			
+
 			if ( ! empty( $group_key ) ) {
 				echo '<h3 class="sz-group-title" style="margin-top:0; border-bottom-style:solid; border-bottom-width:2px; padding-bottom:10px; width:100%;">' . esc_html( $group_name ) . '</h3>';
 			}
-			
+
 			echo '<ul class="sz-course-list" style="list-style:none; padding:0; margin:0; width:100%;">';
 			foreach ( $items as $item ) {
 				$state_class = $item['is_active'] ? 'sz-course-active' : 'sz-course-inactive';
 				$current_icon = $item['is_active'] ? $active_icon_html : $inactive_icon_html;
-				
-				echo '<li style="display:flex; align-items:flex-start;">';
+
+				$li_data = '';
+				if ( $uf_any ) {
+					$fi = isset( $item['f'] ) ? $item['f'] : array();
+					$li_data .= ' data-f-munkarend="' . esc_attr( implode( ' ', isset( $fi['munkarend'] ) ? $fi['munkarend'] : array() ) ) . '"';
+					$li_data .= ' data-f-nyelv="' . esc_attr( implode( ' ', isset( $fi['nyelv'] ) ? $fi['nyelv'] : array() ) ) . '"';
+					$li_data .= ' data-f-dualis="' . esc_attr( isset( $fi['dualis'] ) ? $fi['dualis'] : '0' ) . '"';
+					$li_data .= ' data-f-emelt="' . esc_attr( isset( $fi['emelt'] ) ? $fi['emelt'] : '0' ) . '"';
+				}
+
+				echo '<li' . $li_data . ' style="display:flex; align-items:flex-start;">';
 				echo '<a href="' . esc_url( $item['url'] ) . '" class="sz-course-link ' . $state_class . '" style="display:inline-flex; align-items:center; transition:all 0.3s ease; width:100%; box-sizing:border-box;">';
 				
 				if ( ! empty( $current_icon ) ) {
@@ -855,10 +1168,185 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 				echo '</li>';
 			}
 			echo '</ul>';
-			
+
 			echo '</div>';
 		}
-		
-		echo '</div>';
+
+		echo '</div>'; // .sz-listing-grid / .sz-listing-single
+
+		if ( $uf_any ) {
+			echo $this->uf_render_script();
+		}
+
+		echo '</div>'; // .sz-listing-widget
+	}
+
+	// A séma bármely (akár beágyazott) mezőjének opció-listáját megkeresi kulcs
+	// alapján; ha nincs / üres, a megadott tartalékot adja vissza. A Munkarend és a
+	// Nyelv al-mezőként él a "munkarend_csoportok" repeaterben, ezért kell a mélységi
+	// bejárás.
+	private function uf_schema_options( $schema, $key, $fallback ) {
+		if ( is_array( $schema ) ) {
+			foreach ( $schema as $group ) {
+				if ( empty( $group['fields'] ) || ! is_array( $group['fields'] ) ) continue;
+				$found = $this->uf_options_deep( $group['fields'], $key );
+				if ( ! empty( $found ) ) return $found;
+			}
+		}
+		return $fallback;
+	}
+
+	private function uf_options_deep( $fields, $key ) {
+		foreach ( (array) $fields as $f ) {
+			if ( ! is_array( $f ) ) continue;
+			if ( isset( $f['key'] ) && $f['key'] === $key && ! empty( $f['options'] ) ) {
+				return array_values( array_filter( array_map( 'trim', explode( ';', $f['options'] ) ), function( $o ) { return $o !== ''; } ) );
+			}
+			if ( ! empty( $f['sub_fields'] ) ) {
+				$r = $this->uf_options_deep( $f['sub_fields'], $key );
+				if ( ! empty( $r ) ) return $r;
+			}
+		}
+		return array();
+	}
+
+	// A plugin-konvenció szerinti "hamis" értékek (üres, "0", "false", "nem", stb.).
+	// Ugyanazt tükrözi, amit a React szerkesztő toBoolValue()-ja és a PHP oldali
+	// boolean-kezelés máshol.
+	private static function uf_truthy( $v ) {
+		if ( is_bool( $v ) ) return $v;
+		if ( is_array( $v ) ) return ! empty( $v );
+		$n = mb_strtolower( trim( (string) $v ), 'UTF-8' );
+		return ! in_array( $n, array( '', '0', 'false', 'hamis', 'nem', 'no', 'n' ), true );
+	}
+
+	private function uf_render_panel( $uf_specs, $uf_any, $uf_yes, $uf_no, $uf_label ) {
+		if ( ! $uf_any ) return '';
+
+		$title = $uf_label( 'uf_title', 'Szűrés' );
+		$reset = $uf_label( 'uf_reset_text', 'Szűrő törlése' );
+		$no_res = $uf_label( 'uf_no_results_text', 'Nincs a szűrésnek megfelelő képzés.' );
+
+		// A szerkezeti CSS-t widgetenként csak egyszer írjuk ki (több példány esetén is).
+		// Színt NEM állít - azok a Stílus-vezérlők alapértékeiből jönnek, hogy a
+		// {{WRAPPER}} szelektorú vezérlők felül tudják írni (azonos specificitás,
+		// később a sorrendben).
+		static $css_done = false;
+		$out = '';
+		if ( ! $css_done ) {
+			$css_done = true;
+			$out .= '<style>'
+				. '.sz-lf-hidden{display:none !important;}'
+				. '.sz-listing-filters{border-width:1px;border-style:solid;padding:16px 18px;box-sizing:border-box;}'
+				. '.sz-listing-filters .sz-lf-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:12px;}'
+				. '.sz-listing-filters .sz-lf-title{font-weight:700;font-size:14px;text-transform:uppercase;letter-spacing:.03em;}'
+				. '.sz-listing-filters .sz-lf-reset{background:none;border:0;padding:0;cursor:pointer;font-size:12px;text-decoration:underline;color:inherit;opacity:.7;font-family:inherit;}'
+				. '.sz-listing-filters .sz-lf-reset:hover{opacity:1;}'
+				. '.sz-listing-filters .sz-lf-groups{display:flex;flex-wrap:wrap;gap:6px 32px;}'
+				. '.sz-listing-filters .sz-lf-group{border:0;margin:0;padding:0;min-width:150px;}'
+				. '.sz-listing-filters .sz-lf-group legend{font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.02em;opacity:.7;margin-bottom:4px;padding:0;}'
+				. '.sz-listing-filters .sz-lf-group label{display:flex;align-items:center;gap:8px;font-size:14px;line-height:1.85;cursor:pointer;}'
+				. '.sz-listing-filters .sz-lf-group input[type=checkbox]{width:16px;height:16px;margin:0;flex-shrink:0;}'
+				. '</style>';
+		}
+
+		$out .= '<form class="sz-listing-filters" onsubmit="return false;">';
+		$out .= '<div class="sz-lf-head"><span class="sz-lf-title">' . esc_html( $title ) . '</span>';
+		$out .= '<button type="button" class="sz-lf-reset">' . esc_html( $reset ) . '</button></div>';
+		$out .= '<div class="sz-lf-groups">';
+		foreach ( $uf_specs as $fkey => $spec ) {
+			if ( empty( $spec['on'] ) ) continue;
+			$out .= '<fieldset class="sz-lf-group" data-key="' . esc_attr( $fkey ) . '">';
+			$out .= '<legend>' . esc_html( $spec['label'] ) . '</legend>';
+			if ( ! empty( $spec['bool'] ) ) {
+				$out .= '<label><input type="checkbox" value="1"> ' . esc_html( $uf_yes ) . '</label>';
+				$out .= '<label><input type="checkbox" value="0"> ' . esc_html( $uf_no ) . '</label>';
+			} else {
+				foreach ( (array) $spec['opts'] as $opt ) {
+					$slug = sanitize_title( $opt );
+					if ( $slug === '' ) continue;
+					$out .= '<label><input type="checkbox" value="' . esc_attr( $slug ) . '"> ' . esc_html( $opt ) . '</label>';
+				}
+			}
+			$out .= '</fieldset>';
+		}
+		$out .= '</div></form>';
+		$out .= '<p class="sz-listing-no-results sz-lf-hidden" style="font-style:italic; padding:16px 0;">' . esc_html( $no_res ) . '</p>';
+
+		return $out;
+	}
+
+	// A kliensoldali szűrő-logika. Globálisan egyszer írjuk ki; minden
+	// .sz-listing-widget konténert magától bekapcsol, és véd a dupla bekötés ellen.
+	private function uf_render_script() {
+		static $js_done = false;
+		if ( $js_done ) return '';
+		$js_done = true;
+
+		return <<<'HTML'
+<script>
+(function(){
+  function boot(root){
+    if(!root || root.__szLf) return;
+    var form = root.querySelector('.sz-listing-filters');
+    if(!form) return;
+    root.__szLf = true;
+    var items  = [].slice.call(root.querySelectorAll('.sz-course-list > li'));
+    var blocks = [].slice.call(root.querySelectorAll('.sz-group-block'));
+    var noRes  = root.querySelector('.sz-listing-no-results');
+    function selected(){
+      var s = {};
+      [].forEach.call(form.querySelectorAll('.sz-lf-group'), function(g){
+        var k = g.getAttribute('data-key'), v = [];
+        [].forEach.call(g.querySelectorAll('input[type=checkbox]'), function(cb){ if(cb.checked) v.push(cb.value); });
+        if(v.length) s[k] = v;
+      });
+      return s;
+    }
+    function matches(li, s){
+      for(var k in s){
+        var have = (li.getAttribute('data-f-' + k) || '').split(' ').filter(Boolean);
+        var ok = s[k].some(function(x){ return have.indexOf(x) > -1; });
+        if(!ok) return false;
+      }
+      return true;
+    }
+    function apply(){
+      var s = selected(), any = false;
+      items.forEach(function(li){
+        var vis = matches(li, s);
+        li.classList.toggle('sz-lf-hidden', !vis);
+        if(vis) any = true;
+      });
+      blocks.forEach(function(b){
+        var vis = 0;
+        [].forEach.call(b.querySelectorAll('.sz-course-list > li'), function(li){
+          if(!li.classList.contains('sz-lf-hidden')) vis++;
+        });
+        b.classList.toggle('sz-lf-hidden', vis === 0);
+      });
+      if(noRes) noRes.classList.toggle('sz-lf-hidden', any);
+    }
+    form.addEventListener('change', apply);
+    var reset = form.querySelector('.sz-lf-reset');
+    if(reset) reset.addEventListener('click', function(){
+      [].forEach.call(form.querySelectorAll('input[type=checkbox]'), function(cb){ cb.checked = false; });
+      apply();
+    });
+    apply();
+  }
+  function initAll(){ [].forEach.call(document.querySelectorAll('.sz-listing-widget'), boot); }
+  if(document.readyState !== 'loading') initAll();
+  else document.addEventListener('DOMContentLoaded', initAll);
+  window.addEventListener('load', initAll);
+  if(window.elementorFrontend && window.elementorFrontend.hooks){
+    elementorFrontend.hooks.addAction('frontend/element_ready/szeducate_listing.default', function($scope){
+      var el = ($scope && $scope[0]) ? $scope[0].querySelector('.sz-listing-widget') : null;
+      boot(el);
+    });
+  }
+})();
+</script>
+HTML;
 	}
 }

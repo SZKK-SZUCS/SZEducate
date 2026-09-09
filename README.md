@@ -151,6 +151,19 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.43
+
+- **React szerkesztő – vágólapos sor/táblázat átvitel a Lista (repeater) mezőkben (pl. Intézményi pontok, Munkarend-csoportok › Variánsok).** A használat: két böngészőlapon két szak nyitva, az egyikről a másikra vágólapon (JSON-string) átvihető egy sor vagy az egész táblázat, minden értékkel.
+  - Soronként: **Másolás** (a sor a vágólapra) és **Duplikálás** (a sor másolata közvetlenül alá kerül).
+  - A „+ Sor hozzáadása" mellett: **Sor beillesztése** (a vágólap sorai a lista végére fűzve), **Táblázat másolása** (az összes sor), **Táblázat beillesztése** (a lista teljes cseréje – megerősítést kér, ha nem üres).
+  - Más mezőből származó vágólap-tartalomnál a szerkesztő rákérdez; az ismeretlen al-mezőket eldobja, a hiányzókat üresen hagyja, így kicsit eltérő sémájú másik szak sora is beilleszthető.
+  - `navigator.clipboard` + tartalék (`execCommand`, illetve kézi másolás/beillesztés prompttal – a Firefox nem engedi a vágólap olvasását weboldalnak).
+- **Szaklista widget – látogatói szűrőpanel.** Új „Látogatói szűrők (panel)" tartalmi szekció: szűrőnként be-/kikapcsolható, hogy az adott widgeten megjelenjen-e.
+  - Szűrők: **Munkarend** (Nappali/Levelező/Távoktatás), **Nyelv** (Magyar/Angol), **Duális képzésben elérhető** (Igen/Nem), **Emelt szintű érettségi kell** (Igen/Nem). A feliratok és az „Igen/Nem" címkék átírhatók.
+  - A Munkarend/Nyelv értékét a beágyazott `munkarend_csoportok` listából olvassa (tartalék: az archivált felső szintű mezők), a Duális/Emelt a felső szintű logikai mezőkből.
+  - A szűrés **kliensoldali, oldalújratöltés nélkül**: a lista minden szakot kirenderel, a JS rejti/mutatja őket, az üres csoportokat elrejti, és „nincs találat" üzenetet ad. „Szűrő törlése" gomb a panelen. Külön Stílus-szekció (háttér, keret, szöveg, jelölőnégyzet színe, lekerekítés, margó).
+- **Státusz widget – szerkeszthető feliratok.** Új „Feliratok" szekció: az „Aktív" (alap: „JELENTKEZÉS NYITVA"), „Inaktív" („JELENLEG NEM INDUL") és „Lezárult" („JELENTKEZÉS LEZÁRULT") badge-szöveg, valamint a határidő-dátum utáni szó („határidő", üresen hagyva csak a dátum látszik) mostantól átírható. Üres mezőnél az eredeti alapszöveg jelenik meg, a meglévő példányok tehát változatlanok.
+
 ### 0.9.42
 
 - Szaklista widget:
