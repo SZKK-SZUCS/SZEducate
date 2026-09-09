@@ -1094,8 +1094,11 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 			return;
 		}
 
+		// A csoportok és a szakok rendezése a magyar ábécét követi (az „á" az „a"
+		// után, a „b" előtt), nem a nyers bájtsorrendet - ott az ékezetes betűk a
+		// lista végére csúsznának. Lásd hu_collate().
 		if ( $settings['group_sort_order'] === 'desc' ) {
-			krsort( $grouped_data );
+			uksort( $grouped_data, function( $a, $b ) { return $this->hu_collate( $b, $a ); } );
 		} elseif ( $settings['group_sort_order'] === 'custom' && ! empty( $settings['custom_sort_list'] ) ) {
 			$sorted_data = array();
 			foreach ( $settings['custom_sort_list'] as $custom_item ) {
@@ -1105,13 +1108,13 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 					unset( $grouped_data[ $c_name ] );
 				}
 			}
-			ksort( $grouped_data );
+			uksort( $grouped_data, array( $this, 'hu_collate' ) );
 			foreach ( $grouped_data as $rem_key => $rem_val ) {
 				$sorted_data[ $rem_key ] = $rem_val;
 			}
 			$grouped_data = $sorted_data;
 		} else {
-			ksort( $grouped_data ); 
+			uksort( $grouped_data, array( $this, 'hu_collate' ) );
 		}
 
 		foreach ( $grouped_data as $key => $items ) {
@@ -1119,7 +1122,7 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 				if ( isset($a['score']) && isset($b['score']) && $a['score'] !== $b['score'] ) {
 					return $b['score'] - $a['score'];
 				}
-				return strcmp( $a['title'], $b['title'] );
+				return $this->hu_collate( $a['title'], $b['title'] );
 			});
 		}
 
@@ -1208,6 +1211,47 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 			}
 		}
 		return array();
+	}
+
+	// Magyar ábécé szerinti összehasonlítás (uksort/usort callback). Ha elérhető az
+	// intl kiterjesztés, a Collator (hu_HU) adja a helyes sorrendet - az "á" az "a"
+	// után, a "b" előtt, a hosszú/rövid pár a helyén. E nélkül: ékezet-hajtogatás
+	// (á->a, ő->o, ...) + kis-nagybetű-független bájt-összevetés, majd döntetlennél
+	// az eredeti (ékezetes) alak, hogy a szerver LC_COLLATE-jétől függetlenül az
+	// ékezetes betűk ne a lista végére kerüljenek.
+	public function hu_collate( $a, $b ) {
+		$a = (string) $a;
+		$b = (string) $b;
+
+		if ( class_exists( 'Collator' ) ) {
+			static $coll = false;
+			if ( $coll === false ) {
+				$coll = collator_create( 'hu_HU' );
+				if ( ! ( $coll instanceof Collator ) ) $coll = null;
+			}
+			if ( $coll ) {
+				$r = $coll->compare( $a, $b );
+				if ( $r !== false ) return $r;
+			}
+		}
+
+		$fa = $this->hu_fold( $a );
+		$fb = $this->hu_fold( $b );
+		$r  = strcmp( $fa, $fb );
+		if ( $r === 0 ) {
+			// Azonos hajtogatott alak: az ékezetes változat a második helyre
+			// (pl. "alma" < "álma").
+			$r = strcmp( mb_strtolower( $a, 'UTF-8' ), mb_strtolower( $b, 'UTF-8' ) );
+		}
+		return $r;
+	}
+
+	private function hu_fold( $str ) {
+		$str = mb_strtolower( trim( (string) $str ), 'UTF-8' );
+		return strtr( $str, array(
+			'á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ö' => 'o',
+			'ő' => 'o', 'ú' => 'u', 'ü' => 'u', 'ű' => 'u',
+		) );
 	}
 
 	// A plugin-konvenció szerinti "hamis" értékek (üres, "0", "false", "nem", stb.).

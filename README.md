@@ -151,6 +151,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.49
+
+- **Szaklista – helyes magyar ábécé szerinti rendezés.** Eddig az ékezetes kezdőbetűjű kategóriák és szakok a lista végére kerültek (nyers bájtsorrend). Mostantól az „á" az „a" után, a „b" előtt jön – a csoport-kártyáknál és a csoporton belüli szaklistában egyaránt. Ahol elérhető az `intl` PHP-kiterjesztés, a rendezés a `hu_HU` Collatort használja; e nélkül ékezet-hajtogatásos tartalék lép be, ami szintén a helyükön tartja az ékezetes betűket.
+
 ### 0.9.48
 
 - **React szerkesztő – „Üres sor alá" és „Beillesztés alá" soronkénti gomb a Lista (repeater) mezőkben.** Eddig a „Duplikálás" a sor másolatát szúrta közvetlenül alá; mostantól ugyanoda beszúrható **új üres sor**, illetve a **vágólap sora/sorai** is – így két meglévő sor közé is könnyen kerülhet plusz sor, nem csak a lista végére. (A „+ Sor hozzáadása" és a „Sor beillesztése" a lista aljára továbbra is megvan.)
