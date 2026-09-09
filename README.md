@@ -151,6 +151,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.48
+
+- **React szerkesztő – „Üres sor alá" és „Beillesztés alá" soronkénti gomb a Lista (repeater) mezőkben.** Eddig a „Duplikálás" a sor másolatát szúrta közvetlenül alá; mostantól ugyanoda beszúrható **új üres sor**, illetve a **vágólap sora/sorai** is – így két meglévő sor közé is könnyen kerülhet plusz sor, nem csak a lista végére. (A „+ Sor hozzáadása" és a „Sor beillesztése" a lista aljára továbbra is megvan.)
+
 ### 0.9.47
 
 - **SZEducate Láthatóság – Kapcsoló (boolean) mező vizsgálata.** Két új feltétel a „Feltétel" listában: **`IGAZ (Kapcsoló be van kapcsolva)`** és **`HAMIS (Kapcsoló nincs bekapcsolva)`**, érték megadása nélkül. Ugyanez a harmonika „SZEducate: Feltételes fülek" `Elrejtés, ha a mező...` listájában is (`IGAZ` / `HAMIS`). A vizsgálat a plugin egységes boolean-konvencióját használja (üres, `0`, `false`, `hamis`, `nem`, `no`, `n` = hamis, minden más igaz), így akkor is helyesen működik, ha a Kapcsoló értéke logikai `true`/`false` (szerkesztő), `"1"`/`"0"` szöveg (CSV/Excel import), üres vagy nincs beállítva. Pl. „rejtsd el ezt a gombot, ha a `dualis` nincs bekapcsolva" → Feltétel: `HAMIS`.
