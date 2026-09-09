@@ -386,10 +386,10 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 		$this->add_control(
 			'uf_panel_accent',
 			[
-				'label'     => 'Jelölőnégyzet színe',
+				'label'     => 'Jelölő színe (checkbox / rádió)',
 				'type'      => \Elementor\Controls_Manager::COLOR,
 				'default'   => '#50ADC9',
-				'selectors' => [ '{{WRAPPER}} .sz-listing-filters input[type=checkbox]' => 'accent-color: {{VALUE}};' ],
+				'selectors' => [ '{{WRAPPER}} .sz-listing-filters .sz-lf-group input' => 'accent-color: {{VALUE}};' ],
 			]
 		);
 		$this->add_responsive_control(
@@ -1126,7 +1126,7 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 		$wid = $this->get_id();
 		echo '<div class="sz-listing-widget" id="sz-listing-' . esc_attr( $wid ) . '">';
 
-		echo $this->uf_render_panel( $uf_specs, $uf_any, $uf_yes, $uf_no, $uf_label );
+		echo $this->uf_render_panel( $uf_specs, $uf_any, $uf_yes, $uf_no, $uf_label, $wid );
 
 		echo $filter_badge_html;
 
@@ -1220,7 +1220,7 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 		return ! in_array( $n, array( '', '0', 'false', 'hamis', 'nem', 'no', 'n' ), true );
 	}
 
-	private function uf_render_panel( $uf_specs, $uf_any, $uf_yes, $uf_no, $uf_label ) {
+	private function uf_render_panel( $uf_specs, $uf_any, $uf_yes, $uf_no, $uf_label, $wid ) {
 		if ( ! $uf_any ) return '';
 
 		$title = $uf_label( 'uf_title', 'Szűrés' );
@@ -1246,7 +1246,7 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 				. '.sz-listing-filters .sz-lf-group{border:0;margin:0;padding:0;min-width:150px;}'
 				. '.sz-listing-filters .sz-lf-group legend{font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.02em;opacity:.7;margin-bottom:4px;padding:0;}'
 				. '.sz-listing-filters .sz-lf-group label{display:flex;align-items:center;gap:8px;font-size:14px;line-height:1.85;cursor:pointer;}'
-				. '.sz-listing-filters .sz-lf-group input[type=checkbox]{width:16px;height:16px;margin:0;flex-shrink:0;}'
+				. '.sz-listing-filters .sz-lf-group input{width:16px;height:16px;margin:0;flex-shrink:0;}'
 				. '</style>';
 		}
 
@@ -1259,8 +1259,13 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 			$out .= '<fieldset class="sz-lf-group" data-key="' . esc_attr( $fkey ) . '">';
 			$out .= '<legend>' . esc_html( $spec['label'] ) . '</legend>';
 			if ( ! empty( $spec['bool'] ) ) {
-				$out .= '<label><input type="checkbox" value="1"> ' . esc_html( $uf_yes ) . '</label>';
-				$out .= '<label><input type="checkbox" value="0"> ' . esc_html( $uf_no ) . '</label>';
+				// Rádiógomb: Igen / Nem / (egyik sem). A "kivehető" viselkedést a JS adja
+				// hozzá - a bejelöltre újra kattintva törli a jelölést. A name
+				// widget-példányonként egyedi, hogy egy oldalon több Szaklista ne
+				// ütközzön ugyanazon a csoporton.
+				$rname = 'sz-lf-' . $fkey . '-' . $wid;
+				$out .= '<label><input type="radio" name="' . esc_attr( $rname ) . '" value="1"> ' . esc_html( $uf_yes ) . '</label>';
+				$out .= '<label><input type="radio" name="' . esc_attr( $rname ) . '" value="0"> ' . esc_html( $uf_no ) . '</label>';
 			} else {
 				foreach ( (array) $spec['opts'] as $opt ) {
 					$slug = sanitize_title( $opt );
@@ -1298,7 +1303,7 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
       var s = {};
       [].forEach.call(form.querySelectorAll('.sz-lf-group'), function(g){
         var k = g.getAttribute('data-key'), v = [];
-        [].forEach.call(g.querySelectorAll('input[type=checkbox]'), function(cb){ if(cb.checked) v.push(cb.value); });
+        [].forEach.call(g.querySelectorAll('input'), function(cb){ if(cb.checked) v.push(cb.value); });
         if(v.length) s[k] = v;
       });
       return s;
@@ -1328,9 +1333,31 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
       if(noRes) noRes.classList.toggle('sz-lf-hidden', any);
     }
     form.addEventListener('change', apply);
+    // Igen/Nem rádiógombok: a már bejelöltre újra kattintva kivehető a jelölés
+    // (= "egyik se"). A rádió ezt natívan nem engedi. Csoportonként tartjuk az
+    // aktív értéket; ha a click ugyanazt hozza, kivesszük. (A click a beviteli
+    // mezőre a címke szövegére kattintva is lefut, ezért ez az út megbízható.)
+    var radioState = {};
+    [].forEach.call(form.querySelectorAll('.sz-lf-group'), function(g){
+      var key = g.getAttribute('data-key');
+      var pre = g.querySelector('input[type=radio]:checked');
+      radioState[key] = pre ? pre.value : null;
+      [].forEach.call(g.querySelectorAll('input[type=radio]'), function(r){
+        r.addEventListener('click', function(){
+          if(radioState[key] === r.value){
+            r.checked = false;
+            radioState[key] = null;
+            apply();
+          } else {
+            radioState[key] = r.value;
+          }
+        });
+      });
+    });
     var reset = form.querySelector('.sz-lf-reset');
     if(reset) reset.addEventListener('click', function(){
-      [].forEach.call(form.querySelectorAll('input[type=checkbox]'), function(cb){ cb.checked = false; });
+      [].forEach.call(form.querySelectorAll('input'), function(cb){ cb.checked = false; });
+      for(var k in radioState){ radioState[k] = null; }
       apply();
     });
     apply();
