@@ -1371,13 +1371,20 @@ const RepeaterControl = ({
   const useStackedLayout =
     hasNestedRepeater || hasLongTextColumn || flatColumns.length > 4;
 
-  const addRow = () => {
+  const makeEmptyRow = () => {
     const newRow = {};
     subFields.forEach(
       (sf) => (newRow[sf.key] = sf.type === "repeater" ? [] : ""),
     );
-    onChange(field.key, [...rows, newRow]);
+    return newRow;
   };
+  const addRow = () => onChange(field.key, [...rows, makeEmptyRow()]);
+  const insertEmptyRowBelow = (index) =>
+    onChange(field.key, [
+      ...rows.slice(0, index + 1),
+      makeEmptyRow(),
+      ...rows.slice(index + 1),
+    ]);
   const removeRow = (index) =>
     onChange(
       field.key,
@@ -1425,8 +1432,9 @@ const RepeaterControl = ({
     await writeClipText(buildClipText("table", field, subFields, rows));
     flashClip("ok", `Táblázat a vágólapra másolva (${rows.length} sor).`);
   };
-  // mode: "append" (a végére fűz) | "replace" (teljes csere)
-  const pasteRows = async (mode) => {
+  // mode: "append" (a végére fűz) | "replace" (teljes csere) |
+  //       "below" (a megadott sor alá szúrja be – atIndex kötelező)
+  const pasteRows = async (mode, atIndex) => {
     const text = await readClipText();
     if (!text) return;
     const parsed = parseClipText(text);
@@ -1460,6 +1468,18 @@ const RepeaterControl = ({
       }
       onChange(field.key, incoming);
       flashClip("ok", `Táblázat beillesztve (${incoming.length} sor).`);
+    } else if (mode === "below") {
+      onChange(field.key, [
+        ...rows.slice(0, atIndex + 1),
+        ...incoming,
+        ...rows.slice(atIndex + 1),
+      ]);
+      flashClip(
+        "ok",
+        incoming.length === 1
+          ? "1 sor beillesztve a kijelölt alá."
+          : `${incoming.length} sor beillesztve a kijelölt alá.`,
+      );
     } else {
       onChange(field.key, [...rows, ...incoming]);
       flashClip(
@@ -1477,15 +1497,29 @@ const RepeaterControl = ({
         isSecondary
         isSmall
         onClick={() => copyRow(index)}
-        label="Sor másolása a vágólapra">
+        label="A sor másolása a vágólapra (átvitel másik laphoz)">
         Másolás
       </Button>
       <Button
         isSecondary
         isSmall
         onClick={() => duplicateRow(index)}
-        label="Sor duplikálása közvetlenül alá">
+        label="A sor másolatának beszúrása közvetlenül alá">
         Duplikálás
+      </Button>
+      <Button
+        isSecondary
+        isSmall
+        onClick={() => insertEmptyRowBelow(index)}
+        label="Új üres sor beszúrása közvetlenül alá">
+        Üres sor alá
+      </Button>
+      <Button
+        isSecondary
+        isSmall
+        onClick={() => pasteRows("below", index)}
+        label="A vágólap sorának/sorainak beszúrása közvetlenül alá">
+        Beillesztés alá
       </Button>
       <Button
         isDestructive
@@ -1718,12 +1752,12 @@ const RepeaterControl = ({
                       style={{
                         padding: "8px",
                         borderBottom: "1px solid #eee",
-                        whiteSpace: "nowrap",
                       }}>
                       <div
                         style={{
                           display: "flex",
                           gap: "4px",
+                          flexWrap: "wrap",
                           justifyContent: "flex-end",
                         }}>
                         {rowActionButtons(index)}
