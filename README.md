@@ -151,6 +151,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.51
+
+- **Okos Kereső – a mappa-javaslatok mostantól a szűrt aloldalakon is megjelennek.** Eddig, ha a keresőn be volt állítva egy „Szűrés (aloldalakhoz)” érték (pl. egy BSc-aloldalon `Képzési Forma = BSc`), a legördülő **egyetlen** mappa-javaslatot sem mutatott – így pl. a `győr` vagy a `pótfelvételi` keresésre nem lehetett a Telephelyre / Indulás időszakára ugrani. Mostantól a mappa-javaslatokat csak a „Mappa-javaslatok mutatása” kapcsoló kikapcsolása tünteti el; a szűrt aloldal csak a **már szűrt mezőre** nem ajánl mappát (az redundáns lenne), a többire igen. _(A mappa-link a saját dimenziójára szűr; a widget egyéb „Szűrés (aloldalakhoz)” szűkítése nem öröklődik a linkbe.)_
+
 ### 0.9.50
 
 - **Okos Kereső – a „kategória-mezők” mostantól widgetből állíthatók.** Új „Kategória-mezők (mappa-forrás + pont-többlet)” vezérlő az Okos Kereső widgetben (Tartalom → Kereső Beállításai): a séma bármely mezője kijelölhető. Ezekből a mezőkből ajánl a legördülő „mappa” (ugorj a szűrt listához) találatot, és a rájuk eső egyezés ad több pontot a szaknak a rangsorban. Új kapcsoló: „Mappa-javaslatok mutatása” (ki állásban egy mappa-javaslat sem jelenik meg). Üresen hagyott mezőlistánál az alapkészlet fut.

@@ -1262,9 +1262,17 @@ class SZEducate_Client {
 			$allowed_category_keys = array( 'kepzesi_forma', 'kulcsszavak', 'kepzesiterulet', 'indulas_idoszaka', 'telephely' );
 		}
 
-		// Mappa-javaslatok elnyomása: szűrt nézetben (aloldal) a "mappa" linkek
-		// kivezetnének a szűrt listából; a widget kapcsolójával kézzel is kikapcsolható.
-		$suppress_categories = ! empty( $filters ) || (bool) $request->get_param( 'nocat' );
+		// Szűrt aloldalon (widget 'filter_*') a már szűrt dimenzióra nincs értelme
+		// mappát ajánlani (redundáns, ill. a link a szűrő ellen dolgozna) - a többi
+		// kategória-mező viszont maradjon (pl. BSc-aloldalon a Telephely / Indulás).
+		if ( ! empty( $filters ) ) {
+			$allowed_category_keys = array_values( array_diff( $allowed_category_keys, array_keys( $filters ) ) );
+		}
+
+		// Mappa-javaslatok teljes elnyomása CSAK a widget kapcsolójával
+		// ('Mappa-javaslatok mutatása' = Nem -> &nocat=1). A puszta 'filter_*'
+		// jelenléte 0.9.51 óta már nem nyomja el mindet (0.9.41 -> 0.9.50 tette).
+		$suppress_categories = (bool) $request->get_param( 'nocat' );
 
 		foreach ( $courses as $course ) {
 			$post_id = $course['local_post_id'];
@@ -1383,8 +1391,9 @@ class SZEducate_Client {
 			return strcmp( $a['title'], $b['title'] );
 		});
 
-		// Szűrt keresésnél (pl. BSc-aloldal), vagy ha a widget kikapcsolta, a "mappa"
-		// javaslatokat elhagyjuk (a linkjük kivezetne a szűrt nézetből).
+		// A "mappa" javaslatokat csak a widget kapcsolója ('nocat') hagyja el
+		// teljesen; a szűrt aloldal a fentebb szűkített $allowed_category_keys-en
+		// keresztül csak a már-szűrt dimenziót ejti.
 		$final_categories = $suppress_categories ? array() : array_slice( $category_results, 0, 3 );
 		$final_courses = array_slice( $course_results, 0, 7 );
 
