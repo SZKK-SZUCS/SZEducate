@@ -50,6 +50,63 @@ class SZEducate_Status_Widget extends \Elementor\Widget_Base {
 
 		$this->end_controls_section();
 
+		// --- Feliratok: a badge-ek szövege szabadon átírható ---
+		// A státusz-badge fő szövege eddig be volt égetve a render()-be; a kliensek
+		// kérték, hogy szakonként/oldalanként más megfogalmazást is használhassanak
+		// (pl. "MOST JELENTKEZZ!" vs. "JELENTKEZÉS NYITVA"). Üresen hagyva az alap
+		// szöveg jelenik meg, a régi példányok tehát változatlanok maradnak.
+		$this->start_controls_section(
+			'labels_section',
+			[
+				'label' => 'Feliratok',
+				'tab'   => \Elementor\Controls_Manager::TAB_CONTENT,
+			]
+		);
+
+		$this->add_control(
+			'label_active',
+			[
+				'label'       => 'Aktív állapot felirata',
+				'type'        => \Elementor\Controls_Manager::TEXT,
+				'default'     => 'JELENTKEZÉS NYITVA',
+				'placeholder' => 'JELENTKEZÉS NYITVA',
+			]
+		);
+
+		$this->add_control(
+			'label_inactive',
+			[
+				'label'       => 'Inaktív állapot felirata',
+				'type'        => \Elementor\Controls_Manager::TEXT,
+				'default'     => 'JELENLEG NEM INDUL',
+				'placeholder' => 'JELENLEG NEM INDUL',
+			]
+		);
+
+		$this->add_control(
+			'label_expired',
+			[
+				'label'       => 'Lezárult jelentkezés felirata',
+				'type'        => \Elementor\Controls_Manager::TEXT,
+				'default'     => 'JELENTKEZÉS LEZÁRULT',
+				'placeholder' => 'JELENTKEZÉS LEZÁRULT',
+				'description'  => 'Akkor jelenik meg, ha az állapot aktív, de a passziválás dátuma már elmúlt.',
+			]
+		);
+
+		$this->add_control(
+			'deadline_suffix',
+			[
+				'label'       => 'A határidő-dátum utáni szó',
+				'type'        => \Elementor\Controls_Manager::TEXT,
+				'default'     => 'határidő',
+				'placeholder' => 'határidő',
+				'description' => 'A "2026. 09. 15." dátum után jelenik meg. Üresen hagyva csak a dátum látszik.',
+			]
+		);
+
+		$this->end_controls_section();
+
 		// --- Meghirdetési időszakok: "Következő indulás" kiemelése ---
 		$this->start_controls_section(
 			'periods_section',
@@ -544,18 +601,28 @@ class SZEducate_Status_Widget extends \Elementor\Widget_Base {
 		// (wrapper = oszlop → badge-ek sora + alatta a "Később" sor) egyben tudjuk kiírni.
 		$badges_html = '';
 
+		// A feliratok a "Feliratok" szekcióból jönnek; üres mezőnél az eredeti alap-
+		// szövegre esünk vissza, hogy egy kiürített vezérlő ne hagyjon üres badge-et.
+		$label_active   = ( isset( $settings['label_active'] )   && trim( (string) $settings['label_active'] )   !== '' ) ? $settings['label_active']   : 'JELENTKEZÉS NYITVA';
+		$label_inactive = ( isset( $settings['label_inactive'] ) && trim( (string) $settings['label_inactive'] ) !== '' ) ? $settings['label_inactive'] : 'JELENLEG NEM INDUL';
+		$label_expired  = ( isset( $settings['label_expired'] )  && trim( (string) $settings['label_expired'] )  !== '' ) ? $settings['label_expired']  : 'JELENTKEZÉS LEZÁRULT';
+		$deadline_suffix = isset( $settings['deadline_suffix'] ) ? trim( (string) $settings['deadline_suffix'] ) : 'határidő';
+
 		if ( $is_active ) {
-			$main_text   = 'JELENTKEZÉS NYITVA';
+			$main_text   = $label_active;
 			$state_class = 'sz-state-active';
 		} else {
-			$main_text   = $is_expired ? 'JELENTKEZÉS LEZÁRULT' : 'JELENLEG NEM INDUL';
+			$main_text   = $is_expired ? $label_expired : $label_inactive;
 			$state_class = 'sz-state-inactive';
 		}
 
 		$badges_html .= "<div class='sz-status-group {$state_class}' style='{$css_group}'>";
 		$badges_html .= "<div class='sz-status-part sz-status-main' style='{$css_part}'>" . $icon_calendar . esc_html( $main_text ) . "</div>";
 		if ( $is_active && ! empty( $expiry ) && strtotime( $expiry ) !== false ) {
-			$formatted_date = date( 'Y. m. d.', strtotime( $expiry ) ) . ' határidő';
+			$formatted_date = date( 'Y. m. d.', strtotime( $expiry ) );
+			if ( $deadline_suffix !== '' ) {
+				$formatted_date .= ' ' . $deadline_suffix;
+			}
 			$badges_html   .= "<div class='sz-status-part sz-status-sub' style='{$css_part}'>" . esc_html( $formatted_date ) . "</div>";
 		}
 		$badges_html .= "</div>";
