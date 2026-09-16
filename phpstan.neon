@@ -1,0 +1,19 @@
+includes:
+    - dev-tools/vendor/szepeviktor/phpstan-wordpress/extension.neon
+    - phpstan-baseline.neon
+
+parameters:
+    level: 5
+    paths:
+        - .
+    excludePaths:
+        - vendor/*
+        - dev-tools/*
+        - node_modules/*
+        - build/*
+        # Elementor Widget_Base / DynamicTags-t extendelik; Elementor csak
+        # feltételesen van betöltve, nincs stub-olva ebben a setupban.
+        - includes/widgets/*
+        - includes/class-szeducate-dynamic-tag.php
+        - includes/class-szeducate-image-dynamic-tag.php
+        - includes/class-szeducate-video-dynamic-tag.php
