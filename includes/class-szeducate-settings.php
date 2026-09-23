@@ -7,6 +7,7 @@ class SZEducate_Settings {
 
 	private $option_name = 'szeducate_settings';
 	private $options;
+	private $page_hook_suffix;
 
 	public function init() {
 		add_action( 'admin_menu', array( $this, 'add_plugin_page' ) );
@@ -15,6 +16,14 @@ class SZEducate_Settings {
 		add_action( 'admin_post_szeducate_full_resync', array( $this, 'handle_full_resync' ) );
 		add_action( 'admin_post_szeducate_cleanup_orphaned_courses', array( $this, 'handle_cleanup_orphaned_courses' ) );
 		add_action( 'wp_ajax_szeducate_ping_hub', array( $this, 'ajax_ping_hub' ) );
+		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_media_uploader' ) );
+	}
+
+	// A médiatár-választót (wp.media) csak ezen az oldalon töltjük be - az "Kiemelt
+	// képzések" widget alapértelmezett képéhez kell (lásd featured_default_image_callback()).
+	public function enqueue_media_uploader( $hook ) {
+		if ( ! $this->page_hook_suffix || $hook !== $this->page_hook_suffix ) return;
+		wp_enqueue_media();
 	}
 
 	// A Kliens oldalról egy hitelesített, adatírás nélküli kérést küld a Hub felé, hogy
@@ -53,9 +62,9 @@ class SZEducate_Settings {
 
 		if ( $mode === 'hub' ) {
 			add_menu_page( 'SZEducate Hub Beállítások', 'SZEducate (Hub)', 'manage_options', 'szeducate-settings', array( $this, 'create_admin_page' ), 'dashicons-networking', 55 );
-			add_submenu_page( 'szeducate-settings', 'Hub Beállítások', 'Beállítások', 'manage_options', 'szeducate-settings', array( $this, 'create_admin_page' ) );
+			$this->page_hook_suffix = add_submenu_page( 'szeducate-settings', 'Hub Beállítások', 'Beállítások', 'manage_options', 'szeducate-settings', array( $this, 'create_admin_page' ) );
 		} else {
-			add_options_page( 'SZEducate Architektúra', 'SZEducate', 'manage_options', 'szeducate-settings', array( $this, 'create_admin_page' ) );
+			$this->page_hook_suffix = add_options_page( 'SZEducate Architektúra', 'SZEducate', 'manage_options', 'szeducate-settings', array( $this, 'create_admin_page' ) );
 		}
 	}
 
@@ -164,6 +173,9 @@ class SZEducate_Settings {
 		add_settings_field( 'hub_url', 'Hub URL (Kliens esetén)', array( $this, 'hub_url_callback' ), 'szeducate-settings', 'szeducate_main_section' );
 		add_settings_field( 'api_token', 'API Token (Kliens esetén)', array( $this, 'api_token_callback' ), 'szeducate-settings', 'szeducate_main_section' );
 
+		add_settings_section( 'szeducate_featured_section', 'Kiemelt Képzések widget', null, 'szeducate-settings' );
+		add_settings_field( 'featured_default_image', 'Alapértelmezett kép (kép nélküli képzésekhez)', array( $this, 'featured_default_image_callback' ), 'szeducate-settings', 'szeducate_featured_section' );
+
 		add_settings_section( 'szeducate_uninstall_section', 'Eltávolítás', null, 'szeducate-settings' );
 		add_settings_field( 'purge_on_uninstall', 'Adatok törlése a plugin eltávolításakor', array( $this, 'purge_on_uninstall_callback' ), 'szeducate-settings', 'szeducate_uninstall_section' );
 	}
@@ -173,8 +185,62 @@ class SZEducate_Settings {
 		if ( isset( $input['mode'] ) ) $sanitized['mode'] = sanitize_text_field( $input['mode'] );
 		if ( isset( $input['hub_url'] ) ) $sanitized['hub_url'] = esc_url_raw( rtrim($input['hub_url'], '/') );
 		if ( isset( $input['api_token'] ) ) $sanitized['api_token'] = sanitize_text_field( $input['api_token'] );
+		$sanitized['featured_default_image_id'] = isset( $input['featured_default_image_id'] ) ? intval( $input['featured_default_image_id'] ) : 0;
 		$sanitized['purge_on_uninstall'] = ! empty( $input['purge_on_uninstall'] );
 		return $sanitized;
+	}
+
+	// A "Kiemelt Képzések" widget ezt a képet mutatja azoknál a képzéseknél, amiknek
+	// nincs saját kiemelt képe (has_post_thumbnail() hamis) - a cím ilyenkor is
+	// rákerül overlay-ként, mint a rendes fotóknál.
+	public function featured_default_image_callback() {
+		$image_id  = ! empty( $this->options['featured_default_image_id'] ) ? intval( $this->options['featured_default_image_id'] ) : 0;
+		$image_url = $image_id ? wp_get_attachment_image_url( $image_id, 'medium' ) : '';
+		?>
+		<div id="szeducate-featured-default-image-wrap">
+			<img id="szeducate-featured-default-image-preview" src="<?php echo esc_url( $image_url ); ?>" style="max-width:200px; max-height:120px; display:<?php echo $image_url ? 'block' : 'none'; ?>; object-fit:cover; margin-bottom:8px; border:1px solid #dcdcde; border-radius:4px;">
+			<input type="hidden" id="szeducate-featured-default-image-id" name="szeducate_settings[featured_default_image_id]" value="<?php echo esc_attr( (string) $image_id ); ?>">
+			<br>
+			<button type="button" class="button" id="szeducate-featured-default-image-select">Kép kiválasztása</button>
+			<button type="button" class="button" id="szeducate-featured-default-image-remove" style="<?php echo $image_id ? '' : 'display:none;'; ?>">Eltávolítás</button>
+			<p class="description">Csak azoknál a képzéseknél jelenik meg, amikhez a séma "Kép" mezője nincs kitöltve.</p>
+		</div>
+		<script type="text/javascript">
+			(function() {
+				var frame;
+				var selectBtn = document.getElementById('szeducate-featured-default-image-select');
+				var removeBtn = document.getElementById('szeducate-featured-default-image-remove');
+				var idInput   = document.getElementById('szeducate-featured-default-image-id');
+				var preview   = document.getElementById('szeducate-featured-default-image-preview');
+
+				selectBtn.addEventListener('click', function(e) {
+					e.preventDefault();
+					if (frame) { frame.open(); return; }
+					frame = wp.media({
+						title: 'Alapértelmezett kép kiválasztása',
+						button: { text: 'Kiválasztás' },
+						library: { type: 'image' },
+						multiple: false
+					});
+					frame.on('select', function() {
+						var attachment = frame.state().get('selection').first().toJSON();
+						idInput.value = attachment.id;
+						preview.src = attachment.sizes && attachment.sizes.medium ? attachment.sizes.medium.url : attachment.url;
+						preview.style.display = 'block';
+						removeBtn.style.display = 'inline-block';
+					});
+					frame.open();
+				});
+
+				removeBtn.addEventListener('click', function(e) {
+					e.preventDefault();
+					idInput.value = '';
+					preview.style.display = 'none';
+					removeBtn.style.display = 'none';
+				});
+			})();
+		</script>
+		<?php
 	}
 
 	public function mode_callback() {

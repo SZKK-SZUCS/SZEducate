@@ -57,7 +57,7 @@ parameters:
 
 		-
 			message: "#^Constant SZEDUCATE_PLUGIN_DIR not found\\.$#"
-			count: 10
+			count: 11
 			path: includes/class-szeducate-core.php
 
 		-
@@ -152,7 +152,7 @@ parameters:
 
 		-
 			message: "#^Constant SZEDUCATE_PLUGIN_DIR not found\\.$#"
-			count: 13
+			count: 14
 			path: includes/class-szeducate-elementor.php
 
 		-
@@ -162,6 +162,11 @@ parameters:
 
 		-
 			message: "#^Instantiated class SZEducate_Dynamic_Tag not found\\.$#"
+			count: 1
+			path: includes/class-szeducate-elementor.php
+
+		-
+			message: "#^Instantiated class SZEducate_Featured_Widget not found\\.$#"
 			count: 1
 			path: includes/class-szeducate-elementor.php
 
@@ -237,5 +242,5 @@ parameters:
 
 		-
 			message: "#^Parameter \\#3 \\$callback of function add_settings_section expects callable\\(\\)\\: mixed, null given\\.$#"
-			count: 2
+			count: 3
 			path: includes/class-szeducate-settings.php

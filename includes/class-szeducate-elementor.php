@@ -46,6 +46,7 @@ class SZEducate_Elementor {
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/widgets/class-szeducate-repeater-widget.php';
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/widgets/class-szeducate-pricing-table-widget.php';
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/widgets/class-szeducate-video-widget.php';
+		require_once SZEDUCATE_PLUGIN_DIR . 'includes/widgets/class-szeducate-featured-widget.php';
 
 		$widgets_manager->register( new SZEducate_Search_Widget() );
 		$widgets_manager->register( new SZEducate_Links_Widget() );
@@ -55,6 +56,7 @@ class SZEducate_Elementor {
 		$widgets_manager->register( new SZEducate_Repeater_Widget() );
 		$widgets_manager->register( new SZEducate_Pricing_Table_Widget() );
 		$widgets_manager->register( new SZEducate_Video_Widget() );
+		$widgets_manager->register( new SZEducate_Featured_Widget() );
 	}
 
 	// Séma-mezők "kulcs => Címke [kulcs]" listája a láthatóság-vezérlők legördülőihez.
