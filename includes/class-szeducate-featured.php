@@ -25,7 +25,8 @@ class SZEducate_Featured {
 		add_action( 'admin_footer-edit.php', array( $this, 'print_bulk_action_modal' ) );
 		add_action( 'wp_ajax_szeducate_assign_featured_category', array( $this, 'ajax_assign_featured_category' ) );
 
-		add_action( 'admin_menu', array( $this, 'add_order_page' ) );
+		add_action( 'admin_menu', array( $this, 'add_categories_page' ) );
+		add_action( 'admin_post_szeducate_featured_manage_category', array( $this, 'handle_manage_category' ) );
 		add_action( 'wp_ajax_szeducate_save_featured_order', array( $this, 'ajax_save_featured_order' ) );
 	}
 
@@ -46,6 +47,11 @@ class SZEducate_Featured {
 				'hierarchical'      => true,
 				'public'            => false,
 				'show_ui'           => true,
+				// A term-CRUD-ot a saját "Kiemelt kategóriák" oldalunk adja (lásd
+				// render_categories_page()), ami a sorrend-beállítással egy helyen van -
+				// ezért nem engedjük, hogy a WP a natív edit-tags.php-t is külön
+				// almenüként felvegye (az duplikálná a funkciót).
+				'show_in_menu'      => false,
 				'show_in_rest'      => false,
 				'show_admin_column' => true,
 				'rewrite'           => false,
@@ -243,20 +249,20 @@ class SZEducate_Featured {
 		wp_send_json_success( "Sikeresen módosítva: $updated db képzés kiemelt kategóriája." );
 	}
 
-	// --- "Kiemelt sorrend" admin oldal ------------------------------------------
+	// --- "Kiemelt kategóriák" admin oldal (kategória-kezelés + sorrend, EGY helyen) ---
 
-	public function add_order_page() {
+	public function add_categories_page() {
 		add_submenu_page(
 			'edit.php?post_type=sz_course',
-			'Kiemelt sorrend',
-			'Kiemelt sorrend',
+			'Kiemelt kategóriák',
+			'Kiemelt kategóriák',
 			'edit_sz_courses',
-			'szeducate-featured-order',
-			array( $this, 'render_order_page' )
+			'szeducate-featured-categories',
+			array( $this, 'render_categories_page' )
 		);
 	}
 
-	public function render_order_page() {
+	public function render_categories_page() {
 		if ( ! current_user_can( 'edit_sz_courses' ) && ! current_user_can( 'manage_options' ) ) {
 			wp_die( 'Nincs jogosultságod ehhez az oldalhoz.' );
 		}
@@ -271,83 +277,177 @@ class SZEducate_Featured {
 			$terms = array();
 		}
 
-		if ( empty( $terms ) ) {
-			echo '<div class="wrap"><h1>Kiemelt sorrend</h1>'
-				. '<div class="notice notice-warning"><p>Még nincs egyetlen kiemelt kategória sem. Hozz létre egyet a Képzések listájában a "Kiemelt kategóriába helyezés" tömeges művelettel.</p></div>'
-				. '</div>';
-			return;
-		}
-
-		$selected_term_id = isset( $_GET['term_id'] ) ? intval( $_GET['term_id'] ) : intval( $terms[0]->term_id );
-
-		$ordered_posts = $selected_term_id ? self::get_ordered_course_posts( $selected_term_id ) : array();
+		$notice = isset( $_GET['msg'] ) ? sanitize_text_field( wp_unslash( $_GET['msg'] ) ) : '';
+		$known  = array(
+			'added'   => 'Kategória létrehozva.',
+			'renamed' => 'Kategória átnevezve.',
+			'deleted' => 'Kategória törölve.',
+		);
 		?>
 		<div class="wrap">
-			<h1>Kiemelt sorrend</h1>
-			<p>Válaszd ki a kiemelt kategóriát, majd húzd a kívánt sorrendbe a képzéseket. A sorrend automatikusan mentésre kerül.</p>
+			<h1>Kiemelt kategóriák</h1>
+			<p>Itt hozhatod létre, nevezheted át vagy törölheted a kiemelt kategóriákat, és állíthatod be soronként a bennük szereplő képzések sorrendjét. A képzéseket a <a href="<?php echo esc_url( admin_url( 'edit.php?post_type=sz_course' ) ); ?>">Képzések listájában</a>, a "Kiemelt kategóriába helyezés" tömeges művelettel sorolhatod be egy-egy kategóriába.</p>
 
-			<form method="get" style="margin: 15px 0;">
-				<input type="hidden" name="post_type" value="sz_course">
-				<input type="hidden" name="page" value="szeducate-featured-order">
-				<select name="term_id" onchange="this.form.submit()">
-					<?php foreach ( $terms as $term ) : ?>
-						<option value="<?php echo esc_attr( (string) $term->term_id ); ?>" <?php selected( $selected_term_id, $term->term_id ); ?>><?php echo esc_html( $term->name ); ?> (<?php echo intval( $term->count ); ?>)</option>
-					<?php endforeach; ?>
-				</select>
+			<?php if ( $notice !== '' ) : ?>
+				<?php if ( isset( $known[ $notice ] ) ) : ?>
+					<div class="notice notice-success is-dismissible"><p><?php echo esc_html( $known[ $notice ] ); ?></p></div>
+				<?php else : ?>
+					<div class="notice notice-error is-dismissible"><p><?php echo esc_html( $notice ); ?></p></div>
+				<?php endif; ?>
+			<?php endif; ?>
+
+			<h2>Kategóriák kezelése</h2>
+			<?php if ( ! empty( $terms ) ) : ?>
+				<table class="widefat striped" style="max-width:760px;">
+					<thead>
+						<tr>
+							<th>Név</th>
+							<th style="width:90px;">Képzések</th>
+							<th style="width:280px;">Műveletek</th>
+						</tr>
+					</thead>
+					<tbody>
+						<?php foreach ( $terms as $term ) : ?>
+							<tr>
+								<td>
+									<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:flex; gap:6px;">
+										<?php wp_nonce_field( self::NONCE_ACTION ); ?>
+										<input type="hidden" name="action" value="szeducate_featured_manage_category">
+										<input type="hidden" name="op" value="rename">
+										<input type="hidden" name="term_id" value="<?php echo esc_attr( (string) $term->term_id ); ?>">
+										<input type="text" name="name" value="<?php echo esc_attr( $term->name ); ?>" style="flex:1;">
+										<button type="submit" class="button">Átnevezés</button>
+									</form>
+								</td>
+								<td><?php echo intval( $term->count ); ?></td>
+								<td>
+									<a href="#sz-order-<?php echo esc_attr( (string) $term->term_id ); ?>" class="button">Sorrend szerkesztése</a>
+									<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline;" onsubmit="return confirm('Biztosan törlöd a(z) &quot;<?php echo esc_js( $term->name ); ?>&quot; kategóriát? A hozzá tartozó képzések besorolása megszűnik, maguk a képzések nem törlődnek.');">
+										<?php wp_nonce_field( self::NONCE_ACTION ); ?>
+										<input type="hidden" name="action" value="szeducate_featured_manage_category">
+										<input type="hidden" name="op" value="delete">
+										<input type="hidden" name="term_id" value="<?php echo esc_attr( (string) $term->term_id ); ?>">
+										<button type="submit" class="button" style="color:#d63638; border-color:#d63638;">Törlés</button>
+									</form>
+								</td>
+							</tr>
+						<?php endforeach; ?>
+					</tbody>
+				</table>
+			<?php else : ?>
+				<p style="color:#666; font-style:italic;">Még nincs egyetlen kiemelt kategória sem.</p>
+			<?php endif; ?>
+
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-top:15px; display:flex; gap:8px; max-width:520px;">
+				<?php wp_nonce_field( self::NONCE_ACTION ); ?>
+				<input type="hidden" name="action" value="szeducate_featured_manage_category">
+				<input type="hidden" name="op" value="add">
+				<input type="text" name="name" placeholder="Új kategória neve, pl. Nyílt nap" style="flex:1;" required>
+				<button type="submit" class="button button-primary">+ Új kategória</button>
 			</form>
 
-			<?php if ( empty( $ordered_posts ) ) : ?>
-				<p style="color:#666; font-style:italic;">Ehhez a kategóriához jelenleg nincs hozzárendelt (publikált) képzés.</p>
+			<hr style="margin:30px 0;">
+
+			<h2>Sorrend beállítása</h2>
+			<p>A húzáshoz fogd meg a <span class="dashicons dashicons-menu" aria-hidden="true" style="vertical-align:text-bottom;"></span> ikont - a sorrend kategóriánként, automatikusan mentésre kerül.</p>
+
+			<?php if ( empty( $terms ) ) : ?>
+				<p style="color:#666; font-style:italic;">Hozz létre legalább egy kategóriát a sorrend beállításához.</p>
 			<?php else : ?>
-				<ul id="szeducate-featured-order-list" style="max-width:600px; list-style:none; margin:0; padding:0;" data-term-id="<?php echo esc_attr( (string) $selected_term_id ); ?>">
-					<?php foreach ( $ordered_posts as $post_id ) : ?>
-						<li data-post-id="<?php echo esc_attr( (string) $post_id ); ?>" style="display:flex; align-items:center; gap:10px; background:#fff; border:1px solid #dcdcde; border-radius:4px; padding:10px 14px; margin-bottom:8px; cursor:move;">
-							<span class="dashicons dashicons-menu" aria-hidden="true" style="color:#8c8f94;"></span>
-							<?php if ( has_post_thumbnail( $post_id ) ) : ?>
-								<?php echo get_the_post_thumbnail( $post_id, array( 40, 40 ), array( 'style' => 'border-radius:4px; object-fit:cover;' ) ); ?>
-							<?php endif; ?>
-							<span><?php echo esc_html( get_the_title( $post_id ) ); ?></span>
-						</li>
-					<?php endforeach; ?>
-				</ul>
-				<p id="szeducate-featured-order-status" style="color:#666; font-style:italic;"></p>
+				<?php foreach ( $terms as $term ) : ?>
+					<?php $ordered_posts = self::get_ordered_course_posts( $term->term_id ); ?>
+					<div id="sz-order-<?php echo esc_attr( (string) $term->term_id ); ?>" style="margin-bottom:35px;">
+						<h3><?php echo esc_html( $term->name ); ?></h3>
+						<?php if ( empty( $ordered_posts ) ) : ?>
+							<p style="color:#666; font-style:italic;">Ehhez a kategóriához jelenleg nincs hozzárendelt (publikált) képzés.</p>
+						<?php else : ?>
+							<ul class="sz-featured-order-list" style="max-width:600px; list-style:none; margin:0; padding:0;" data-term-id="<?php echo esc_attr( (string) $term->term_id ); ?>">
+								<?php foreach ( $ordered_posts as $post_id ) : ?>
+									<li data-post-id="<?php echo esc_attr( (string) $post_id ); ?>" style="display:flex; align-items:center; gap:10px; background:#fff; border:1px solid #dcdcde; border-radius:4px; padding:10px 14px; margin-bottom:8px; cursor:move;">
+										<span class="dashicons dashicons-menu" aria-hidden="true" style="color:#8c8f94;"></span>
+										<?php if ( has_post_thumbnail( $post_id ) ) : ?>
+											<?php echo get_the_post_thumbnail( $post_id, array( 40, 40 ), array( 'style' => 'border-radius:4px; object-fit:cover;' ) ); ?>
+										<?php endif; ?>
+										<span><?php echo esc_html( get_the_title( $post_id ) ); ?></span>
+									</li>
+								<?php endforeach; ?>
+							</ul>
+							<p class="sz-featured-order-status" style="color:#666; font-style:italic;"></p>
+						<?php endif; ?>
+					</div>
+				<?php endforeach; ?>
 			<?php endif; ?>
 		</div>
 
 		<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 		<script type="text/javascript">
 			document.addEventListener('DOMContentLoaded', function () {
-				var list = document.getElementById('szeducate-featured-order-list');
-				if (!list || typeof Sortable === 'undefined') return;
+				document.querySelectorAll('.sz-featured-order-list').forEach(function (list) {
+					if (typeof Sortable === 'undefined') return;
+					var status = list.nextElementSibling;
 
-				var status = document.getElementById('szeducate-featured-order-status');
+					new Sortable(list, {
+						handle: '.dashicons-menu',
+						animation: 150,
+						onEnd: function () {
+							var postIds = Array.from(list.querySelectorAll('li')).map(function (li) { return li.getAttribute('data-post-id'); });
 
-				new Sortable(list, {
-					handle: '.dashicons-menu',
-					animation: 150,
-					onEnd: function () {
-						var postIds = Array.from(list.querySelectorAll('li')).map(function (li) { return li.getAttribute('data-post-id'); });
+							if (status) status.textContent = 'Mentés...';
+							var data = new URLSearchParams();
+							data.append('action', 'szeducate_save_featured_order');
+							data.append('term_id', list.getAttribute('data-term-id'));
+							data.append('post_ids', JSON.stringify(postIds));
+							data.append('_ajax_nonce', '<?php echo wp_create_nonce( self::NONCE_ACTION ); ?>');
 
-						status.textContent = 'Mentés...';
-						var data = new URLSearchParams();
-						data.append('action', 'szeducate_save_featured_order');
-						data.append('term_id', list.getAttribute('data-term-id'));
-						data.append('post_ids', JSON.stringify(postIds));
-						data.append('_ajax_nonce', '<?php echo wp_create_nonce( self::NONCE_ACTION ); ?>');
-
-						fetch(ajaxurl, { method: 'POST', body: data })
-							.then(function (res) { return res.json(); })
-							.then(function (response) {
-								status.textContent = response.success ? 'Sorrend mentve.' : 'Hiba: ' + response.data;
-							})
-							.catch(function () {
-								status.textContent = 'Hálózati hiba történt a mentés során.';
-							});
-					}
+							fetch(ajaxurl, { method: 'POST', body: data })
+								.then(function (res) { return res.json(); })
+								.then(function (response) {
+									if (status) status.textContent = response.success ? 'Sorrend mentve.' : 'Hiba: ' + response.data;
+								})
+								.catch(function () {
+									if (status) status.textContent = 'Hálózati hiba történt a mentés során.';
+								});
+						}
+					});
 				});
 			});
 		</script>
 		<?php
+	}
+
+	// A "Kategóriák kezelése" tábla és az "Új kategória" űrlap közös feldolgozója -
+	// egyszerű form-post + redirect (mint a séma-oldal és a Beállítások oldal
+	// szinkron-gombjai), nem AJAX, mert ez ritkán használt admin-művelet, ahol az
+	// oldal-újratöltés semmilyen UX-hátránnyal nem jár.
+	public function handle_manage_category() {
+		check_admin_referer( self::NONCE_ACTION );
+
+		if ( ! current_user_can( 'edit_sz_courses' ) && ! current_user_can( 'manage_options' ) ) {
+			wp_die( 'Nincs jogosultságod.' );
+		}
+
+		$op      = isset( $_POST['op'] ) ? sanitize_text_field( wp_unslash( $_POST['op'] ) ) : '';
+		$term_id = isset( $_POST['term_id'] ) ? intval( $_POST['term_id'] ) : 0;
+		$name    = isset( $_POST['name'] ) ? sanitize_text_field( wp_unslash( $_POST['name'] ) ) : '';
+		$msg     = 'Érvénytelen kérés.';
+
+		if ( 'add' === $op && $name !== '' ) {
+			$result = wp_insert_term( $name, self::TAXONOMY );
+			$msg    = is_wp_error( $result ) ? $result->get_error_message() : 'added';
+		} elseif ( 'rename' === $op && $term_id && $name !== '' ) {
+			$result = wp_update_term( $term_id, self::TAXONOMY, array( 'name' => $name ) );
+			$msg    = is_wp_error( $result ) ? $result->get_error_message() : 'renamed';
+		} elseif ( 'delete' === $op && $term_id ) {
+			$result = wp_delete_term( $term_id, self::TAXONOMY );
+			if ( is_wp_error( $result ) ) {
+				$msg = $result->get_error_message();
+			} else {
+				$msg = $result ? 'deleted' : 'A törlés nem sikerült.';
+			}
+		}
+
+		wp_safe_redirect( add_query_arg( 'msg', urlencode( $msg ), admin_url( 'edit.php?post_type=sz_course&page=szeducate-featured-categories' ) ) );
+		exit;
 	}
 
 	// A megadott kiemelt kategóriához tartozó, PUBLIKÁLT képzések ID-jai, a mentett

@@ -14,7 +14,10 @@ use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
 class SZEducate_Import_Export {
 
     public function init() {
-        add_action( 'admin_menu', array( $this, 'add_menu_page' ) );
+        // Kései prioritás (999), hogy ez a legalsó almenüpont legyen a Képzések
+        // menüben - minden más SZEducate-almenü (pl. Kiemelt kategóriák) ez elé kerül,
+        // függetlenül attól, hogy melyik osztály fut előbb az init_client()-ben.
+        add_action( 'admin_menu', array( $this, 'add_menu_page' ), 999 );
         add_action( 'admin_post_szeducate_download_csv_template', array( $this, 'handle_download_template' ) );
         add_action( 'admin_post_szeducate_export_all_csv', array( $this, 'handle_export_all' ) );
         add_filter( 'bulk_actions-edit-sz_course', array( $this, 'register_bulk_export_action' ) );
