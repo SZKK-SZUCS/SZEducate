@@ -98,7 +98,7 @@ class SZEducate_Featured {
 				</select>
 
 				<label for="szeducate-featured-new" style="font-weight:600; display:block; margin-bottom:5px;">Új kategória neve (opcionális)</label>
-				<input type="text" id="szeducate-featured-new" placeholder="pl. Nyílt nap" style="width:100%; padding:6px; border:1px solid #8c8f94; border-radius:4px; margin-bottom:15px; box-sizing:border-box;">
+				<input type="text" id="szeducate-featured-new" placeholder="pl. Kezdőlapra" style="width:100%; padding:6px; border:1px solid #8c8f94; border-radius:4px; margin-bottom:15px; box-sizing:border-box;">
 
 				<label style="display:flex; align-items:center; gap:6px; margin-bottom:20px;">
 					<input type="checkbox" id="szeducate-featured-replace">
@@ -342,7 +342,7 @@ class SZEducate_Featured {
 				<?php wp_nonce_field( self::NONCE_ACTION ); ?>
 				<input type="hidden" name="action" value="szeducate_featured_manage_category">
 				<input type="hidden" name="op" value="add">
-				<input type="text" name="name" placeholder="Új kategória neve, pl. Nyílt nap" style="flex:1;" required>
+				<input type="text" name="name" placeholder="Új kategória neve, pl. Kezdőlapra" style="flex:1;" required>
 				<button type="submit" class="button button-primary">+ Új kategória</button>
 			</form>
 
