@@ -2,5 +2,11 @@
     "require": {
         "phpoffice/phpspreadsheet": "^5.7",
         "yahnis-elsts/plugin-update-checker": "^5.7"
+    },
+    "scripts": {
+        "lint": "dev-tools/vendor/bin/phpcs",
+        "lint:fix": "dev-tools/vendor/bin/phpcbf",
+        "stan": "dev-tools/vendor/bin/phpstan analyse --memory-limit=3G",
+        "stan:baseline": "dev-tools/vendor/bin/phpstan analyse --memory-limit=3G --generate-baseline"
     }
 }

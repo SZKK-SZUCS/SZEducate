@@ -1,0 +1,246 @@
+parameters:
+	ignoreErrors:
+		-
+			message: "#^Right side of && is always true\\.$#"
+			count: 1
+			path: includes/class-szeducate-activator.php
+
+		-
+			message: "#^Offset 'courses' on array in isset\\(\\) always exists and is not nullable\\.$#"
+			count: 1
+			path: includes/class-szeducate-backup-manager.php
+
+		-
+			message: "#^Parameter \\#1 \\$string of function str_pad expects string, int given\\.$#"
+			count: 1
+			path: includes/class-szeducate-backup-manager.php
+
+		-
+			message: "#^Parameter \\#3 \\$callback of function add_settings_section expects callable\\(\\)\\: mixed, null given\\.$#"
+			count: 1
+			path: includes/class-szeducate-backup-manager.php
+
+		-
+			message: "#^Constant SZEDUCATE_PLUGIN_DIR not found\\.$#"
+			count: 6
+			path: includes/class-szeducate-client-api.php
+
+		-
+			message: "#^Left side of && is always true\\.$#"
+			count: 1
+			path: includes/class-szeducate-client-api.php
+
+		-
+			message: "#^Constant SZEDUCATE_PLUGIN_DIR not found\\.$#"
+			count: 1
+			path: includes/class-szeducate-client.php
+
+		-
+			message: "#^Constant SZEDUCATE_PLUGIN_URL not found\\.$#"
+			count: 1
+			path: includes/class-szeducate-client.php
+
+		-
+			message: "#^Right side of && is always true\\.$#"
+			count: 1
+			path: includes/class-szeducate-client.php
+
+		-
+			message: "#^Unreachable statement \\- code above always terminates\\.$#"
+			count: 1
+			path: includes/class-szeducate-client.php
+
+		-
+			message: "#^Access to an undefined property object\\:\\:\\$api_token\\.$#"
+			count: 2
+			path: includes/class-szeducate-clients.php
+
+		-
+			message: "#^Constant SZEDUCATE_PLUGIN_DIR not found\\.$#"
+			count: 11
+			path: includes/class-szeducate-core.php
+
+		-
+			message: "#^Parameter \\#1 \\$text of function esc_attr expects string, int given\\.$#"
+			count: 1
+			path: includes/class-szeducate-courses-overview.php
+
+		-
+			message: "#^Parameter \\#1 \\$text of function esc_html expects string, int given\\.$#"
+			count: 3
+			path: includes/class-szeducate-courses-overview.php
+
+		-
+			message: "#^Parameter \\#1 \\$text of function esc_html expects string, int\\<0, max\\> given\\.$#"
+			count: 3
+			path: includes/class-szeducate-courses-overview.php
+
+		-
+			message: "#^Parameter \\#1 \\$text of function esc_html expects string, int\\<1, max\\> given\\.$#"
+			count: 3
+			path: includes/class-szeducate-courses-overview.php
+
+		-
+			message: "#^Parameter \\#1 \\$text of function esc_js expects string, int\\<1, max\\> given\\.$#"
+			count: 1
+			path: includes/class-szeducate-courses-overview.php
+
+		-
+			message: "#^Access to constant NUMBER on an unknown class Elementor\\\\Controls_Manager\\.$#"
+			count: 1
+			path: includes/class-szeducate-elementor.php
+
+		-
+			message: "#^Access to constant RAW_HTML on an unknown class Elementor\\\\Controls_Manager\\.$#"
+			count: 1
+			path: includes/class-szeducate-elementor.php
+
+		-
+			message: "#^Access to constant REPEATER on an unknown class Elementor\\\\Controls_Manager\\.$#"
+			count: 1
+			path: includes/class-szeducate-elementor.php
+
+		-
+			message: "#^Access to constant SELECT on an unknown class Elementor\\\\Controls_Manager\\.$#"
+			count: 3
+			path: includes/class-szeducate-elementor.php
+
+		-
+			message: "#^Access to constant SELECT2 on an unknown class Elementor\\\\Controls_Manager\\.$#"
+			count: 2
+			path: includes/class-szeducate-elementor.php
+
+		-
+			message: "#^Access to constant TAB_ADVANCED on an unknown class Elementor\\\\Controls_Manager\\.$#"
+			count: 1
+			path: includes/class-szeducate-elementor.php
+
+		-
+			message: "#^Access to constant TAB_CONTENT on an unknown class Elementor\\\\Controls_Manager\\.$#"
+			count: 1
+			path: includes/class-szeducate-elementor.php
+
+		-
+			message: "#^Access to constant TEXTAREA on an unknown class Elementor\\\\Controls_Manager\\.$#"
+			count: 2
+			path: includes/class-szeducate-elementor.php
+
+		-
+			message: "#^Access to static property \\$instance on an unknown class Elementor\\\\Plugin\\.$#"
+			count: 2
+			path: includes/class-szeducate-elementor.php
+
+		-
+			message: "#^Call to an undefined method object\\:\\:get_settings_for_display\\(\\)\\.$#"
+			count: 1
+			path: includes/class-szeducate-elementor.php
+
+		-
+			message: "#^Call to method add_control\\(\\) on an unknown class Elementor\\\\Repeater\\.$#"
+			count: 4
+			path: includes/class-szeducate-elementor.php
+
+		-
+			message: "#^Call to method get_controls\\(\\) on an unknown class Elementor\\\\Repeater\\.$#"
+			count: 1
+			path: includes/class-szeducate-elementor.php
+
+		-
+			message: "#^Comparison operation \"\\>\" between int\\<1, max\\> and 0 is always true\\.$#"
+			count: 1
+			path: includes/class-szeducate-elementor.php
+
+		-
+			message: "#^Constant SZEDUCATE_PLUGIN_DIR not found\\.$#"
+			count: 14
+			path: includes/class-szeducate-elementor.php
+
+		-
+			message: "#^Instantiated class Elementor\\\\Repeater not found\\.$#"
+			count: 1
+			path: includes/class-szeducate-elementor.php
+
+		-
+			message: "#^Instantiated class SZEducate_Dynamic_Tag not found\\.$#"
+			count: 1
+			path: includes/class-szeducate-elementor.php
+
+		-
+			message: "#^Instantiated class SZEducate_Featured_Widget not found\\.$#"
+			count: 1
+			path: includes/class-szeducate-elementor.php
+
+		-
+			message: "#^Instantiated class SZEducate_Image_Dynamic_Tag not found\\.$#"
+			count: 1
+			path: includes/class-szeducate-elementor.php
+
+		-
+			message: "#^Instantiated class SZEducate_Keywords_Widget not found\\.$#"
+			count: 1
+			path: includes/class-szeducate-elementor.php
+
+		-
+			message: "#^Instantiated class SZEducate_Links_Widget not found\\.$#"
+			count: 1
+			path: includes/class-szeducate-elementor.php
+
+		-
+			message: "#^Instantiated class SZEducate_Listing_Widget not found\\.$#"
+			count: 1
+			path: includes/class-szeducate-elementor.php
+
+		-
+			message: "#^Instantiated class SZEducate_Pricing_Table_Widget not found\\.$#"
+			count: 1
+			path: includes/class-szeducate-elementor.php
+
+		-
+			message: "#^Instantiated class SZEducate_Repeater_Widget not found\\.$#"
+			count: 1
+			path: includes/class-szeducate-elementor.php
+
+		-
+			message: "#^Instantiated class SZEducate_Search_Widget not found\\.$#"
+			count: 1
+			path: includes/class-szeducate-elementor.php
+
+		-
+			message: "#^Instantiated class SZEducate_Status_Widget not found\\.$#"
+			count: 1
+			path: includes/class-szeducate-elementor.php
+
+		-
+			message: "#^Instantiated class SZEducate_Video_Dynamic_Tag not found\\.$#"
+			count: 1
+			path: includes/class-szeducate-elementor.php
+
+		-
+			message: "#^Instantiated class SZEducate_Video_Widget not found\\.$#"
+			count: 1
+			path: includes/class-szeducate-elementor.php
+
+		-
+			message: "#^Right side of && is always true\\.$#"
+			count: 1
+			path: includes/class-szeducate-hub-api.php
+
+		-
+			message: "#^Call to function is_object\\(\\) with mixed will always evaluate to false\\.$#"
+			count: 1
+			path: includes/class-szeducate-import-export.php
+
+		-
+			message: "#^Constant SZEDUCATE_PLUGIN_DIR not found\\.$#"
+			count: 1
+			path: includes/class-szeducate-schema.php
+
+		-
+			message: "#^Constant SZEDUCATE_PLUGIN_DIR not found\\.$#"
+			count: 5
+			path: includes/class-szeducate-settings.php
+
+		-
+			message: "#^Parameter \\#3 \\$callback of function add_settings_section expects callable\\(\\)\\: mixed, null given\\.$#"
+			count: 3
+			path: includes/class-szeducate-settings.php

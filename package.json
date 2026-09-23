@@ -5,7 +5,8 @@
   "main": "build/index.js",
   "scripts": {
     "build": "wp-scripts build",
-    "start": "wp-scripts start"
+    "start": "wp-scripts start",
+    "lint-js": "wp-scripts lint-js"
   },
   "dependencies": {
     "react-hook-form": "^7.48.2"

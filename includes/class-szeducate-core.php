@@ -16,6 +16,7 @@ class SZEducate_Core {
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-client-api.php';
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-import-export.php';
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-elementor.php';
+		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-featured.php';
 
 		$this->settings = get_option( 'szeducate_settings', array() );
 
@@ -73,5 +74,8 @@ class SZEducate_Core {
 
 		$elementor = new SZEducate_Elementor();
 		$elementor->init();
+
+		$featured = new SZEducate_Featured();
+		$featured->init();
 	}
 }
