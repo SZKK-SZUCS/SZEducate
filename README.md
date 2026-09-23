@@ -151,6 +151,12 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.53
+
+- **Új „SZEducate Kiemelt Képzések” Elementor widget.** Az oldal-független kiemeléshez új „Kiemelt kategória” taxonómia tartozik: a Képzések listájában egy tömeges művelettel („Kiemelt kategóriába helyezés”) sorolhatók be a képzések egy-egy kategóriába, checkbox-kijelöléssel. A Képzések menü alatt egyetlen „Kiemelt kategóriák” oldal adja a kategóriák kezelését (létrehozás/átnevezés/törlés) ÉS a kategóriánkénti egyedi sorrendet (drag & drop, automatikus mentéssel) – nem kell két külön menüpont közt váltani.
+- **A widget maga Rács vagy Csúsztató (karusszel) elrendezésben**, „kép + cím” (a cím a képre írva, sötétítő átfedéssel) vagy „kép + leírás + gomb” kártyastílusban jeleníti meg a kiválasztott kategóriák publikált képzéseit – mindkét kártyastílus elérhető egy váltóval. Sorrend: A-Z / Z-A / Legfrissebb / Legrégebbi / Egyéni (a fenti drag & drop szerint). Teljes stílus-kontroll szett: oszlopszám/térköz, kártya háttér/border/árnyék/lekerekítés, hover-animáció (nagyítás/emelés/sötétítés), képarány, felirat-overlay pozíció és átfedés-szín, cím/leírás tipográfia, gomb normál/hover stílus, karusszelnél loop/autoplay/sebesség/nyilak/pöttyök.
+- **Beállítások oldal: alapértelmezett kép a Kiemelt Képzések widgethez.** Ha egy képzésnek nincs saját kiemelt képe, ez a globálisan beállított kép jelenik meg helyette (a cím ilyenkor is rá van írva).
+
 ### 0.9.52
 
 - **Okos Kereső – javítva: a beviteli mező elvesztette a fókuszt, amikor a találati lista megjelent.** Gépelés közben, ~0,4 mp múlva (a legördülő felugrásakor) a kurzor kiesett a mezőből, vissza kellett kattintani. Mostantól a widget a lista kirajzolása körül megőrzi és visszaállítja a fókuszt és a kurzorpozíciót (ha „a semmibe” veszett – ha közben szándékosan másra kattintasz, nem ránt vissza). Emellett: a találati doboz egy lépésben frissül, az elavult (közben túlgépelt) válaszokat eldobja, és ugyanarra a mezőre nem köt kétszer eseményt.
