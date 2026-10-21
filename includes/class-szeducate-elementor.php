@@ -262,7 +262,7 @@ class SZEducate_Elementor {
 			return $schema;
 		}
 
-		foreach ( array( 'szeducate_hide_key', 'szeducate_hide_rule', 'szeducate_hide_value' ) as $prop ) {
+		foreach ( array( 'szeducate_hide_key', 'szeducate_hide_rule', 'szeducate_hide_value', 'szeducate_only_forms' ) as $prop ) {
 			if ( isset( $schema[ $prop ] ) ) continue;
 			$schema[ $prop ] = $string_type::make();
 		}
@@ -296,6 +296,11 @@ class SZEducate_Elementor {
 			->set_label( 'SZEducate Láthatóság' )
 			->set_id( 'szeducate-visibility' )
 			->set_items( array(
+				// A mező-feltétellel ÉS-kapcsolatban: más képzési formánál az elem akkor is rejtett,
+				// ha a vizsgált mező ki van töltve (pl. mikroképzésnél véletlenül kitöltött szakirányú adat).
+				$text_class::bind_to( 'szeducate_only_forms' )
+					->set_placeholder( 'pl. Mikroképzés | Előkészítő' )
+					->set_label( 'Csak ezeknél a képzési formáknál látszik (| jellel)' ),
 				$select_class::bind_to( 'szeducate_hide_key' )
 					->set_options( $field_options )
 					->set_placeholder( 'Nincs feltétel' )
@@ -335,12 +340,26 @@ class SZEducate_Elementor {
 		);
 	}
 
+	// Az atomic elem "csak ezeknél a képzési formáknál látszik" listája (üres = nincs megkötés).
+	private function get_only_forms( $element ) {
+		if ( ! method_exists( $element, 'get_atomic_setting' ) ) {
+			return array();
+		}
+		$raw = $element->get_atomic_setting( 'szeducate_only_forms' );
+		if ( ! is_string( $raw ) || trim( $raw ) === '' ) {
+			return array();
+		}
+		return array_values( array_filter( array_map( 'trim', explode( '|', $raw ) ), function ( $f ) { return $f !== ''; } ) );
+	}
+
 	public function should_render_element( $should_render, $element ) {
 		if ( ! $should_render ) return $should_render;
 
-		$settings = $this->get_visibility_settings( $element );
+		$settings   = $this->get_visibility_settings( $element );
+		$only_forms = $this->get_only_forms( $element );
+		$has_keys   = ! empty( $settings['szeducate_hide_if_empty_keys'] ) && is_array( $settings['szeducate_hide_if_empty_keys'] );
 
-		if ( empty( $settings['szeducate_hide_if_empty_keys'] ) || ! is_array( $settings['szeducate_hide_if_empty_keys'] ) ) {
+		if ( ! $has_keys && empty( $only_forms ) ) {
 			return $should_render;
 		}
 
@@ -354,6 +373,13 @@ class SZEducate_Elementor {
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-client.php';
 		$data = SZEducate_Client::get_course_data_for_post( $post_id );
 		if ( ! is_array( $data ) ) return false;
+
+		if ( ! empty( $only_forms ) ) {
+			$form = isset( $data['kepzesi_forma'] ) ? trim( (string) $data['kepzesi_forma'] ) : '';
+			if ( ! in_array( $form, $only_forms, true ) ) return false;
+		}
+
+		if ( ! $has_keys ) return $should_render;
 
 		return $this->element_visibility_hidden( $settings, $data ) ? false : $should_render;
 	}
