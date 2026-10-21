@@ -170,9 +170,10 @@ class SZEducate_Dynamic_Tag extends \Elementor\Core\DynamicTags\Tag {
 		}
 		$type = $this->get_field_type( $key );
 		$v    = trim( (string) $value );
-		if ( $type === 'date' && preg_match( '/^\d{4}-\d{2}-\d{2}/', $v, $m ) ) {
-			$ts = strtotime( $m[0] );
-			return $ts ? date_i18n( 'Y. F j.', $ts ) : $value;
+		if ( $type === 'date' && preg_match( '/^(\d{4})-(\d{2})-(\d{2})/', $v, $m ) && checkdate( (int) $m[2], (int) $m[3], (int) $m[1] ) ) {
+			// UTC éjfél: a date_i18n a "helyi időként értelmezett" időbélyeget UTC-ként formázza,
+			// így a nap nem csúszik át a webhely időzónája miatt.
+			return date_i18n( 'Y. F j.', gmmktime( 0, 0, 0, (int) $m[2], (int) $m[3], (int) $m[1] ) );
 		}
 		if ( $type === 'number' && is_numeric( $v ) ) {
 			$n = (float) $v;
