@@ -151,6 +151,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.55
+
+- **SZEducate Láthatóság a Harmonika (atomic accordion) paneleken.** Az atomic Harmonika egyes paneljei (e-accordion-item) is kapnak láthatóság-feltételt: ha a feltétel teljesül, a panel fejléce és tartalma együtt tűnik el.
+
 ### 0.9.54
 
 - **SZEducate Láthatóság az atomic (V4) Elementor elemeken.** Az atomic konténerek (Div block, Flexbox, Grid) és widgetek új „SZEducate Láthatóság” szekciót kapnak: vizsgált mező, feltétel (üres / nem üres / igaz / hamis / egyenlő / nem egyenlő / tartalmazza) és vizsgált érték. A szabály-kiértékelés megegyezik a klasszikus (V3) elemek láthatóságával, az elrejtés szerver oldalon történik; a szerkesztőben minden látszik. Egy elemhez egy mező-feltétel tartozik, több érték `|` jellel elválasztva adható meg (pl. `Mikroképzés | Előkészítő`); ÉS-kapcsolathoz konténereket kell egymásba ágyazni. A klasszikus elemek láthatósága változatlan.
