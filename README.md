@@ -151,6 +151,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.57
+
+- **„Képzés Adat” dinamikus tag: magyar formázás (opt-in).** Új „Érték formázása” beállítás: „Magyar formázás” esetén a dátum típusú mezők `2026. augusztus 31.`, a szám típusú mezők `50 000` alakban jelennek meg (az ezres tagoló nem törhető szóköz). Más típusú mezőt nem érint, az alapértelmezett „Nyers érték” pedig változatlan, így a meglévő oldalak nem módosulnak.
+
 ### 0.9.56
 
 - **Képzési forma szerinti láthatóság az atomic (V4) elemeken.** Az atomic elemek új „Csak ezeknél a képzési formáknál látszik” mezőt kapnak a „SZEducate Láthatóság” szekcióban (több forma `|` jellel elválasztva, pl. `Mikroképzés | Előkészítő`). A feltétel ÉS-kapcsolatban működik a vizsgált mező feltételével: más képzési formánál az elem akkor is rejtett, ha a vizsgált mező ki van töltve (pl. mikroképzésnél véletlenül kitöltött szakirányú adat).
