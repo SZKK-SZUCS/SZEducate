@@ -151,6 +151,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.54
+
+- **SZEducate Láthatóság az atomic (V4) Elementor elemeken.** Az atomic konténerek (Div block, Flexbox, Grid) és widgetek új „SZEducate Láthatóság” szekciót kapnak: vizsgált mező, feltétel (üres / nem üres / igaz / hamis / egyenlő / nem egyenlő / tartalmazza) és vizsgált érték. A szabály-kiértékelés megegyezik a klasszikus (V3) elemek láthatóságával, az elrejtés szerver oldalon történik; a szerkesztőben minden látszik. Egy elemhez egy mező-feltétel tartozik, több érték `|` jellel elválasztva adható meg (pl. `Mikroképzés | Előkészítő`); ÉS-kapcsolathoz konténereket kell egymásba ágyazni. A klasszikus elemek láthatósága változatlan.
+
 ### 0.9.53
 
 - **Új „SZEducate Kiemelt Képzések” Elementor widget.** Az oldal-független kiemeléshez új „Kiemelt kategória” taxonómia tartozik: a Képzések listájában egy tömeges művelettel („Kiemelt kategóriába helyezés”) sorolhatók be a képzések egy-egy kategóriába, checkbox-kijelöléssel. A Képzések menü alatt egyetlen „Kiemelt kategóriák” oldal adja a kategóriák kezelését (létrehozás/átnevezés/törlés) ÉS a kategóriánkénti egyedi sorrendet (drag & drop, automatikus mentéssel) – nem kell két külön menüpont közt váltani.
