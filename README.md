@@ -151,6 +151,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.56
+
+- **Képzési forma szerinti láthatóság az atomic (V4) elemeken.** Az atomic elemek új „Csak ezeknél a képzési formáknál látszik” mezőt kapnak a „SZEducate Láthatóság” szekcióban (több forma `|` jellel elválasztva, pl. `Mikroképzés | Előkészítő`). A feltétel ÉS-kapcsolatban működik a vizsgált mező feltételével: más képzési formánál az elem akkor is rejtett, ha a vizsgált mező ki van töltve (pl. mikroképzésnél véletlenül kitöltött szakirányú adat).
+
 ### 0.9.55
 
 - **SZEducate Láthatóság a Harmonika (atomic accordion) paneleken.** Az atomic Harmonika egyes paneljei (e-accordion-item) is kapnak láthatóság-feltételt: ha a feltétel teljesül, a panel fejléce és tartalma együtt tűnik el.
