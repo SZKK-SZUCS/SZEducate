@@ -490,6 +490,21 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 			]
 		);
 
+		// Alapból BE: a meglévő példányok (nincs mentett értékük) is a modern kinézetet kapják.
+		// Kikapcsolva a régi, vezérlő-alapú kinézet marad.
+		$this->add_control(
+			'modern_look',
+			[
+				'label'        => 'Modern megjelenés',
+				'type'         => \Elementor\Controls_Manager::SWITCHER,
+				'label_on'     => 'Be',
+				'label_off'    => 'Ki',
+				'return_value' => 'yes',
+				'default'      => 'yes',
+				'description'  => 'Kártyák, hover-effekt, belépő animáció és modern szűrőpanel. Bekapcsolva a kártya- és címstílus-vezérlők egy része nem hat; a régi kinézethez kapcsold ki.',
+			]
+		);
+
 		$this->add_responsive_control(
 			'columns',
 			[
@@ -1128,8 +1143,12 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 			});
 		}
 
-		$wid = $this->get_id();
-		echo '<div class="sz-listing-widget" id="sz-listing-' . esc_attr( $wid ) . '">';
+		$wid    = $this->get_id();
+		$modern = ( ! isset( $settings['modern_look'] ) || $settings['modern_look'] === 'yes' );
+		if ( $modern ) {
+			echo $this->modern_assets();
+		}
+		echo '<div class="sz-listing-widget' . ( $modern ? ' sz-modern' : '' ) . '" id="sz-listing-' . esc_attr( $wid ) . '">';
 
 		echo $this->uf_render_panel( $uf_specs, $uf_any, $uf_yes, $uf_no, $uf_label, $wid );
 
@@ -1140,8 +1159,12 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 
 		echo "<div class=\"{$grid_class}\" style=\"{$grid_style}\">";
 
+		$block_i = 0;
 		foreach ( $grouped_data as $group_name => $items ) {
-			echo '<div class="sz-group-block" style="display:flex; flex-direction:column; overflow:hidden;">';
+			// A belépő animáció késleltetése (--i) csak modern módban; legfeljebb 8 lépcső.
+			$block_style = $modern ? ' --i:' . min( $block_i, 8 ) . ';' : '';
+			$block_i++;
+			echo '<div class="sz-group-block" style="display:flex; flex-direction:column; overflow:hidden;' . esc_attr( $block_style ) . '">';
 
 			if ( ! empty( $group_key ) ) {
 				echo '<h3 class="sz-group-title" style="margin-top:0; border-bottom-style:solid; border-bottom-width:2px; padding-bottom:10px; width:100%;">' . esc_html( $group_name ) . '</h3>';
@@ -1184,6 +1207,61 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 		}
 
 		echo '</div>'; // .sz-listing-widget
+	}
+
+	// A "Modern megjelenés" CSS-e és a belépő animáció scriptje - oldalanként egyszer.
+	// A szelektorok .sz-listing-widget.sz-modern előtaggal erősebbek, mint a Stílus-vezérlők
+	// {{WRAPPER}} szelektorai, ezért modern módban ez dönt; a h3 / list inline stílusait
+	// (border-bottom, padding) csak ott írjuk felül !important-tal, ahol az szükséges.
+	// A belépő animáció a .sz-reveal osztályra épül, amit csak a script ad hozzá: script
+	// nélkül (vagy a szerkesztő előnézetében) minden kártya egyszerűen látszik.
+	private function modern_assets() {
+		static $done = false;
+		if ( $done ) return '';
+		$done = true;
+
+		$m = '.sz-listing-widget.sz-modern';
+		$css = $m . '{--sz-navy:#242943;--sz-blue:#044790;--sz-cyan:#50ADC9;--sz-line:#dfe3ea;}'
+			. $m . ' .sz-group-block{position:relative;background:#fff;border:1px solid var(--sz-line);border-radius:20px;padding:28px 26px 22px;box-shadow:0 10px 30px rgba(20,24,40,.06);transition:opacity .6s ease,transform .6s ease,box-shadow .3s ease,border-color .3s ease;}'
+			. $m . ' .sz-group-block::before{content:"";position:absolute;inset:0 0 auto 0;height:4px;background:linear-gradient(90deg,var(--sz-cyan),var(--sz-blue));}'
+			. $m . '.sz-reveal .sz-group-block{opacity:0;transform:translateY(26px);transition-delay:calc(var(--i,0)*70ms),calc(var(--i,0)*70ms),0s,0s;}'
+			. $m . '.sz-reveal .sz-group-block.sz-in{opacity:1;transform:none;}'
+			. $m . ' .sz-group-block:hover{box-shadow:0 18px 44px rgba(20,24,40,.14);border-color:var(--sz-cyan);}'
+			. $m . ' .sz-group-block.sz-in:hover{transform:translateY(-4px);transition-delay:0s;}'
+			. $m . ' .sz-group-title{border:0 !important;padding:0 0 4px !important;margin:6px 0 14px !important;font-size:17px;letter-spacing:.06em;}'
+			. $m . ' .sz-course-list li{margin:0 0 2px !important;}'
+			. $m . ' .sz-course-link{padding:10px 12px;margin:0 -12px;border-radius:12px;text-decoration:none;transition:background .2s,transform .2s,color .2s;}'
+			. $m . ' .sz-course-link:hover{background:#f3f5f8;transform:translateX(5px);}'
+			. $m . ' .sz-course-link .sz-item-icon{transition:transform .2s;}'
+			. $m . ' .sz-course-link:hover .sz-item-icon{transform:translateX(3px);}'
+			. $m . ' .sz-listing-filters{background:#f8fafc;border:1px solid var(--sz-line);border-radius:20px;padding:22px 26px;margin-bottom:28px;box-shadow:0 6px 22px rgba(20,24,40,.04);}'
+			. $m . ' .sz-lf-title{color:var(--sz-navy);font-size:15px;letter-spacing:.08em;}'
+			. $m . ' .sz-lf-reset{padding:5px 14px;border:1px solid var(--sz-line);border-radius:999px;background:#fff;text-decoration:none;opacity:1;font-size:12px;transition:background .2s,color .2s;}'
+			. $m . ' .sz-lf-reset:hover{background:var(--sz-navy);color:#fff;}'
+			. $m . ' .sz-lf-groups{gap:14px 36px;}'
+			. $m . ' .sz-lf-group legend{color:var(--sz-blue);opacity:1;margin-bottom:8px;}'
+			. $m . ' .sz-lf-group label{display:inline-flex;margin:0 8px 8px 0;padding:6px 14px;border:1px solid var(--sz-line);border-radius:999px;background:#fff;font-size:13px;line-height:1.4;transition:background .2s,color .2s,border-color .2s;}'
+			. $m . ' .sz-lf-group label:hover{border-color:var(--sz-cyan);}'
+			. '@supports selector(:has(a)){'
+			. $m . ' .sz-lf-group input{position:absolute;opacity:0;width:1px;height:1px;}'
+			. $m . ' .sz-lf-group label:has(input:checked){background:var(--sz-blue);border-color:var(--sz-blue);color:#fff;}'
+			. $m . ' .sz-lf-group label:has(input:focus-visible){outline:3px solid var(--sz-cyan);outline-offset:2px;}'
+			. '}'
+			. '@media(max-width:767px){' . $m . ' .sz-group-block{padding:22px 18px 16px;}' . $m . ' .sz-listing-filters{padding:18px;}}'
+			. '@media(prefers-reduced-motion:reduce){' . $m . '.sz-reveal .sz-group-block{opacity:1;transform:none;transition:none;}' . $m . ' .sz-course-link,' . $m . ' .sz-group-block{transition:none;}}';
+
+		$js = '(function(){'
+			. 'function boot(root){if(root.__szm)return;root.__szm=1;'
+			. 'if(!("IntersectionObserver" in window))return;'
+			. 'var blocks=root.querySelectorAll(".sz-group-block");root.classList.add("sz-reveal");'
+			. 'var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add("sz-in");io.unobserve(e.target);}});},{threshold:.08,rootMargin:"0px 0px -5% 0px"});'
+			. '[].forEach.call(blocks,function(b){io.observe(b);});'
+			. 'setTimeout(function(){[].forEach.call(blocks,function(b){b.classList.add("sz-in");});},4000);}'
+			. 'function init(){[].forEach.call(document.querySelectorAll(".sz-listing-widget.sz-modern"),boot);}'
+			. 'if(document.readyState!=="loading")init();else document.addEventListener("DOMContentLoaded",init);'
+			. '})();';
+
+		return '<style>' . $css . '</style><script>' . $js . '</script>';
 	}
 
 	// A séma bármely (akár beágyazott) mezőjének opció-listáját megkeresi kulcs
