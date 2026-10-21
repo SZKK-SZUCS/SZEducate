@@ -411,7 +411,11 @@ class SZEducate_Client {
 
 		$bulk_actions['szeducate_activate'] = 'Tömeges Aktiválás (Határidővel is)';
 		$bulk_actions['szeducate_deactivate'] = 'Tömeges Inaktiválás';
-		
+		// A Publikusság (public mező) külön a státusztól: ez dönti el, hogy a listázó
+		// widgetek (Láthatóság kapcsoló = public) megjelenítik-e a Képzést.
+		$bulk_actions['szeducate_make_public']    = 'Tömeges Publikussá tétel';
+		$bulk_actions['szeducate_make_nonpublic'] = 'Tömeges Publikusság visszavonása';
+
 		$can_delete = isset($actions['delete']) ? (bool) $actions['delete'] : true;
 
 		if ( $can_delete && current_user_can('edit_sz_courses') ) {
@@ -584,7 +588,7 @@ class SZEducate_Client {
 					if (!select) return;
 					const action = select.value;
 
-					if ( action === 'szeducate_activate' || action === 'szeducate_deactivate' || action === 'szeducate_delete' ) {
+					if ( action === 'szeducate_activate' || action === 'szeducate_deactivate' || action === 'szeducate_delete' || action === 'szeducate_make_public' || action === 'szeducate_make_nonpublic' ) {
 						e.preventDefault();
 						
 						const checked = document.querySelectorAll('input[name="post[]"]:checked');
@@ -599,7 +603,15 @@ class SZEducate_Client {
 						if ( action === 'szeducate_activate' ) {
 							dateInput.value = ''; 
 							modal.style.display = 'flex'; 
-						} else if ( action === 'szeducate_delete' ) {
+						} else if ( action === 'szeducate_make_public' ) {
+								if (confirm('Biztosan publikussá teszed a kijelölt ' + currentPostIds.length + ' képzést? A listázó widgetekben azonnal megjelennek.')) {
+									executeBulkAction(action, '', currentPostIds);
+								}
+							} else if ( action === 'szeducate_make_nonpublic' ) {
+								if (confirm('Biztosan visszavonod a kijelölt ' + currentPostIds.length + ' képzés publikusságát? A listázó widgetekből eltűnnek.')) {
+									executeBulkAction(action, '', currentPostIds);
+								}
+							} else if ( action === 'szeducate_delete' ) {
 							if (confirm('FIGYELEM! Biztosan VÉGLEGESEN törlöd a kijelölt képzéseket? Ez a művelet a Hubról is visszavonhatatlanul letörli őket!')) {
 								executeBulkAction(action, '', currentPostIds);
 							}
@@ -646,6 +658,39 @@ class SZEducate_Client {
 
 		global $wpdb;
 		$table_name = $wpdb->prefix . 'szeducate_courses_data';
+
+		// Publikusság: csak a public mezőt írjuk (JSON-logikai érték, mint a React szerkesztőben),
+		// az állapotot / határidőt nem érintjük. Ugyanúgy a Hub felé is szinkronizáljuk.
+		if ( $bulk_action === 'szeducate_make_public' || $bulk_action === 'szeducate_make_nonpublic' ) {
+			$public_val    = ( $bulk_action === 'szeducate_make_public' );
+			$updated_count = 0;
+
+			foreach ( $post_ids as $pid ) {
+				$post_id = intval( $pid );
+				if ( $post_id <= 0 || get_post_type( $post_id ) !== 'sz_course' ) continue;
+
+				$course = $wpdb->get_row( $wpdb->prepare( "SELECT id, course_data FROM $table_name WHERE local_post_id = %d", $post_id ), ARRAY_A );
+				if ( ! $course ) continue;
+
+				$data = json_decode( $course['course_data'], true );
+				if ( ! is_array( $data ) ) $data = array();
+				$data['public'] = $public_val;
+
+				$wpdb->update(
+					$table_name,
+					array( 'course_data' => wp_json_encode( $data, JSON_UNESCAPED_UNICODE ) ),
+					array( 'id' => $course['id'] )
+				);
+
+				wp_schedule_single_event( time(), 'szeducate_background_sync', array( $post_id ) );
+				$updated_count++;
+			}
+
+			// A listázó widgetek / keresők gyorsítótára (5 perces transient) ne mutasson régi adatot.
+			self::invalidate_courses_cache();
+
+			wp_send_json_success( "Sikeresen módosítva: $updated_count db képzés publikussága (" . ( $public_val ? 'Igen' : 'Nem' ) . ")." );
+		}
 
 		$status_val = ($bulk_action === 'szeducate_activate') ? 'Aktív' : 'Inaktív';
 		$updated_count = 0;

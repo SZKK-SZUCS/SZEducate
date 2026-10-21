@@ -151,6 +151,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.60
+
+- **Képzések lista: tömeges Publikusság beállítás.** A Képzések listájának tömeges műveletei között új „Tömeges Publikussá tétel” és „Tömeges Publikusság visszavonása” elem. A kijelölt képzések `public` mezőjét állítja (az állapotot és a határidőt nem érinti), megerősítő kérdéssel, a Hubra is szinkronizálva, és törli a listázó widgetek gyorsítótárát, így a változás azonnal látszik.
+
 ### 0.9.59
 
 - **Szaklista widget: kompakt szűrőpanel.** A modern megjelenés szűrő-pillei kisebbek lettek (kisebb belső margó, betűméret, térköz), és a szűrőcsoportok széles nézeten egy sorban maradnak; 1100 px alatt a sor tördelhet.
