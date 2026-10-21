@@ -25,7 +25,10 @@ class SZEducate_Elementor {
 		// 'widget' típusúak, őket a fenti widget-hook már elkapja - csak a beállítás olvasása más.
 		add_filter( 'elementor/atomic-widgets/props-schema', array( $this, 'add_atomic_visibility_props' ) );
 		add_filter( 'elementor/atomic-widgets/controls', array( $this, 'add_atomic_visibility_controls' ), 10, 2 );
-		foreach ( array( 'e-div-block', 'e-flexbox', 'e-grid' ) as $atomic_type ) {
+		// Az 'e-accordion-item' (Harmonika-panel) saját elemtípus; a fül-fejléc és a tartalom együtt
+		// tűnik el, így nem marad árva cím. A tabokat (e-tab / e-tab-content) szándékosan nem vesszük
+		// fel: a fül és a tartalma index szerint párosított, az egyik elrejtése eltolná a párost.
+		foreach ( array( 'e-div-block', 'e-flexbox', 'e-grid', 'e-accordion-item' ) as $atomic_type ) {
 			add_filter( "elementor/frontend/{$atomic_type}/should_render", array( $this, 'should_render_element' ), 10, 2 );
 		}
 
