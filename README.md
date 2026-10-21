@@ -151,6 +151,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.59
+
+- **Szaklista widget: kompakt szűrőpanel.** A modern megjelenés szűrő-pillei kisebbek lettek (kisebb belső margó, betűméret, térköz), és a szűrőcsoportok széles nézeten egy sorban maradnak; 1100 px alatt a sor tördelhet.
+
 ### 0.9.58
 
 - **Szaklista widget: modern megjelenés.** A listázó widget új „Modern megjelenés” kapcsolót kap (Stílus > Elrendezés), alapból bekapcsolva: kártyás csoportok színátmenetes felső sávval, hover-emelés, a listaelemek hover-kiemelése, görgetésre belépő animáció (IntersectionObserver, a `prefers-reduced-motion` beállítást tiszteletben tartja) és modern szűrőpanel (pill-alakú, kiemelt kijelölésű szűrők). Bekapcsolva a kártya- és címstílus-vezérlők egy része nem hat; a régi kinézethez a kapcsolót ki kell venni.
