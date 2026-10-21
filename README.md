@@ -151,6 +151,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.58
+
+- **Szaklista widget: modern megjelenés.** A listázó widget új „Modern megjelenés” kapcsolót kap (Stílus > Elrendezés), alapból bekapcsolva: kártyás csoportok színátmenetes felső sávval, hover-emelés, a listaelemek hover-kiemelése, görgetésre belépő animáció (IntersectionObserver, a `prefers-reduced-motion` beállítást tiszteletben tartja) és modern szűrőpanel (pill-alakú, kiemelt kijelölésű szűrők). Bekapcsolva a kártya- és címstílus-vezérlők egy része nem hat; a régi kinézethez a kapcsolót ki kell venni.
+
 ### 0.9.57
 
 - **„Képzés Adat” dinamikus tag: magyar formázás (opt-in).** Új „Érték formázása” beállítás: „Magyar formázás” esetén a dátum típusú mezők `2026. augusztus 31.`, a szám típusú mezők `50 000` alakban jelennek meg (az ezres tagoló nem törhető szóköz). Más típusú mezőt nem érint, az alapértelmezett „Nyers érték” pedig változatlan, így a meglévő oldalak nem módosulnak.
