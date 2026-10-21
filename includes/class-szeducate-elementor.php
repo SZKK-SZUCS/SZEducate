@@ -19,6 +19,16 @@ class SZEducate_Elementor {
 		add_filter( 'elementor/frontend/column/should_render', array( $this, 'should_render_element' ), 10, 2 );
 		add_filter( 'elementor/frontend/container/should_render', array( $this, 'should_render_element' ), 10, 2 );
 
+		// Atomic (V4) elemek: a fenti V3 hookok rájuk nem hatnak (nincs section/column/container
+		// elemtípusuk, és a vezérlőik sem a klasszikus Controls_Stack-ből jönnek). Az atomic
+		// konténerek saját elemtípus-nevet kapnak a should_render hookban; az atomic widgetek
+		// 'widget' típusúak, őket a fenti widget-hook már elkapja - csak a beállítás olvasása más.
+		add_filter( 'elementor/atomic-widgets/props-schema', array( $this, 'add_atomic_visibility_props' ) );
+		add_filter( 'elementor/atomic-widgets/controls', array( $this, 'add_atomic_visibility_controls' ), 10, 2 );
+		foreach ( array( 'e-div-block', 'e-flexbox', 'e-grid' ) as $atomic_type ) {
+			add_filter( "elementor/frontend/{$atomic_type}/should_render", array( $this, 'should_render_element' ), 10, 2 );
+		}
+
 		// Az Elementor "Harmonika" widget (klasszikus 'accordion' ÉS az újabb
 		// 'nested-accordion') füleit egyenként SZEducate-láthatósághoz kötő extra
 		// vezérlő + a rejtett fülek szerver oldali kiszűrése a kimenetből. Generikus
@@ -61,6 +71,11 @@ class SZEducate_Elementor {
 
 	// Séma-mezők "kulcs => Címke [kulcs]" listája a láthatóság-vezérlők legördülőihez.
 	private function get_field_options() {
+		// Az atomic vezérlők elemenként újraépülnek a szerkesztő betöltésekor - a ~40 KB-os
+		// séma-JSON-t ne dekódoljuk újra minden elemnél.
+		static $cache = null;
+		if ( $cache !== null ) return $cache;
+
 		$schema  = json_decode( get_option( 'szeducate_local_schema', '[]' ), true );
 		$options = array();
 		if ( is_array( $schema ) ) {
@@ -73,6 +88,7 @@ class SZEducate_Elementor {
 				}
 			}
 		}
+		$cache = $options;
 		return $options;
 	}
 
@@ -230,10 +246,96 @@ class SZEducate_Elementor {
 			: ( $match_count > 0 );
 	}
 
+	// --- Atomic (V4) láthatóság -------------------------------------------------------
+
+	// Az atomic prop-sémába felvett három beállítás. Egy elemhez egyetlen mező-feltétel
+	// tartozik (nincs több-mezős ÉS/VAGY mint a V3 vezérlőnél) - az ÉS-kapcsolat beágyazott
+	// konténerekkel, a VAGY a "Vizsgált érték" `|`-os felsorolásával megoldható.
+	// Sima String prop, ami sanitize_text_field-en megy át: sortörést nem tárol, ezért
+	// a több értéket nem soronként (mint a V3 textarea), hanem `|`-jellel választjuk el.
+	public function add_atomic_visibility_props( $schema ) {
+		$string_type = '\Elementor\Modules\AtomicWidgets\PropTypes\Primitives\String_Prop_Type';
+		if ( ! is_array( $schema ) || ! class_exists( $string_type ) ) {
+			return $schema;
+		}
+
+		foreach ( array( 'szeducate_hide_key', 'szeducate_hide_rule', 'szeducate_hide_value' ) as $prop ) {
+			if ( isset( $schema[ $prop ] ) ) continue;
+			$schema[ $prop ] = $string_type::make();
+		}
+		return $schema;
+	}
+
+	public function add_atomic_visibility_controls( $controls, $element ) {
+		$section_class = '\Elementor\Modules\AtomicWidgets\Controls\Section';
+		$select_class  = '\Elementor\Modules\AtomicWidgets\Controls\Types\Select_Control';
+		$text_class    = '\Elementor\Modules\AtomicWidgets\Controls\Types\Text_Control';
+		if ( ! is_array( $controls ) || ! class_exists( $section_class ) || ! class_exists( $select_class ) || ! class_exists( $text_class ) ) {
+			return $controls;
+		}
+
+		$field_options = array();
+		foreach ( $this->get_field_options() as $key => $label ) {
+			$field_options[] = array( 'value' => $key, 'label' => $label );
+		}
+
+		$rule_options = array(
+			array( 'value' => 'empty',      'label' => 'A mező ÜRES' ),
+			array( 'value' => 'not_empty',  'label' => 'A mező NEM ÜRES' ),
+			array( 'value' => 'is_true',    'label' => 'IGAZ (Kapcsoló be van kapcsolva)' ),
+			array( 'value' => 'is_false',   'label' => 'HAMIS (Kapcsoló nincs bekapcsolva)' ),
+			array( 'value' => 'equals',     'label' => 'EGYENLŐ a megadott értékkel' ),
+			array( 'value' => 'not_equals', 'label' => 'NEM EGYENLŐ a megadott értékkel' ),
+			array( 'value' => 'contains',   'label' => 'TARTALMAZZA a megadott értéket' ),
+		);
+
+		$controls[] = $section_class::make()
+			->set_label( 'SZEducate Láthatóság' )
+			->set_id( 'szeducate-visibility' )
+			->set_items( array(
+				$select_class::bind_to( 'szeducate_hide_key' )
+					->set_options( $field_options )
+					->set_placeholder( 'Nincs feltétel' )
+					->set_label( 'Vizsgált mező' ),
+				$select_class::bind_to( 'szeducate_hide_rule' )
+					->set_options( $rule_options )
+					->set_placeholder( 'A mező ÜRES' )
+					->set_label( 'Elrejtés, ha...' ),
+				$text_class::bind_to( 'szeducate_hide_value' )
+					->set_placeholder( 'pl. Mikroképzés | Előkészítő' )
+					->set_label( 'Vizsgált érték (több: | jellel)' ),
+			) );
+
+		return $controls;
+	}
+
+	// Az elem láthatóság-beállításai a V3 vezérlők kulcsaival ($settings alak), hogy a
+	// szabály-kiértékelés (element_visibility_hidden / sz_rule_matches) közös maradjon.
+	private function get_visibility_settings( $element ) {
+		if ( ! method_exists( $element, 'get_atomic_setting' ) ) {
+			return $element->get_settings_for_display();
+		}
+
+		$key = $element->get_atomic_setting( 'szeducate_hide_key' );
+		if ( ! is_string( $key ) || $key === '' ) {
+			return array();
+		}
+		$rule  = $element->get_atomic_setting( 'szeducate_hide_rule' );
+		$value = $element->get_atomic_setting( 'szeducate_hide_value' );
+
+		return array(
+			'szeducate_hide_if_empty_keys' => array( $key ),
+			'szeducate_hide_rule'          => ( is_string( $rule ) && $rule !== '' ) ? $rule : 'empty',
+			// A V3 szabály-logika soronként várja a több értéket.
+			'szeducate_hide_value'         => str_replace( '|', "\n", is_string( $value ) ? $value : '' ),
+			'szeducate_hide_logic'         => 'all_match',
+		);
+	}
+
 	public function should_render_element( $should_render, $element ) {
 		if ( ! $should_render ) return $should_render;
 
-		$settings = $element->get_settings_for_display();
+		$settings = $this->get_visibility_settings( $element );
 
 		if ( empty( $settings['szeducate_hide_if_empty_keys'] ) || ! is_array( $settings['szeducate_hide_if_empty_keys'] ) ) {
 			return $should_render;
