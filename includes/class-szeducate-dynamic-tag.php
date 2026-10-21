@@ -77,6 +77,22 @@ class SZEducate_Dynamic_Tag extends \Elementor\Core\DynamicTags\Tag {
 			)
 		);
 
+		// Opt-in: a meglévő felhasználások nyers értéket kapnak tovább (nem változnak).
+		$this->add_control(
+			'value_format',
+			array(
+				'label'       => 'Érték formázása',
+				'type'        => \Elementor\Controls_Manager::SELECT,
+				'default'     => '',
+				'options'     => array(
+					''   => 'Nyers érték (alap)',
+					'hu' => 'Magyar formázás (dátum, szám)',
+				),
+				'description' => 'Dátum mező: 2026. augusztus 31. - Szám mező: 50 000. Más típusú mezőt nem érint.',
+				'condition'   => array( 'field_key!' => '', 'render_as' => 'text' ),
+			)
+		);
+
 		$this->add_control(
 			'link_prefix',
 			array(
@@ -128,6 +144,41 @@ class SZEducate_Dynamic_Tag extends \Elementor\Core\DynamicTags\Tag {
 			}
 		}
 		return false;
+	}
+
+	// A séma-mező típusa (date / number / text ...), üres string, ha nincs ilyen mező.
+	private function get_field_type( $key ) {
+		$schema = json_decode( get_option( 'szeducate_local_schema', '[]' ), true );
+		if ( ! is_array( $schema ) ) return '';
+		foreach ( $schema as $group ) {
+			if ( empty( $group['fields'] ) || ! is_array( $group['fields'] ) ) continue;
+			foreach ( $group['fields'] as $field ) {
+				if ( isset( $field['key'] ) && $field['key'] === $key ) {
+					return isset( $field['type'] ) ? (string) $field['type'] : '';
+				}
+			}
+		}
+		return '';
+	}
+
+	// "Magyar formázás": csak date és number típusú mezőre hat, a többit érintetlenül hagyja.
+	// Az ezres tagoló nem törhető szóköz, hogy az "50 000 Ft" ne törjön két sorba.
+	private function format_hu_value( $key, $value ) {
+		// A szám néha JSON-számként (int/float), néha szövegként tárolt.
+		if ( $this->get_settings( 'value_format' ) !== 'hu' || ! ( is_string( $value ) || is_int( $value ) || is_float( $value ) ) ) {
+			return $value;
+		}
+		$type = $this->get_field_type( $key );
+		$v    = trim( (string) $value );
+		if ( $type === 'date' && preg_match( '/^\d{4}-\d{2}-\d{2}/', $v, $m ) ) {
+			$ts = strtotime( $m[0] );
+			return $ts ? date_i18n( 'Y. F j.', $ts ) : $value;
+		}
+		if ( $type === 'number' && is_numeric( $v ) ) {
+			$n = (float) $v;
+			return number_format( $n, floor( $n ) === $n ? 0 : 2, ',', "\xC2\xA0" );
+		}
+		return $value;
 	}
 
 	public function render() {
@@ -207,7 +258,7 @@ class SZEducate_Dynamic_Tag extends \Elementor\Core\DynamicTags\Tag {
 		} elseif ( is_bool( $value ) ) {
 			echo $value ? 'Igen' : 'Nem';
 		} else {
-			echo wp_kses_post( $value );
+			echo wp_kses_post( $this->format_hu_value( $field_key, $value ) );
 		}
 	}
 }
