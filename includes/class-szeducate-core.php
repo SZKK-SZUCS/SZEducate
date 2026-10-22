@@ -8,6 +8,7 @@ class SZEducate_Core {
 	protected $settings;
 
 	public function init() {
+		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-conditions.php';
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-schema.php';
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-clients.php';
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-hub-api.php';

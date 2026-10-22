@@ -151,6 +151,14 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.61
+
+- **Jogosultsági mátrix: kliens-oldali szűrés és visszavonás (#58).** Eddig a mátrix csak a kiküldéskor és a beküldéskor érvényesült: ami egyszer lekerült egy kliensre, az ott maradt, és minden látogatói felület (Szaklista, kereső, Kiemelt Képzések) megmutatta. Most:
+  - A kliens a Hubtól kapott feltételek szerint szűri a helyi képzéseket (Szaklista, kereső, Kiemelt Képzések); a nem engedélyezett képzés egyedi oldala 404 (a szerkesztők láthatják).
+  - Új „Nem engedélyezett és elavult Képzések” szakasz a Beállításokban: a keresés kilistázza (és a Teljes Szinkronizáció után is megmutatja) a mátrix szerint tiltott, illetve a Hub engedélyezett listáján nem szereplő helyi képzéseket, a törlés külön, megerősített lépés, és CSAK a Kliensen töröl (a Hub adatát nem érinti). Üres vagy hibás Hub-válasz alapján nem töröl.
+  - A Hub törlést küld a kliensnek, ha egy képzés szerkesztéskor kikerül a kliens jogköréből, illetve a mátrix szűkítésekor a már nem engedélyezett képzésekre. Érvénytelen mátrix nem menthető.
+  - Közös, tesztelt feltétel-kiértékelő (`SZEducate_Conditions`, `php tests/test-conditions.php`) a korábbi három külön másolat helyett. A bizonytalan eset most TILT: sérült feltétel-JSON, ismeretlen operátor, hiányzó mezőnév, ismeretlen logikai operátor, üres `contains` cél. Az üres szabálylista továbbra is „nincs korlátozás”.
+
 ### 0.9.60
 
 - **Képzések lista: tömeges Publikusság beállítás.** A Képzések listájának tömeges műveletei között új „Tömeges Publikussá tétel” és „Tömeges Publikusság visszavonása” elem. A kijelölt képzések `public` mezőjét állítja (az állapotot és a határidőt nem érinti), megerősítő kérdéssel, a Hubra is szinkronizálva, és törli a listázó widgetek gyorsítótárát, így a változás azonnal látszik.

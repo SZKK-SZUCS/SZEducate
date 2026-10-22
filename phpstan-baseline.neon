@@ -57,7 +57,7 @@ parameters:
 
 		-
 			message: "#^Constant SZEDUCATE_PLUGIN_DIR not found\\.$#"
-			count: 11
+			count: 12
 			path: includes/class-szeducate-core.php
 
 		-
@@ -237,7 +237,7 @@ parameters:
 
 		-
 			message: "#^Constant SZEDUCATE_PLUGIN_DIR not found\\.$#"
-			count: 5
+			count: 6
 			path: includes/class-szeducate-settings.php
 
 		-

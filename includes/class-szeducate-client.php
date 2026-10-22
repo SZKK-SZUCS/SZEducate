@@ -23,6 +23,7 @@ class SZEducate_Client {
 		add_action( 'admin_head', array( $this, 'clean_admin_ui' ) );
 		
 		add_action( 'pre_get_posts', array( $this, 'filter_courses_by_permissions' ) );
+		add_action( 'template_redirect', array( $this, 'block_unpermitted_course_page' ) );
 		
 		add_action( 'admin_menu', array( $this, 'remove_add_new_menu' ), 999 );
 		add_filter( 'post_row_actions', array( $this, 'modify_list_actions' ), 10, 2 );
@@ -191,9 +192,7 @@ class SZEducate_Client {
 			if ( ! is_array($data) ) continue;
 
 			$has_permission = true;
-			if ( !empty( $perms['conditions'] ) && !empty( $perms['conditions']['rules'] ) ) {
-				$has_permission = $this->evaluate_conditions( $perms['conditions'], $data );
-			}
+			$has_permission = $this->evaluate_conditions( self::get_local_conditions(), $data );
 
 			if ( $has_permission ) {
 				$permitted_data[] = $data;
@@ -357,9 +356,7 @@ class SZEducate_Client {
 				if ( ! is_array($data) ) $data = array();
 
 				$has_permission = true;
-				if ( !empty( $perms['conditions'] ) && !empty( $perms['conditions']['rules'] ) ) {
-					$has_permission = $this->evaluate_conditions( $perms['conditions'], $data );
-				}
+				$has_permission = $this->evaluate_conditions( self::get_local_conditions(), $data );
 
 				$matches_filters = true;
 				if ( $has_permission && !empty($active_filters) ) {
@@ -836,6 +833,68 @@ class SZEducate_Client {
 		delete_transient( 'szeducate_courses_cache' );
 	}
 
+	private static $local_conditions_memo = false;
+
+	// A Hubtól kapott (szeducate_client_permissions) feltételek ezen a kliensen.
+	//  - array() / üres szabálylista : nincs korlátozás (pl. a Hub oldala, vagy még nem szinkronizált kliens)
+	//  - null                        : sérült érték -> a kiértékelő TILT, a kliens semmit nem mutat
+	public static function get_local_conditions() {
+		if ( self::$local_conditions_memo === false ) {
+			self::$local_conditions_memo = SZEducate_Conditions::from_permissions( get_option( 'szeducate_client_permissions', '' ) );
+		}
+		return self::$local_conditions_memo;
+	}
+
+	public static function reset_local_conditions_cache() {
+		self::$local_conditions_memo = false;
+	}
+
+	// A gyorsítótárazott képzés-lista CSAK a kliensnek engedélyezett képzésekkel. A látogatói
+	// felületek (Szaklista, kereső) ezt használják: egy korábban lekerült, de azóta kikerült
+	// képzés (amit a Hub nem vont vissza) így sem jelenik meg.
+	public static function get_permitted_courses_data() {
+		$rows       = self::get_cached_courses_data();
+		$conditions = self::get_local_conditions();
+
+		if ( $conditions !== null && empty( $conditions['rules'] ) ) {
+			return $rows;
+		}
+
+		$permitted = array();
+		foreach ( $rows as $row ) {
+			$data = json_decode( $row['course_data'], true );
+			if ( SZEducate_Conditions::permits( $conditions, is_array( $data ) ? $data : array() ) ) {
+				$permitted[] = $row;
+			}
+		}
+		return $permitted;
+	}
+
+	public static function is_post_permitted( $post_id ) {
+		$conditions = self::get_local_conditions();
+		if ( $conditions !== null && empty( $conditions['rules'] ) ) {
+			return true;
+		}
+
+		$data = self::get_course_data_for_post( $post_id );
+		return SZEducate_Conditions::permits( $conditions, is_array( $data ) ? $data : array() );
+	}
+
+	// Nem engedélyezett képzés egyedi oldala a látogatónak 404 (a szerkesztők láthatják).
+	public function block_unpermitted_course_page() {
+		if ( ! is_singular( 'sz_course' ) || current_user_can( 'edit_sz_courses' ) ) {
+			return;
+		}
+		if ( self::is_post_permitted( get_queried_object_id() ) ) {
+			return;
+		}
+
+		global $wp_query;
+		$wp_query->set_404();
+		status_header( 404 );
+		nocache_headers();
+	}
+
 	private static $course_data_request_cache = array();
 
 	// Egyetlen Képzés dekódolt course_data tömbje, KÉRÉSENKÉNT (nem a fenti transienthez
@@ -914,33 +973,7 @@ class SZEducate_Client {
 	}
 
 	private function evaluate_conditions( $conditions, $course_data ) {
-		if ( empty( $conditions ) || empty( $conditions['rules'] ) ) return true;
-
-		$logical_operator = isset( $conditions['logical_operator'] ) ? $conditions['logical_operator'] : 'AND';
-		$results = array();
-
-		foreach ( $conditions['rules'] as $rule ) {
-			if ( isset( $rule['logical_operator'] ) ) {
-				$results[] = $this->evaluate_conditions( $rule, $course_data );
-			} else {
-				$field = isset( $rule['field'] ) ? $rule['field'] : '';
-				$operator = isset( $rule['operator'] ) ? $rule['operator'] : '==';
-				$target_value = isset( $rule['value'] ) ? $rule['value'] : '';
-
-				$actual_value = isset( $course_data[ $field ] ) ? $course_data[ $field ] : '';
-				$actual_string = is_array( $actual_value ) ? implode( ';', $actual_value ) : (string) $actual_value;
-
-				$rule_result = true;
-				switch ( $operator ) {
-					case '==': $rule_result = ( $actual_string === $target_value ); break;
-					case '!=': $rule_result = ( $actual_string !== $target_value ); break;
-					case 'contains': $rule_result = ( strpos( $actual_string, $target_value ) !== false ); break;
-				}
-				$results[] = $rule_result;
-			}
-		}
-
-		return $logical_operator === 'AND' ? ! in_array( false, $results, true ) : in_array( true, $results, true );
+		return SZEducate_Conditions::permits( $conditions, $course_data );
 	}
 
 	public function clean_admin_ui() {
@@ -1282,7 +1315,7 @@ class SZEducate_Client {
 			}
 		}
 
-		$courses = self::get_cached_courses_data();
+		$courses = self::get_permitted_courses_data();
 
 		$course_results = array();
 		$category_results = array();

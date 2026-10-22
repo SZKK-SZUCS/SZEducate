@@ -980,8 +980,7 @@ class SZEducate_Backup_Manager {
 		$payload_counts = array();
 
 		foreach ( $all_clients as $c ) {
-			$c_perms = json_decode( $c->permissions, true );
-			$c_conditions = isset( $c_perms['conditions'] ) ? $c_perms['conditions'] : array();
+			$c_conditions = SZEducate_Conditions::from_permissions( $c->permissions );
 
 			// Csak azokat a képzéseket tesszük a kötegbe, amikhez a kliens jogosultsági feltételei szerint hozzáférhet.
 			$courses_payload = array();
@@ -1044,41 +1043,7 @@ class SZEducate_Backup_Manager {
 	}
 
 	private function evaluate_conditions( $conditions, $course_data ) {
-		if ( empty( $conditions ) || empty( $conditions['rules'] ) ) {
-			return true;
-		}
-
-		$logical_operator = isset( $conditions['logical_operator'] ) ? $conditions['logical_operator'] : 'AND';
-		$results = array();
-
-		foreach ( $conditions['rules'] as $rule ) {
-			if ( isset( $rule['logical_operator'] ) ) {
-				$results[] = $this->evaluate_conditions( $rule, $course_data );
-			} else {
-				$field = isset( $rule['field'] ) ? $rule['field'] : '';
-				$operator = isset( $rule['operator'] ) ? $rule['operator'] : '==';
-				$target_value = isset( $rule['value'] ) ? $rule['value'] : '';
-
-				$actual_value = isset( $course_data[ $field ] ) ? $course_data[ $field ] : '';
-				$actual_string = is_array( $actual_value ) ? implode( ';', $actual_value ) : (string) $actual_value;
-
-				$rule_result = true;
-				switch ( $operator ) {
-					case '==':
-						$rule_result = ( $actual_string === $target_value );
-						break;
-					case '!=':
-						$rule_result = ( $actual_string !== $target_value );
-						break;
-					case 'contains':
-						$rule_result = ( strpos( $actual_string, $target_value ) !== false );
-						break;
-				}
-				$results[] = $rule_result;
-			}
-		}
-
-		return $logical_operator === 'AND' ? ! in_array( false, $results, true ) : in_array( true, $results, true );
+		return SZEducate_Conditions::permits( $conditions, $course_data );
 	}
 
 	public function handle_delete_backup() {

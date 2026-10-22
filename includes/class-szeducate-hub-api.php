@@ -9,7 +9,8 @@ class SZEducate_Hub_API {
 
 	public function init() {
 		add_action( 'rest_api_init', array( $this, 'register_endpoints' ) );
-		add_action( 'szeducate_dispatch_course_webhook', array( $this, 'dispatch_course_webhook' ), 10, 2 );
+		add_action( 'szeducate_dispatch_course_webhook', array( $this, 'dispatch_course_webhook' ), 10, 3 );
+		add_action( 'szeducate_dispatch_scope_revocation', array( $this, 'dispatch_scope_revocation' ), 10, 2 );
 		add_action( 'szeducate_dispatch_course_webhook_batch', array( $this, 'dispatch_course_webhook_batch' ) );
 		add_action( 'szeducate_dispatch_delete_webhook', array( $this, 'dispatch_delete_webhook' ), 10, 2 );
 	}
@@ -40,8 +41,7 @@ class SZEducate_Hub_API {
 		$count_by_key = array();
 
 		foreach ( $all_clients as $c ) {
-			$c_perms = json_decode( $c->permissions, true );
-			$c_conditions = isset( $c_perms['conditions'] ) ? $c_perms['conditions'] : array();
+			$c_conditions = SZEducate_Conditions::from_permissions( $c->permissions );
 
 			$allowed_courses = array();
 			foreach ( $courses as $course ) {
@@ -166,7 +166,7 @@ class SZEducate_Hub_API {
 
 		$client = $this->current_client;
 		$permissions = json_decode( $client['permissions'], true );
-		$conditions = isset( $permissions['conditions'] ) ? $permissions['conditions'] : array();
+		$conditions = SZEducate_Conditions::from_permissions( $client['permissions'] );
 
 		$rows = $wpdb->get_results( "SELECT id, title, course_data FROM $table_name", ARRAY_A );
 		$courses = array();
@@ -249,42 +249,10 @@ class SZEducate_Hub_API {
 		), 200 );
 	}
 
+	// A kiértékelés egyetlen, tesztelt helyen él (SZEducate_Conditions); a bizonytalan eset
+	// (sérült feltétel, ismeretlen operátor) TILT, nem enged.
 	private function evaluate_conditions( $conditions, $course_data ) {
-		if ( empty( $conditions ) || empty( $conditions['rules'] ) ) {
-			return true; 
-		}
-
-		$logical_operator = isset( $conditions['logical_operator'] ) ? $conditions['logical_operator'] : 'AND';
-		$results = array();
-
-		foreach ( $conditions['rules'] as $rule ) {
-			if ( isset( $rule['logical_operator'] ) ) {
-				$results[] = $this->evaluate_conditions( $rule, $course_data );
-			} else {
-				$field = isset( $rule['field'] ) ? $rule['field'] : '';
-				$operator = isset( $rule['operator'] ) ? $rule['operator'] : '==';
-				$target_value = isset( $rule['value'] ) ? $rule['value'] : '';
-
-				$actual_value = isset( $course_data[ $field ] ) ? $course_data[ $field ] : '';
-				$actual_string = is_array( $actual_value ) ? implode( ';', $actual_value ) : (string) $actual_value;
-
-				$rule_result = true;
-				switch ( $operator ) {
-					case '==':
-						$rule_result = ( $actual_string === $target_value );
-						break;
-					case '!=':
-						$rule_result = ( $actual_string !== $target_value );
-						break;
-					case 'contains':
-						$rule_result = ( strpos( $actual_string, $target_value ) !== false );
-						break;
-				}
-				$results[] = $rule_result;
-			}
-		}
-
-		return $logical_operator === 'AND' ? ! in_array( false, $results, true ) : in_array( true, $results, true );
+		return SZEducate_Conditions::permits( $conditions, $course_data );
 	}
 
 	public function get_single_course( WP_REST_Request $request ) {
@@ -299,7 +267,7 @@ class SZEducate_Hub_API {
 		
 		$client = $this->current_client;
 		$permissions = json_decode( $client['permissions'], true );
-		$conditions = isset( $permissions['conditions'] ) ? $permissions['conditions'] : array();
+		$conditions = SZEducate_Conditions::from_permissions( $client['permissions'] );
 		
 		if ( ! $this->evaluate_conditions( $conditions, $course_data ) ) {
 			return new WP_Error( 'forbidden', 'Nincs jogosultsága a kliensnek ehhez a képzéshez.', array( 'status' => 403 ) );
@@ -388,7 +356,7 @@ class SZEducate_Hub_API {
 
 		$client = $this->current_client;
 		$permissions = json_decode( $client['permissions'], true );
-		$conditions = isset( $permissions['conditions'] ) ? $permissions['conditions'] : array();
+		$conditions = SZEducate_Conditions::from_permissions( $client['permissions'] );
 
 		return $this->evaluate_conditions( $conditions, $course_data );
 	}
@@ -451,7 +419,7 @@ class SZEducate_Hub_API {
 		
 		$permissions = json_decode( $client['permissions'], true );
 		$actions = isset( $permissions['actions'] ) ? $permissions['actions'] : array( 'create' => true, 'edit' => true );
-		$conditions = isset( $permissions['conditions'] ) ? $permissions['conditions'] : array();
+		$conditions = SZEducate_Conditions::from_permissions( $client['permissions'] );
 		$fields_perms = isset( $permissions['fields'] ) ? $permissions['fields'] : array();
 
 		$params = $request->get_json_params();
@@ -608,7 +576,25 @@ class SZEducate_Hub_API {
 		// vagy elérhetetlen kliens ne lassítsa/akassza meg minden egyes Képzés mentését a Hub-on.
 		$clients_table = $wpdb->prefix . 'szeducate_clients';
 		if ( $wpdb->get_var( "SHOW TABLES LIKE '{$clients_table}'" ) == $clients_table ) {
-			wp_schedule_single_event( time(), 'szeducate_dispatch_course_webhook', array( $hub_id, $client['id'] ) );
+			// Visszavonás: azok a MÁSIK kliensek, amelyeknek a képzés a mentés ELŐTT még megfelelt a
+			// feltételeiknek, az új állapotában viszont már nem. Nekik törlést kell küldeni, különben
+			// egy már nem engedélyezett képzés örökre a kliensen maradna (a sima webhook ilyenkor
+			// csak kihagyja a klienst, és a kliens a 403-at figyelmen kívül hagyja).
+			$revoke_client_ids = array();
+			if ( $existing_row ) {
+				$other_clients = $wpdb->get_results( $wpdb->prepare(
+					"SELECT id, permissions FROM {$clients_table} WHERE client_url != '' AND enabled = 1 AND id != %d",
+					$client['id']
+				) );
+				foreach ( $other_clients as $other ) {
+					$other_conditions = SZEducate_Conditions::from_permissions( $other->permissions );
+					if ( SZEducate_Conditions::permits( $other_conditions, $existing_course_data ) && ! SZEducate_Conditions::permits( $other_conditions, $course_data ) ) {
+						$revoke_client_ids[] = intval( $other->id );
+					}
+				}
+			}
+
+			wp_schedule_single_event( time(), 'szeducate_dispatch_course_webhook', array( $hub_id, $client['id'], $revoke_client_ids ) );
 		}
 
 		return new WP_REST_Response( array(
@@ -627,7 +613,7 @@ class SZEducate_Hub_API {
 	// ahogy a beküldő kliens a saját válaszából rögzíti a hub_id-t, a kliens még nem ismerné fel
 	// a saját, épp az imént létrehozott rekordját, és egy MÁSODIK (duplikált) helyi Képzést hozna
 	// létre ugyanahhoz a hub_id-hoz.
-	public function dispatch_course_webhook( $hub_id, $exclude_client_id = 0 ) {
+	public function dispatch_course_webhook( $hub_id, $exclude_client_id = 0, $revoke_client_ids = array() ) {
 		global $wpdb;
 		$table_name = $wpdb->prefix . 'szeducate_courses_data';
 		$clients_table = $wpdb->prefix . 'szeducate_clients';
@@ -649,8 +635,7 @@ class SZEducate_Hub_API {
 		foreach ( $all_clients as $c ) {
 			// A jogosultsági szabályokat MINDIG a webhook kiküldése előtt ellenőrizzük,
 			// hogy a kliens ne kapjon (és ne is próbáljon visszahúzni) számára tiltott képzést.
-			$c_perms = json_decode( $c->permissions, true );
-			$c_conditions = isset( $c_perms['conditions'] ) ? $c_perms['conditions'] : array();
+			$c_conditions = SZEducate_Conditions::from_permissions( $c->permissions );
 
 			if ( ! $this->evaluate_conditions( $c_conditions, $course_data ) ) {
 				SZEducate_Sync_Log::add( 'push-course', sprintf( 'Kihagyva ("%s", Hub ID: %d): a kliens jogosultsági feltételei nem engedik.', $c->client_name, $hub_id ), true );
@@ -680,6 +665,87 @@ class SZEducate_Hub_API {
 				SZEducate_Sync_Log::add( 'push-course', sprintf( 'Hiba ("%s", Hub ID: %d): HTTP %d', $c->client_name, $hub_id, $res['code'] ), false );
 			}
 		}
+
+		if ( ! empty( $revoke_client_ids ) && is_array( $revoke_client_ids ) ) {
+			$this->send_delete_to_clients( $hub_id, array_map( 'intval', $revoke_client_ids ), 'a képzés kikerült a kliens jogköréből' );
+		}
+	}
+
+	// Törlés-értesítés kiküldése KIJELÖLT kliensekhez (a képzés a Hubon megmarad, csak az adott
+	// kliens jogköréből került ki).
+	private function send_delete_to_clients( $hub_id, array $client_ids, $reason ) {
+		global $wpdb;
+		$clients_table = $wpdb->prefix . 'szeducate_clients';
+
+		$client_ids = array_values( array_filter( array_unique( $client_ids ) ) );
+		if ( empty( $client_ids ) ) return;
+
+		$placeholders = implode( ',', array_fill( 0, count( $client_ids ), '%d' ) );
+		$clients = $wpdb->get_results( $wpdb->prepare(
+			"SELECT id, client_name, client_url, api_token FROM {$clients_table} WHERE client_url != '' AND enabled = 1 AND id IN ($placeholders)",
+			$client_ids
+		) );
+
+		$requests = array();
+		$client_by_key = array();
+		foreach ( $clients as $c ) {
+			$client_by_key[ $c->id ] = $c;
+			$requests[ $c->id ] = array(
+				'url'     => rtrim( $c->client_url, '/' ) . '/wp-json/szeducate/v1/client/sync-course/' . intval( $hub_id ),
+				'method'  => 'DELETE',
+				'headers' => array( 'Content-Type' => 'application/json', 'X-SZEducate-Auth' => $c->api_token ),
+				'timeout' => 8,
+			);
+		}
+
+		$results = SZEducate_Sync_Log::parallel_requests( $requests );
+
+		foreach ( $results as $key => $res ) {
+			$c = $client_by_key[ $key ];
+			if ( $res['error'] ) {
+				SZEducate_Sync_Log::add( 'revoke-course', sprintf( 'Sikertelen visszavonás ("%s", Hub ID: %d, ok: %s): %s', $c->client_name, $hub_id, $reason, $res['error'] ), false );
+			} elseif ( $res['code'] < 200 || $res['code'] >= 300 ) {
+				SZEducate_Sync_Log::add( 'revoke-course', sprintf( 'Hiba a visszavonásnál ("%s", Hub ID: %d, ok: %s): HTTP %d', $c->client_name, $hub_id, $reason, $res['code'] ), false );
+			} else {
+				SZEducate_Sync_Log::add( 'revoke-course', sprintf( 'Visszavonva ("%s", Hub ID: %d, ok: %s).', $c->client_name, $hub_id, $reason ), true );
+			}
+		}
+	}
+
+	// Mátrix-szűkítés után: a klienstől egyetlen (kötegelt) kéréssel törli azokat a képzéseket, amik
+	// a régi feltételeknek még megfeleltek, az újaknak már nem.
+	public function dispatch_scope_revocation( $client_id, $hub_ids ) {
+		global $wpdb;
+		$clients_table = $wpdb->prefix . 'szeducate_clients';
+
+		if ( ! is_array( $hub_ids ) || empty( $hub_ids ) ) return;
+
+		$c = $wpdb->get_row( $wpdb->prepare(
+			"SELECT id, client_name, client_url, api_token FROM {$clients_table} WHERE id = %d AND client_url != '' AND enabled = 1",
+			intval( $client_id )
+		) );
+		if ( ! $c ) return;
+
+		$hub_ids = array_values( array_filter( array_map( 'intval', $hub_ids ) ) );
+
+		foreach ( array_chunk( $hub_ids, 200 ) as $chunk ) {
+			$response = wp_remote_post( rtrim( $c->client_url, '/' ) . '/wp-json/szeducate/v1/client/sync-course-batch', array(
+				'headers' => array( 'Content-Type' => 'application/json', 'X-SZEducate-Auth' => $c->api_token ),
+				'body'    => wp_json_encode( array( 'courses' => array(), 'deletes' => $chunk ) ),
+				'timeout' => 60,
+			) );
+
+			if ( is_wp_error( $response ) ) {
+				SZEducate_Sync_Log::add( 'revoke-course', sprintf( 'Sikertelen visszavonás ("%s", %d képzés): %s', $c->client_name, count( $chunk ), $response->get_error_message() ), false );
+			} else {
+				$code = wp_remote_retrieve_response_code( $response );
+				SZEducate_Sync_Log::add(
+					'revoke-course',
+					sprintf( 'Mátrix-szűkítés utáni visszavonás ("%s", %d képzés): HTTP %d.', $c->client_name, count( $chunk ), $code ),
+					$code >= 200 && $code < 300
+				);
+			}
+		}
 	}
 
 	public function delete_course( WP_REST_Request $request ) {
@@ -690,7 +756,7 @@ class SZEducate_Hub_API {
 		$client = $this->current_client;
 		$permissions = json_decode( $client['permissions'], true );
 		$actions = isset( $permissions['actions'] ) ? $permissions['actions'] : array();
-		$conditions = isset( $permissions['conditions'] ) ? $permissions['conditions'] : array();
+		$conditions = SZEducate_Conditions::from_permissions( $client['permissions'] );
 
 		if ( isset( $actions['delete'] ) && $actions['delete'] === false ) {
 			return new WP_Error( 'forbidden_delete', 'A kliensnek nincs engedélye törlésre.', array( 'status' => 403 ) );

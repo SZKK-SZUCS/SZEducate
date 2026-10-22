@@ -11,6 +11,8 @@ parameters:
         - dev-tools/*
         - node_modules/*
         - build/*
+        # Önálló CLI tesztek (nem plugin-kód, WordPress nélkül futnak).
+        - tests/*
         # Elementor Widget_Base / DynamicTags-t extendelik; Elementor csak
         # feltételesen van betöltve, nincs stub-olva ebben a setupban.
         - includes/widgets/*

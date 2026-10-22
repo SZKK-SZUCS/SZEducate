@@ -177,11 +177,28 @@ class SZEducate_Clients {
 			$client_id = intval( $_POST['client_id'] );
 			$permissions_json = wp_unslash( $_POST['permissions_json'] );
 
+			// Érvénytelen (nem JSON-objektum, vagy értelmezhetetlen feltételű) mátrixot nem mentünk:
+			// a kiértékelő a sérült feltételt TILTÓnak veszi, így a kliens minden képzést elveszítene.
+			if ( ! is_array( json_decode( $permissions_json, true ) ) || SZEducate_Conditions::from_permissions( $permissions_json ) === null ) {
+				wp_die( '<h1>Érvénytelen mátrix</h1><p>A jogosultsági mátrix nem érvényes JSON, ezért nem mentettem el. Térj vissza, és próbáld újra.</p><a href="javascript:history.back()">Vissza</a>' );
+			}
+
+			$old_permissions_json = $wpdb->get_var( $wpdb->prepare( "SELECT permissions FROM {$this->table_name} WHERE id = %d", $client_id ) );
+
 			$wpdb->update(
 				$this->table_name,
 				array( 'permissions' => $permissions_json ),
 				array( 'id' => $client_id )
 			);
+
+			// Szűkítés esetén azokat a képzéseket, amik a RÉGI feltételeknek még megfeleltek, az
+			// újaknak már nem, a Hub háttérben törli a kliensről (egyébként ott maradnának).
+			if ( $old_permissions_json !== null ) {
+				$revoke_hub_ids = $this->courses_leaving_scope( $old_permissions_json, $permissions_json );
+				if ( ! empty( $revoke_hub_ids ) ) {
+					wp_schedule_single_event( time(), 'szeducate_dispatch_scope_revocation', array( $client_id, $revoke_hub_ids ) );
+				}
+			}
 
 			$client = $wpdb->get_row( $wpdb->prepare( "SELECT client_url, api_token FROM {$this->table_name} WHERE id = %d", $client_id ) );
 			if ( $client && ! empty( $client->client_url ) ) {
@@ -204,6 +221,28 @@ class SZEducate_Clients {
 			wp_redirect( admin_url( 'admin.php?page=szeducate-clients&message=deleted' ) );
 			exit;
 		}
+	}
+
+	// Azon Hub-képzések azonosítói, amik a régi mátrixnak megfeleltek, az újnak már nem.
+	private function courses_leaving_scope( $old_permissions_json, $new_permissions_json ) {
+		global $wpdb;
+		$courses_table = $wpdb->prefix . 'szeducate_courses_data';
+
+		$old_conditions = SZEducate_Conditions::from_permissions( $old_permissions_json );
+		$new_conditions = SZEducate_Conditions::from_permissions( $new_permissions_json );
+
+		$ids = array();
+		$rows = $wpdb->get_results( "SELECT id, course_data FROM {$courses_table}", ARRAY_A );
+		foreach ( $rows as $row ) {
+			$data = json_decode( $row['course_data'], true );
+			if ( ! is_array( $data ) ) $data = array();
+
+			if ( SZEducate_Conditions::permits( $old_conditions, $data ) && ! SZEducate_Conditions::permits( $new_conditions, $data ) ) {
+				$ids[] = intval( $row['id'] );
+			}
+		}
+
+		return $ids;
 	}
 
 	public function render_page() {
