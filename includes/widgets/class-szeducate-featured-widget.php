@@ -865,6 +865,10 @@ class SZEducate_Featured_Widget extends \Elementor\Widget_Base {
 				continue;
 			}
 
+			if ( ! SZEducate_Client::is_post_permitted( $post_id ) ) {
+				continue;
+			}
+
 			$data = SZEducate_Client::get_course_data_for_post( $post_id );
 
 			if ( $visibility_key !== '' && is_array( $data ) && array_key_exists( $visibility_key, $data ) ) {

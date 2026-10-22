@@ -14,6 +14,8 @@ class SZEducate_Settings {
 		add_action( 'admin_init', array( $this, 'page_init' ) );
 		add_action( 'admin_post_szeducate_sync_schema', array( $this, 'sync_schema_from_hub' ) );
 		add_action( 'admin_post_szeducate_full_resync', array( $this, 'handle_full_resync' ) );
+		add_action( 'admin_post_szeducate_scan_stale', array( $this, 'handle_scan_stale' ) );
+		add_action( 'admin_post_szeducate_prune_stale', array( $this, 'handle_prune_stale' ) );
 		add_action( 'admin_post_szeducate_cleanup_orphaned_courses', array( $this, 'handle_cleanup_orphaned_courses' ) );
 		add_action( 'wp_ajax_szeducate_ping_hub', array( $this, 'ajax_ping_hub' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_media_uploader' ) );
@@ -82,7 +84,8 @@ class SZEducate_Settings {
 				if ( $_GET['resync'] === 'success' ) echo '<div class="notice notice-success is-dismissible"><p><strong>Siker:</strong> Teljes szinkronizáció lefutott, ' . intval( $_GET['count'] ?? 0 ) . ' képzés feldolgozva.</p></div>';
 				elseif ( $_GET['resync'] === 'error' ) echo '<div class="notice notice-error is-dismissible"><p><strong>Hiba:</strong> ' . esc_html( urldecode($_GET['msg']) ) . '</p></div>';
 			}
-			if ( isset( $_GET['cleanup'] ) && $_GET['cleanup'] === 'success' ) {
+			$this->render_prune_notice();
+				if ( isset( $_GET['cleanup'] ) && $_GET['cleanup'] === 'success' ) {
 				echo '<div class="notice notice-success is-dismissible"><p><strong>Siker:</strong> ' . intval( $_GET['count'] ?? 0 ) . ' elárvult Képzés-bejegyzés véglegesen törölve.</p></div>';
 			}
 			?>
@@ -143,6 +146,15 @@ class SZEducate_Settings {
 					<?php wp_nonce_field( 'szeducate_full_resync_nonce', '_resync_nonce' ); ?>
 					<button type="submit" class="button button-primary">Teljes Szinkronizáció Most</button>
 				</form>
+
+					<hr>
+					<h2>Nem engedélyezett és elavult Képzések</h2>
+					<p>A Teljes Szinkronizáció csak beír és frissít, nem töröl. Itt megkeresheted azokat a helyi Képzéseket, amelyek (a) a Hubtól kapott jogosultsági mátrix szerint már nem tartoznak ehhez a Kliens-hez, vagy (b) a Hub engedélyezett listáján nem szerepelnek. A keresés semmit nem töröl: az eredményt látod, és külön megerősítéssel törölhető. A törlés CSAK ezen a Kliensen történik, a Hub adatát nem érinti.</p>
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+						<input type="hidden" name="action" value="szeducate_scan_stale">
+						<?php wp_nonce_field( 'szeducate_scan_stale_nonce', '_scan_nonce' ); ?>
+						<button type="submit" class="button">Keresés (nem töröl)</button>
+					</form>
 
 				<hr>
 				<h2>Elárvult Képzés-bejegyzések</h2>
@@ -317,6 +329,7 @@ class SZEducate_Settings {
 		}
 
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-client.php';
+		SZEducate_Client::reset_local_conditions_cache();
 		$client = new SZEducate_Client();
 		$client->register_dynamic_taxonomies();
 
@@ -373,8 +386,242 @@ class SZEducate_Settings {
 			$synced++;
 		}
 
-		wp_safe_redirect( add_query_arg( array( 'page' => 'szeducate-settings', 'resync' => 'success', 'count' => $synced ), admin_url( 'options-general.php' ) ) );
+		// A szinkron után rögtön megkeressük (de NEM töröljük) a nem engedélyezett / elavult
+		// helyi Képzéseket - a törlés külön, megerősített lépés.
+		$hub_list = array( 'ok' => ! empty( $body['success'] ), 'courses' => $courses, 'error' => '' );
+		$stale    = $this->collect_stale_courses( $hub_list );
+		$args     = array( 'page' => 'szeducate-settings', 'resync' => 'success', 'count' => $synced );
+		$args     = array_merge( $args, $this->store_stale_scan( $stale ) );
+
+		wp_safe_redirect( add_query_arg( $args, admin_url( 'options-general.php' ) ) );
 		exit;
+	}
+
+	private function stale_transient_key() {
+		return 'szeducate_stale_scan_' . get_current_user_id();
+	}
+
+	// A Hub engedélyezett képzés-listája (courses-mine). 'ok' csak akkor igaz, ha a válasz
+	// érvényes és sikeres - egy hibás/üres válasz alapján SOHA nem szabad törölni.
+	private function fetch_hub_course_list() {
+		$options = get_option( $this->option_name );
+		if ( empty( $options['hub_url'] ) || empty( $options['api_token'] ) ) {
+			return array( 'ok' => false, 'courses' => array(), 'error' => 'A Hub URL vagy Token nincs beállítva.' );
+		}
+
+		$response = wp_remote_get( $options['hub_url'] . '/wp-json/szeducate/v1/hub/courses-mine', array(
+			'headers' => array( 'Authorization' => 'Bearer ' . $options['api_token'] ),
+			'timeout' => 60,
+		) );
+
+		if ( is_wp_error( $response ) ) {
+			return array( 'ok' => false, 'courses' => array(), 'error' => $response->get_error_message() );
+		}
+		if ( wp_remote_retrieve_response_code( $response ) !== 200 ) {
+			return array( 'ok' => false, 'courses' => array(), 'error' => 'Hub hiba (Kód: ' . wp_remote_retrieve_response_code( $response ) . ')' );
+		}
+
+		$body = json_decode( wp_remote_retrieve_body( $response ), true );
+		if ( ! is_array( $body ) || empty( $body['success'] ) || ! isset( $body['courses'] ) || ! is_array( $body['courses'] ) ) {
+			return array( 'ok' => false, 'courses' => array(), 'error' => 'Érvénytelen válasz a Hubtól.' );
+		}
+
+		return array( 'ok' => true, 'courses' => $body['courses'], 'error' => '' );
+	}
+
+	// Megkeresi a helyi Képzések közül a nem engedélyezetteket / elavultakat. NEM töröl.
+	//  (a) a Hubtól kapott mátrix szerint nem engedélyezett (helyi, offline kiértékelés)
+	//  (b) hub_id-val rendelkezik, de a Hub aktuális engedélyezett listáján nincs rajta
+	// A (b) ellenőrzés csak érvényes, NEM üres Hub-válasznál fut - üres/hibás válasz alapján
+	// különben minden helyi képzés "elavultnak" látszana.
+	private function collect_stale_courses( $hub_list = null ) {
+		global $wpdb;
+		$table_name = $wpdb->prefix . 'szeducate_courses_data';
+
+		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-client.php';
+		SZEducate_Client::reset_local_conditions_cache();
+		$conditions = SZEducate_Client::get_local_conditions();
+
+		if ( $conditions === null ) {
+			return array( 'error' => 'A helyi jogosultsági feltétel sérült - előbb töltsd le újra a Hubról (Séma Letöltése), és csak utána keress.', 'items' => array(), 'notice' => '' );
+		}
+
+		if ( $hub_list === null ) {
+			$hub_list = $this->fetch_hub_course_list();
+		}
+
+		$hub_ids = array();
+		$hub_checked = false;
+		$notice = '';
+		if ( ! empty( $hub_list['ok'] ) ) {
+			foreach ( $hub_list['courses'] as $c ) {
+				if ( ! empty( $c['hub_id'] ) ) {
+					$hub_ids[ intval( $c['hub_id'] ) ] = true;
+				}
+			}
+			$hub_checked = ! empty( $hub_ids );
+			if ( ! $hub_checked ) {
+				$notice = 'A Hub üres képzés-listát adott, ezért a "nincs a Hub listáján" ellenőrzést biztonsági okból kihagytam.';
+			}
+		} else {
+			$notice = 'A Hub listája nem volt elérhető' . ( ! empty( $hub_list['error'] ) ? ' (' . $hub_list['error'] . ')' : '' ) . ', ezért csak a helyi mátrix szerinti ellenőrzés futott le.';
+		}
+
+		$rows = $wpdb->get_results( "SELECT id, hub_id, local_post_id, title, course_data FROM {$table_name}", ARRAY_A );
+		$items = array();
+		foreach ( $rows as $row ) {
+			$data = json_decode( $row['course_data'], true );
+			$reason = '';
+
+			if ( ! SZEducate_Conditions::permits( $conditions, is_array( $data ) ? $data : array() ) ) {
+				$reason = 'nem engedélyezett a jogosultsági mátrix szerint';
+			} elseif ( $hub_checked && intval( $row['hub_id'] ) > 0 && ! isset( $hub_ids[ intval( $row['hub_id'] ) ] ) ) {
+				$reason = 'nincs a Hub engedélyezett listáján';
+			}
+
+			if ( $reason !== '' ) {
+				$items[] = array(
+					'id'            => intval( $row['id'] ),
+					'hub_id'        => intval( $row['hub_id'] ),
+					'local_post_id' => intval( $row['local_post_id'] ),
+					'title'         => $row['title'],
+					'reason'        => $reason,
+				);
+			}
+		}
+
+		return array( 'error' => '', 'items' => $items, 'notice' => $notice );
+	}
+
+	// Elmenti a keresés eredményét (a megerősítéshez), és visszaadja az átirányítás paramétereit.
+	private function store_stale_scan( $stale ) {
+		if ( ! empty( $stale['error'] ) ) {
+			delete_transient( $this->stale_transient_key() );
+			return array( 'prune' => 'error', 'msg' => urlencode( $stale['error'] ) );
+		}
+
+		if ( empty( $stale['items'] ) ) {
+			delete_transient( $this->stale_transient_key() );
+			return array( 'prune' => 'none', 'note' => urlencode( $stale['notice'] ) );
+		}
+
+		set_transient( $this->stale_transient_key(), $stale, 30 * MINUTE_IN_SECONDS );
+		return array( 'prune' => 'found', 'found' => count( $stale['items'] ) );
+	}
+
+	public function handle_scan_stale() {
+		if ( ! current_user_can( 'manage_options' ) || ! isset( $_POST['_scan_nonce'] ) || ! wp_verify_nonce( $_POST['_scan_nonce'], 'szeducate_scan_stale_nonce' ) ) wp_die( 'Biztonsági hiba.' );
+
+		$options = get_option( $this->option_name );
+		$schema_result = $this->pull_schema_and_permissions( $options );
+		if ( $schema_result !== true ) {
+			wp_safe_redirect( add_query_arg( array( 'page' => 'szeducate-settings', 'prune' => 'error', 'msg' => urlencode( 'Séma/jogosultságok letöltése sikertelen: ' . $schema_result ) ), admin_url( 'options-general.php' ) ) );
+			exit;
+		}
+
+		$args = array_merge( array( 'page' => 'szeducate-settings' ), $this->store_stale_scan( $this->collect_stale_courses() ) );
+		wp_safe_redirect( add_query_arg( $args, admin_url( 'options-general.php' ) ) );
+		exit;
+	}
+
+	// A megerősített törlés. A keresés után eltelt idő alatt változhatott az állapot, ezért
+	// MINDEN sort újra ellenőrzünk (friss mátrix + friss Hub-lista), és csak azt töröljük, ami
+	// a keresésben szerepelt ÉS most is nem engedélyezett/elavult.
+	public function handle_prune_stale() {
+		if ( ! current_user_can( 'manage_options' ) || ! isset( $_POST['_prune_nonce'] ) || ! wp_verify_nonce( $_POST['_prune_nonce'], 'szeducate_prune_stale_nonce' ) ) wp_die( 'Biztonsági hiba.' );
+
+		$scan = get_transient( $this->stale_transient_key() );
+		if ( ! is_array( $scan ) || empty( $scan['items'] ) ) {
+			wp_safe_redirect( add_query_arg( array( 'page' => 'szeducate-settings', 'prune' => 'error', 'msg' => urlencode( 'A keresés eredménye lejárt - futtasd újra a keresést.' ) ), admin_url( 'options-general.php' ) ) );
+			exit;
+		}
+
+		$options = get_option( $this->option_name );
+		$schema_result = $this->pull_schema_and_permissions( $options );
+		if ( $schema_result !== true ) {
+			wp_safe_redirect( add_query_arg( array( 'page' => 'szeducate-settings', 'prune' => 'error', 'msg' => urlencode( 'Séma/jogosultságok letöltése sikertelen: ' . $schema_result ) ), admin_url( 'options-general.php' ) ) );
+			exit;
+		}
+
+		$fresh = $this->collect_stale_courses();
+		if ( ! empty( $fresh['error'] ) ) {
+			wp_safe_redirect( add_query_arg( array( 'page' => 'szeducate-settings', 'prune' => 'error', 'msg' => urlencode( $fresh['error'] ) ), admin_url( 'options-general.php' ) ) );
+			exit;
+		}
+
+		$confirmed_ids = array();
+		foreach ( $scan['items'] as $item ) {
+			$confirmed_ids[ $item['id'] ] = true;
+		}
+
+		global $wpdb;
+		$table_name = $wpdb->prefix . 'szeducate_courses_data';
+		$deleted = 0;
+
+		foreach ( $fresh['items'] as $item ) {
+			if ( ! isset( $confirmed_ids[ $item['id'] ] ) ) continue;
+
+			// FONTOS: a helyi törlés NEM mehet vissza a Hubra (process_course_deletion alapból
+			// DELETE-et küldene a Hubnak) - a "szinkron-törlés" jelző ezt kikapcsolja. A sor
+			// törlését ilyenkor nekünk kell elvégeznünk.
+			global $szeducate_is_sync_deleting;
+			$szeducate_is_sync_deleting = true;
+			if ( $item['local_post_id'] > 0 ) {
+				wp_delete_post( $item['local_post_id'], true );
+			}
+			$wpdb->delete( $table_name, array( 'id' => $item['id'] ) );
+			$szeducate_is_sync_deleting = false;
+			$deleted++;
+		}
+
+		SZEducate_Client::invalidate_courses_cache();
+		delete_transient( $this->stale_transient_key() );
+
+		wp_safe_redirect( add_query_arg( array( 'page' => 'szeducate-settings', 'prune' => 'done', 'count' => $deleted ), admin_url( 'options-general.php' ) ) );
+		exit;
+	}
+
+	// A keresés / törlés eredményének megjelenítése a beállítások oldalon.
+	private function render_prune_notice() {
+		if ( ! isset( $_GET['prune'] ) ) return;
+
+		$state = sanitize_key( $_GET['prune'] );
+
+		if ( $state === 'error' ) {
+			echo '<div class="notice notice-error is-dismissible"><p><strong>Hiba:</strong> ' . esc_html( urldecode( isset( $_GET['msg'] ) ? wp_unslash( $_GET['msg'] ) : '' ) ) . '</p></div>';
+		} elseif ( $state === 'none' ) {
+			echo '<div class="notice notice-success is-dismissible"><p><strong>Rendben:</strong> nincs nem engedélyezett vagy elavult helyi Képzés.</p>';
+			if ( ! empty( $_GET['note'] ) ) {
+				echo '<p>' . esc_html( urldecode( wp_unslash( $_GET['note'] ) ) ) . '</p>';
+			}
+			echo '</div>';
+		} elseif ( $state === 'done' ) {
+			echo '<div class="notice notice-success is-dismissible"><p><strong>Siker:</strong> ' . intval( $_GET['count'] ?? 0 ) . ' nem engedélyezett/elavult helyi Képzés törölve (a Hub adata érintetlen).</p></div>';
+		} elseif ( $state === 'found' ) {
+			$scan = get_transient( $this->stale_transient_key() );
+			if ( ! is_array( $scan ) || empty( $scan['items'] ) ) return;
+
+			$items = $scan['items'];
+			echo '<div class="notice notice-warning"><p><strong>' . count( $items ) . ' db</strong> nem engedélyezett vagy elavult helyi Képzés található (a keresés semmit nem törölt):</p><ul style="list-style:disc; margin-left:20px;">';
+			foreach ( array_slice( $items, 0, 20 ) as $item ) {
+				echo '<li>' . esc_html( $item['title'] ) . ' &ndash; <em>' . esc_html( $item['reason'] ) . '</em></li>';
+			}
+			if ( count( $items ) > 20 ) {
+				echo '<li>&hellip; és még ' . ( count( $items ) - 20 ) . ' db</li>';
+			}
+			echo '</ul>';
+			if ( ! empty( $scan['notice'] ) ) {
+				echo '<p><em>' . esc_html( $scan['notice'] ) . '</em></p>';
+			}
+			?>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" onsubmit="return confirm('Biztosan törlöd a(z) <?php echo count( $items ); ?> helyi Képzést erről a Kliensről? A Hub adata nem változik, de a helyi bejegyzések véglegesen törlődnek.');">
+				<input type="hidden" name="action" value="szeducate_prune_stale">
+				<?php wp_nonce_field( 'szeducate_prune_stale_nonce', '_prune_nonce' ); ?>
+				<button type="submit" class="button" style="color:#d63638; border-color:#d63638;">Törlés ezen a Kliensen (<?php echo count( $items ); ?> db)</button>
+			</form>
+			<p></p></div>
+			<?php
+		}
 	}
 
 	public function handle_cleanup_orphaned_courses() {

@@ -492,6 +492,7 @@ class SZEducate_Client_API {
 			}
 
 			require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-client.php';
+			SZEducate_Client::reset_local_conditions_cache();
 			$client = new SZEducate_Client();
 			$client->register_dynamic_taxonomies();
 			

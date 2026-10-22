@@ -958,7 +958,7 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 		}
 
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-client.php';
-		$courses = SZEducate_Client::get_cached_courses_data();
+		$courses = SZEducate_Client::get_permitted_courses_data();
 
 		$grouped_data = array();
 		$today_time = strtotime( current_time( 'Y-m-d' ) );
