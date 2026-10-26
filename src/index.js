@@ -13,6 +13,7 @@ import {
   FormTokenField,
 } from "@wordpress/components";
 import apiFetch from "@wordpress/api-fetch";
+import { filterAllowedOptions, onlyAllowedValue } from "./allowed-options";
 
 const FIXED_FORMATS = [
   "BSc",
@@ -1962,6 +1963,9 @@ const SZEducateEditor = () => {
     delete: false,
   };
   const isNewPost = !existingTitle;
+  // A Hubtól kapott jogosultsági mátrix feltételei: a select/radio mezők csak az ezek
+  // által nem tiltott értékeket kínálják fel (lásd src/allowed-options.js).
+  const matrixConditions = permissions?.conditions;
   const globalReadonly = !isNewPost && !actions.edit;
   const canSave = isNewPost ? actions.create : actions.edit;
   const isLockedByOther = lockInfo.locked;
@@ -2212,6 +2216,27 @@ const SZEducateEditor = () => {
     setFormData((prev) => ({ ...prev, [key]: value }));
   };
 
+  // Új képzésnél, ha egy select/radio mezőre a mátrix pontosan egy értéket enged (pl. a
+  // kliens csak az Osztatlan képzésekhez fér hozzá), azt előre kitöltjük - a felhasználónak
+  // nincs mit választania, és a mentés sem utasíthatja el.
+  useEffect(() => {
+    if (!isNewPost || !matrixConditions) return;
+    const prefill = {};
+    (schema || []).forEach((group) => {
+      (group.fields || []).forEach((f) => {
+        if (!["select", "radio"].includes(f.type) || f.is_readonly) return;
+        if (formData[f.key] !== undefined && formData[f.key] !== "") return;
+        const only = onlyAllowedValue(parseOptions(f.options), matrixConditions, f.key);
+        if (only) prefill[f.key] = only;
+      });
+    });
+    if (Object.keys(prefill).length > 0) {
+      setFormData((prev) => ({ ...prefill, ...prev }));
+    }
+    // Csak betöltéskor fut.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Egy adott mező visszaállítása a legutóbb MENTETT értékére - nem az egész
   // formot, csak azt az egy mezőt érinti.
   const resetFieldToSaved = (key) => {
@@ -2442,7 +2467,12 @@ const SZEducateEditor = () => {
           <SelectControl
             label={labelWithRequired}
             value={value}
-            options={parseOptions(field.options)}
+            options={filterAllowedOptions(
+              parseOptions(field.options),
+              matrixConditions,
+              field.key,
+              value,
+            )}
             help={combinedHelp}
             onChange={(val) => handleChange(field.key, val)}
             disabled={isReadonly}
@@ -2459,9 +2489,12 @@ const SZEducateEditor = () => {
             <RadioControl
               label={labelWithRequired}
               selected={value}
-              options={parseOptions(field.options).filter(
-                (o) => o.value !== "",
-              )}
+              options={filterAllowedOptions(
+                parseOptions(field.options),
+                matrixConditions,
+                field.key,
+                value,
+              ).filter((o) => o.value !== "")}
               help={combinedHelp}
               onChange={(val) => handleChange(field.key, val)}
               disabled={isReadonly}

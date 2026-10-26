@@ -80,5 +80,33 @@ check( 'JSON lánc: Mikro enged', SZEducate_Conditions::permits( SZEducate_Condi
 check( 'JSON lánc: MSc tilt', SZEducate_Conditions::permits( SZEducate_Conditions::from_permissions( $json ), array( 'kepzesi_forma' => 'MSc' ) ), false );
 check( 'JSON lánc: sérült JSON tilt', SZEducate_Conditions::permits( SZEducate_Conditions::from_permissions( '{"conditions":{' ), array( 'kepzesi_forma' => 'Mikroképzés' ) ), false );
 
+// --- allows_value / fields_in: a szerkesztő engedélyezett értékei (a JS tesztjével azonos esetek) ---
+$csak_osztatlan = $group( 'AND', array( $rule( 'kepzesi_forma', '==', 'Osztatlan' ) ) );
+check( 'allows: osztatlan enged', SZEducate_Conditions::allows_value( $csak_osztatlan, 'kepzesi_forma', 'Osztatlan' ), true );
+check( 'allows: MSc tilt', SZEducate_Conditions::allows_value( $csak_osztatlan, 'kepzesi_forma', 'MSc' ), false );
+check( 'allows: Mikroképzés tilt', SZEducate_Conditions::allows_value( $csak_osztatlan, 'kepzesi_forma', 'Mikroképzés' ), false );
+check( 'allows: null feltétel tilt', SZEducate_Conditions::allows_value( null, 'kepzesi_forma', 'Osztatlan' ), false );
+check( 'allows: üres feltétel enged', SZEducate_Conditions::allows_value( array(), 'kepzesi_forma', 'MSc' ), true );
+check( 'allows: üres szabálylista enged', SZEducate_Conditions::allows_value( $group( 'AND', array() ), 'kepzesi_forma', 'MSc' ), true );
+check( 'allows: VAGY előkészítő enged', SZEducate_Conditions::allows_value( $vagy, 'kepzesi_forma', 'Előkészítő' ), true );
+check( 'allows: VAGY BSc tilt', SZEducate_Conditions::allows_value( $vagy, 'kepzesi_forma', 'BSc' ), false );
+check( 'allows: != MSc tilt', SZEducate_Conditions::allows_value( $group( 'AND', array( $rule( 'kepzesi_forma', '!=', 'MSc' ) ) ), 'kepzesi_forma', 'MSc' ), false );
+check( 'allows: != BSc enged', SZEducate_Conditions::allows_value( $group( 'AND', array( $rule( 'kepzesi_forma', '!=', 'MSc' ) ) ), 'kepzesi_forma', 'BSc' ), true );
+$kar_es_forma = $group( 'AND', array( $rule( 'kar', '==', 'KGK' ), $rule( 'kepzesi_forma', '==', 'Osztatlan' ) ) );
+check( 'allows: más mező szabálya nem blokkol (Osztatlan)', SZEducate_Conditions::allows_value( $kar_es_forma, 'kepzesi_forma', 'Osztatlan' ), true );
+check( 'allows: de a saját mező szabálya igen (MSc)', SZEducate_Conditions::allows_value( $kar_es_forma, 'kepzesi_forma', 'MSc' ), false );
+check( 'allows: nem szereplő mező szűretlen', SZEducate_Conditions::allows_value( $kar_es_forma, 'telephely', 'Győr' ), true );
+check( 'allows: VAGY más mezővel (ismeretlen ág) enged', SZEducate_Conditions::allows_value( $group( 'OR', array( $rule( 'kar', '==', 'KGK' ), $rule( 'kepzesi_forma', '==', 'Osztatlan' ) ) ), 'kepzesi_forma', 'MSc' ), true );
+check( 'allows: beágyazott Mikro enged', SZEducate_Conditions::allows_value( $be, 'kepzesi_forma', 'Mikroképzés' ), true );
+check( 'allows: beágyazott BSc tilt', SZEducate_Conditions::allows_value( $be, 'kepzesi_forma', 'BSc' ), false );
+check( 'allows: ismeretlen operátor tilt', SZEducate_Conditions::allows_value( $group( 'AND', array( $rule( 'kepzesi_forma', 'in', 'MSc' ) ) ), 'kepzesi_forma', 'MSc' ), false );
+check( 'allows: üres mezőnév tilt', SZEducate_Conditions::allows_value( $group( 'AND', array( $rule( '', '==', '' ) ) ), 'kepzesi_forma', 'MSc' ), false );
+check( 'allows: ismeretlen logikai operátor tilt', SZEducate_Conditions::allows_value( $group( 'XOR', array( $rule( 'kepzesi_forma', '==', 'MSc' ) ) ), 'kepzesi_forma', 'MSc' ), false );
+check( 'allows: contains megtalál', SZEducate_Conditions::allows_value( $group( 'AND', array( $rule( 'kepzesi_forma', 'contains', 'kép' ) ) ), 'kepzesi_forma', 'Mikroképzés' ), true );
+check( 'allows: contains üres céllal tilt', SZEducate_Conditions::allows_value( $group( 'AND', array( $rule( 'kepzesi_forma', 'contains', '' ) ) ), 'kepzesi_forma', 'MSc' ), false );
+check( 'fields_in: beágyazott', SZEducate_Conditions::fields_in( $be ), array( 'kar', 'kepzesi_forma' ) );
+check( 'fields_in: üres', SZEducate_Conditions::fields_in( array() ), array() );
+check( 'fields_in: null', SZEducate_Conditions::fields_in( null ), array() );
+
 echo $failures === 0 ? "Minden teszt rendben ($count).\n" : "$failures hiba a $count tesztből.\n";
 exit( $failures === 0 ? 0 : 1 );

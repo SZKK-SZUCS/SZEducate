@@ -151,6 +151,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.62
+
+- **Szerkesztő: csak a jogosultsági mátrix által engedélyezett értékek választhatók (#60).** A Képzés szerkesztőjében a legördülő (select) és a rádiógombos mezők (pl. Képzési forma) csak azokat az értékeket kínálják fel, amiket a Hubtól kapott mátrix nem tilt: ha a kliens csak az Osztatlan képzésekhez fér hozzá, más típus nem választható. A más mezőkre vonatkozó szabályok nem tiltanak le értéket (a többi mező szerkesztés közben még változhat), egy már mentett, de nem engedélyezett érték letiltva, „(nem engedélyezett)” jelzéssel látszik, és új képzésnél az egyetlen engedélyezett érték előre ki van töltve. A mentés a szerveren is ellenőrzi az új vagy megváltoztatott értéket (a korábbról megmaradt érték nem akadályozza más mezők szerkesztését). A több értékes (jelölőnégyzetes) mezők nincsenek szűrve.
+
 ### 0.9.61
 
 - **Jogosultsági mátrix: kliens-oldali szűrés és visszavonás (#58).** Eddig a mátrix csak a kiküldéskor és a beküldéskor érvényesült: ami egyszer lekerült egy kliensre, az ott maradt, és minden látogatói felület (Szaklista, kereső, Kiemelt Képzések) megmutatta. Most:
