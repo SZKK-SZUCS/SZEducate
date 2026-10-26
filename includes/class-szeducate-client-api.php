@@ -700,6 +700,49 @@ class SZEducate_Client_API {
 		return true;
 	}
 
+	// Select/radio mezők esetén a beküldött érték megfelel-e a kliens jogosultsági mátrixának.
+	// Csak az ÚJ vagy MEGVÁLTOZTATOTT értéket vizsgáljuk: egy korábbról megmaradt (mostanra nem
+	// engedélyezett) érték nem akadályozza más mezők szerkesztését. Üres szöveg = rendben.
+	private function find_matrix_value_violation( $post_id, array $course_data ) {
+		$conditions = SZEducate_Client::get_local_conditions();
+		if ( $conditions === null ) {
+			return 'A helyi jogosultsági feltétel sérült - töltsd le újra a Hubról (Séma Letöltése), és csak utána mentsd a képzést.';
+		}
+
+		$constrained = SZEducate_Conditions::fields_in( $conditions );
+		if ( empty( $constrained ) ) {
+			return '';
+		}
+
+		$schema = json_decode( get_option( 'szeducate_local_schema', '[]' ), true );
+		if ( ! is_array( $schema ) ) {
+			return '';
+		}
+
+		$old = $post_id > 0 ? SZEducate_Client::get_course_data_for_post( $post_id ) : null;
+
+		foreach ( $schema as $group ) {
+			if ( empty( $group['fields'] ) || ! is_array( $group['fields'] ) ) continue;
+			foreach ( $group['fields'] as $field ) {
+				if ( empty( $field['key'] ) || empty( $field['type'] ) ) continue;
+				if ( ! in_array( $field['type'], array( 'select', 'radio' ), true ) ) continue;
+				if ( ! in_array( $field['key'], $constrained, true ) ) continue;
+
+				$value = isset( $course_data[ $field['key'] ] ) && is_scalar( $course_data[ $field['key'] ] ) ? trim( (string) $course_data[ $field['key'] ] ) : '';
+				if ( $value === '' ) continue;
+
+				if ( is_array( $old ) && isset( $old[ $field['key'] ] ) && is_scalar( $old[ $field['key'] ] ) && trim( (string) $old[ $field['key'] ] ) === $value ) continue;
+
+				if ( ! SZEducate_Conditions::allows_value( $conditions, $field['key'], $value ) ) {
+					$label = ! empty( $field['label'] ) ? $field['label'] : $field['key'];
+					return sprintf( 'A(z) „%s” mezőben a(z) „%s” érték nem engedélyezett ennek a kliensnek (jogosultsági mátrix).', $label, $value );
+				}
+			}
+		}
+
+		return '';
+	}
+
 	public function save_course_data( WP_REST_Request $request ) {
 		global $wpdb;
 		$params = $request->get_json_params();
@@ -712,6 +755,13 @@ class SZEducate_Client_API {
 		$title = sanitize_text_field( $params['title'] );
 
 		$dynamic_data = isset( $params['course_data'] ) ? $params['course_data'] : array();
+
+		// A szerkesztő csak az engedélyezett értékeket kínálja fel, de a mentést itt is ellenőrizzük
+		// (a böngészőből beküldött adat nem megbízható).
+		$matrix_error = $this->find_matrix_value_violation( $post_id, is_array( $dynamic_data ) ? $dynamic_data : array() );
+		if ( $matrix_error !== '' ) {
+			return new WP_Error( 'value_not_permitted', $matrix_error, array( 'status' => 400 ) );
+		}
 
 		if ( strlen( wp_json_encode( $dynamic_data ) ) > SZEDUCATE_MAX_COURSE_DATA_SIZE ) {
 			return new WP_Error( 'payload_too_large', 'A Képzés adata túl nagy (max. ' . size_format( SZEDUCATE_MAX_COURSE_DATA_SIZE ) . ').', array( 'status' => 413 ) );
