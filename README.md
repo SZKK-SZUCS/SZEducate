@@ -151,6 +151,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.63
+
+- **Séma Tervező: a régi „Munkarend csoportok” egyszeri migráció eltávolítva (#62).** A Séma Tervező alján lévő „Egyszeri migráció” blokk, a hozzá tartozó értesítés és a kezelő kód (valamint az egyedül azt kiszolgáló segéd-függvények) törölve, így nincs a felületen élő adatbázist tömegesen módosító, véletlenül futtatható gomb. A már lefuttatott migráció eredménye (a képzések `munkarend_csoportok` adata) és a régi mezők a sémában változatlanok.
+
 ### 0.9.62
 
 - **Szerkesztő: csak a jogosultsági mátrix által engedélyezett értékek választhatók (#60).** A Képzés szerkesztőjében a legördülő (select) és a rádiógombos mezők (pl. Képzési forma) csak azokat az értékeket kínálják fel, amiket a Hubtól kapott mátrix nem tilt: ha a kliens csak az Osztatlan képzésekhez fér hozzá, más típus nem választható. A más mezőkre vonatkozó szabályok nem tiltanak le értéket (a többi mező szerkesztés közben még változhat), egy már mentett, de nem engedélyezett érték letiltva, „(nem engedélyezett)” jelzéssel látszik, és új képzésnél az egyetlen engedélyezett érték előre ki van töltve. A mentés a szerveren is ellenőrzi az új vagy megváltoztatott értéket (a korábbról megmaradt érték nem akadályozza más mezők szerkesztését). A több értékes (jelölőnégyzetes) mezők nincsenek szűrve.
