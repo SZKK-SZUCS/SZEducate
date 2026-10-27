@@ -839,16 +839,19 @@ class SZEducate_Pricing_Table_Widget extends \Elementor\Widget_Base {
 		$widget_id = 'sz-pt-' . $this->get_id();
 		?>
 		<div class="sz-pricing-table" id="<?php echo esc_attr( $widget_id ); ?>">
-			<?php if ( count( $forms ) > 1 ) : ?>
-				<div class="sz-pt-tabs" role="tablist">
-					<?php if ( $show_indicator ) : ?>
-						<span class="sz-pt-tab-indicator" aria-hidden="true"></span>
-					<?php endif; ?>
-					<?php foreach ( $forms as $i => $form ) : ?>
-						<button type="button" class="sz-pt-tab<?php echo $i === 0 ? ' sz-pt-tab-active' : ''; ?>" data-sz-tab="<?php echo esc_attr( sanitize_title( $form ) ); ?>" role="tab" aria-selected="<?php echo $i === 0 ? 'true' : 'false'; ?>"><?php echo esc_html( $form ); ?></button>
-					<?php endforeach; ?>
-				</div>
-			<?php endif; ?>
+			<?php
+			// Egyetlen munkarendnél is kirajzoljuk a fület (különben a látogató nem látja, hogy az az
+			// egy micsoda), csak letiltva: nincs mire váltani, ezért kattintani sem lehet rá.
+			$single_form = ( count( $forms ) === 1 );
+			?>
+			<div class="sz-pt-tabs" role="tablist">
+				<?php if ( $show_indicator ) : ?>
+					<span class="sz-pt-tab-indicator" aria-hidden="true"></span>
+				<?php endif; ?>
+				<?php foreach ( $forms as $i => $form ) : ?>
+					<button type="button" class="sz-pt-tab<?php echo $i === 0 ? ' sz-pt-tab-active' : ''; ?>" data-sz-tab="<?php echo esc_attr( sanitize_title( $form ) ); ?>" role="tab" aria-selected="<?php echo $i === 0 ? 'true' : 'false'; ?>"<?php echo $single_form ? ' disabled aria-disabled="true"' : ''; ?>><?php echo esc_html( $form ); ?></button>
+				<?php endforeach; ?>
+			</div>
 			<?php
 			$badge_label    = $settings['col_badge_label'] ?: 'Fin. forma';
 			$name_label     = $settings['col_name_label'] ?: 'Szak neve';
@@ -915,6 +918,9 @@ class SZEducate_Pricing_Table_Widget extends \Elementor\Widget_Base {
 			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-tabs { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; position: relative; padding-bottom: 8px; }
 			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-tab { cursor: pointer; border: none; font: inherit; position: relative; z-index: 1; transition: background-color .25s ease, color .25s ease, transform .25s cubic-bezier(.22,1,.36,1), box-shadow .25s ease; }
 			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-tab:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+			/* Egyetlen munkarendnél a fül csak jelzés (letiltott), de az aktív színezését megtartja:
+			   a böngésző alap letiltott-színe helyett az Elementor-vezérelt aktív szín marad. */
+			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-tab:disabled { cursor: default; opacity: 1; }
 			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-tab-indicator { position: absolute; top: 0; left: 0; z-index: 0; pointer-events: none; transition: transform .45s cubic-bezier(.22,1,.36,1), width .35s cubic-bezier(.22,1,.36,1), height .35s cubic-bezier(.22,1,.36,1); }
 			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-table-wrap { overflow-x: auto; overflow-y: hidden; }
 			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-table { width: 100%; border-collapse: collapse; table-layout: fixed; }

@@ -151,6 +151,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.64
+
+- **Támogatási táblázat: egyetlen munkarendnél is látszik a (letiltott) lap fül (#64).** Ha a képzés csak egy munkarendben indul, a táblázat eddig nem rajzolta ki a fület, így a látogató nem látta, hogy az az egy munkarend micsoda (Nappali / Levelező / Távoktatás). Mostantól ilyenkor is megjelenik a fül az aktív színezésével, csak letiltva: nem lehet rákattintani, és nem vált semmit. Több munkarendnél a viselkedés (váltás, lapozó, csúszó jelző) változatlan.
+
 ### 0.9.63
 
 - **Séma Tervező: a régi „Munkarend csoportok” egyszeri migráció eltávolítva (#62).** A Séma Tervező alján lévő „Egyszeri migráció” blokk, a hozzá tartozó értesítés és a kezelő kód (valamint az egyedül azt kiszolgáló segéd-függvények) törölve, így nincs a felületen élő adatbázist tömegesen módosító, véletlenül futtatható gomb. A már lefuttatott migráció eredménye (a képzések `munkarend_csoportok` adata) és a régi mezők a sémában változatlanok.
