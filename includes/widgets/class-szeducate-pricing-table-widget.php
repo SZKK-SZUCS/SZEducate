@@ -612,14 +612,11 @@ class SZEducate_Pricing_Table_Widget extends \Elementor\Widget_Base {
 		$this->end_controls_section();
 	}
 
+	// A pénznem az "Ár típusa" értékéből jön: "Félév (EUR)" / "Teljes (EUR)" euróban,
+	// minden más forintban értendő (lásd SZEducate_Price_Format).
 	private function format_cost( $val, $price_type = '' ) {
-		if ( $val === '' || $val === null ) return '';
-		$numeric = is_numeric( $val ) ? $val : preg_replace( '/[^0-9.,-]/', '', (string) $val );
-		$formatted = ( $numeric !== '' && is_numeric( $numeric ) ) ? number_format( (float) $numeric, 0, ',', ' ' ) . ' Ft' : (string) $val;
-		if ( $price_type !== '' ) {
-			$formatted .= ' / ' . $price_type;
-		}
-		return $formatted;
+		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-price-format.php';
+		return SZEducate_Price_Format::format( $val, $price_type );
 	}
 
 	private function find_field_by_key( $schema, $key ) {
