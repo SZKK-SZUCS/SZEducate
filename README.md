@@ -151,6 +151,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.65
+
+- **Támogatási táblázat: euróban megadott ár (#66).** Az „Ár típusa” mezőbe felvehető `Félév (EUR)` és `Teljes (EUR)` opció (a Séma Tervezőben az „Ár típusa” opciólistájához kell hozzáadni). Ilyen típusnál a táblázat Ft helyett € jelet ír („1 200 € / Félév”), a tört összeg (pl. 1250,50) nem kerekítődik el. A többi típus (`Félév`, `Teljes`, üres) kimenete változatlanul forintban jelenik meg, a meglévő adatokhoz nem kell hozzányúlni.
+
 ### 0.9.64
 
 - **Támogatási táblázat: egyetlen munkarendnél is látszik a (letiltott) lap fül (#64).** Ha a képzés csak egy munkarendben indul, a táblázat eddig nem rajzolta ki a fület, így a látogató nem látta, hogy az az egy munkarend micsoda (Nappali / Levelező / Távoktatás). Mostantól ilyenkor is megjelenik a fül az aktív színezésével, csak letiltva: nem lehet rákattintani, és nem vált semmit. Több munkarendnél a viselkedés (váltás, lapozó, csúszó jelző) változatlan.
