@@ -152,11 +152,16 @@ parameters:
 
 		-
 			message: "#^Constant SZEDUCATE_PLUGIN_DIR not found\\.$#"
-			count: 14
+			count: 16
 			path: includes/class-szeducate-elementor.php
 
 		-
 			message: "#^Instantiated class Elementor\\\\Repeater not found\\.$#"
+			count: 1
+			path: includes/class-szeducate-elementor.php
+
+		-
+			message: "#^Instantiated class SZEducate_Course_Cards_Widget not found\\.$#"
 			count: 1
 			path: includes/class-szeducate-elementor.php
 
