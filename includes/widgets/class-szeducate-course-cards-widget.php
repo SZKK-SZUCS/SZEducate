@@ -307,6 +307,177 @@ class SZEducate_Course_Cards_Widget extends \Elementor\Widget_Base {
 		$this->end_controls_section();
 
 		// ------------------------------------------------------------------
+		// Tartalom: Látogatói szűrők (panel)
+		// ------------------------------------------------------------------
+		// Az "Alap szűrők" fent az admin által rögzített, a látogatónak nem látszó szűrés.
+		// Ez a szekció egy a kártyák fölött megjelenő, kliensoldali (JS, újratöltés nélküli)
+		// szűrőpanelt kapcsol be, amit a látogató állítgat - a Szaklista panelje szerint.
+		$this->start_controls_section(
+			'user_filters_section',
+			array(
+				'label' => 'Látogatói szűrők (panel)',
+				'tab'   => \Elementor\Controls_Manager::TAB_CONTENT,
+			)
+		);
+
+		$this->add_control(
+			'uf_title',
+			array(
+				'label'   => 'Panel címe',
+				'type'    => \Elementor\Controls_Manager::TEXT,
+				'default' => 'Szűrés',
+			)
+		);
+
+		$this->add_control(
+			'uf_reset_text',
+			array(
+				'label'   => 'Szűrő-törlő link szövege',
+				'type'    => \Elementor\Controls_Manager::TEXT,
+				'default' => 'Szűrő törlése',
+			)
+		);
+
+		$this->add_control(
+			'uf_no_results_text',
+			array(
+				'label'   => '„Nincs találat” szöveg',
+				'type'    => \Elementor\Controls_Manager::TEXT,
+				'default' => 'Nincs a szűrésnek megfelelő képzés.',
+			)
+		);
+
+		foreach (
+			array(
+				'munkarend' => array( 'Munkarend szűrő', 'Munkarend', 'Munkarend' ),
+				'nyelv'     => array( 'Nyelv szűrő', 'Nyelv', 'Nyelv' ),
+				'dualis'    => array( 'Duális képzés szűrő', 'Duális', 'Duális képzésben elérhető' ),
+				'emelt'     => array( 'Emelt szintű érettségi szűrő', 'Emelt érettségi', 'Emelt szintű érettségi kell' ),
+			) as $fkey => $meta
+		) {
+			$this->add_control(
+				'uf_' . $fkey,
+				array(
+					'label'        => $meta[0],
+					'type'         => \Elementor\Controls_Manager::SWITCHER,
+					'label_on'     => 'Be',
+					'label_off'    => 'Ki',
+					'return_value' => 'yes',
+					'default'      => '',
+					'separator'    => 'before',
+				)
+			);
+			$this->add_control(
+				'uf_' . $fkey . '_label',
+				array(
+					'label'     => $meta[1] . ' – felirat',
+					'type'      => \Elementor\Controls_Manager::TEXT,
+					'default'   => $meta[2],
+					'condition' => array( 'uf_' . $fkey => 'yes' ),
+				)
+			);
+		}
+
+		$this->add_control(
+			'uf_bool_yes',
+			array(
+				'label'     => 'Igen/Nem szűrők – „Igen” címke',
+				'type'      => \Elementor\Controls_Manager::TEXT,
+				'default'   => 'Igen',
+				'separator' => 'before',
+			)
+		);
+		$this->add_control(
+			'uf_bool_no',
+			array(
+				'label'   => 'Igen/Nem szűrők – „Nem” címke',
+				'type'    => \Elementor\Controls_Manager::TEXT,
+				'default' => 'Nem',
+			)
+		);
+
+		$this->end_controls_section();
+
+		// A stílus-szekció csak akkor jelenik meg, ha legalább egy szűrő be van kapcsolva
+		// (OR-feltétel: az egyszerű 'condition' tömb AND-et jelentene).
+		$this->start_controls_section(
+			'style_user_filters_section',
+			array(
+				'label'      => 'Látogatói szűrőpanel',
+				'tab'        => \Elementor\Controls_Manager::TAB_STYLE,
+				'conditions' => array(
+					'relation' => 'or',
+					'terms'    => array(
+						array( 'name' => 'uf_munkarend', 'operator' => '===', 'value' => 'yes' ),
+						array( 'name' => 'uf_nyelv', 'operator' => '===', 'value' => 'yes' ),
+						array( 'name' => 'uf_dualis', 'operator' => '===', 'value' => 'yes' ),
+						array( 'name' => 'uf_emelt', 'operator' => '===', 'value' => 'yes' ),
+					),
+				),
+			)
+		);
+
+		$this->add_control(
+			'uf_panel_bg',
+			array(
+				'label'     => 'Panel háttérszín',
+				'type'      => \Elementor\Controls_Manager::COLOR,
+				'default'   => '#F7F9FB',
+				'selectors' => array( '{{WRAPPER}} .sz-cc-filters' => 'background-color: {{VALUE}};' ),
+			)
+		);
+		$this->add_control(
+			'uf_panel_border_color',
+			array(
+				'label'     => 'Panel keretszín',
+				'type'      => \Elementor\Controls_Manager::COLOR,
+				'default'   => '#E3E8EE',
+				'selectors' => array( '{{WRAPPER}} .sz-cc-filters' => 'border-color: {{VALUE}};' ),
+			)
+		);
+		$this->add_control(
+			'uf_panel_text_color',
+			array(
+				'label'     => 'Szövegszín',
+				'type'      => \Elementor\Controls_Manager::COLOR,
+				'default'   => '#242943',
+				'selectors' => array( '{{WRAPPER}} .sz-cc-filters' => 'color: {{VALUE}};' ),
+			)
+		);
+		$this->add_control(
+			'uf_panel_accent',
+			array(
+				'label'     => 'Kijelölt elem színe',
+				'type'      => \Elementor\Controls_Manager::COLOR,
+				'default'   => '#044790',
+				'selectors' => array( '{{WRAPPER}} .sz-cc-filters' => '--sz-cc-accent: {{VALUE}};' ),
+			)
+		);
+		$this->add_responsive_control(
+			'uf_panel_radius',
+			array(
+				'label'      => 'Lekerekítés',
+				'type'       => \Elementor\Controls_Manager::SLIDER,
+				'size_units' => array( 'px', 'em' ),
+				'default'    => array( 'unit' => 'px', 'size' => 10 ),
+				'selectors'  => array( '{{WRAPPER}} .sz-cc-filters' => 'border-radius: {{SIZE}}{{UNIT}};' ),
+			)
+		);
+		$this->add_responsive_control(
+			'uf_panel_margin',
+			array(
+				'label'      => 'Alsó margó',
+				'type'       => \Elementor\Controls_Manager::SLIDER,
+				'size_units' => array( 'px', 'em' ),
+				'range'      => array( 'px' => array( 'min' => 0, 'max' => 80 ) ),
+				'default'    => array( 'unit' => 'px', 'size' => 24 ),
+				'selectors'  => array( '{{WRAPPER}} .sz-cc-filters' => 'margin-bottom: {{SIZE}}{{UNIT}};' ),
+			)
+		);
+
+		$this->end_controls_section();
+
+		// ------------------------------------------------------------------
 		// Stílus: Rács
 		// ------------------------------------------------------------------
 		$this->start_controls_section(
@@ -806,6 +977,43 @@ class SZEducate_Course_Cards_Widget extends \Elementor\Widget_Base {
 			}
 		}
 
+		// Látogatói szűrők konfigurációja (a Szaklista panelje szerint). A "bool" szűrők
+		// Igen/Nem jelölőt kapnak, a többi a séma opció-listájából épülő jelölőnégyzet-sort.
+		$uf_label = function ( $key, $default ) use ( $settings ) {
+			return ( isset( $settings[ $key ] ) && trim( (string) $settings[ $key ] ) !== '' ) ? $settings[ $key ] : $default;
+		};
+		$uf_specs = array(
+			'munkarend' => array(
+				'on'    => ( isset( $settings['uf_munkarend'] ) && $settings['uf_munkarend'] === 'yes' ),
+				'label' => $uf_label( 'uf_munkarend_label', 'Munkarend' ),
+				'opts'  => $this->uf_schema_options( $schema, 'munkarend', array( 'Nappali', 'Levelező', 'Távoktatás' ) ),
+				'bool'  => false,
+			),
+			'nyelv'     => array(
+				'on'    => ( isset( $settings['uf_nyelv'] ) && $settings['uf_nyelv'] === 'yes' ),
+				'label' => $uf_label( 'uf_nyelv_label', 'Nyelv' ),
+				'opts'  => $this->uf_schema_options( $schema, 'nyelv', array( 'Magyar', 'Angol' ) ),
+				'bool'  => false,
+			),
+			'dualis'    => array(
+				'on'    => ( isset( $settings['uf_dualis'] ) && $settings['uf_dualis'] === 'yes' ),
+				'label' => $uf_label( 'uf_dualis_label', 'Duális képzésben elérhető' ),
+				'bool'  => true,
+			),
+			'emelt'     => array(
+				'on'    => ( isset( $settings['uf_emelt'] ) && $settings['uf_emelt'] === 'yes' ),
+				'label' => $uf_label( 'uf_emelt_label', 'Emelt szintű érettségi kell' ),
+				'bool'  => true,
+			),
+		);
+		$uf_any = false;
+		foreach ( $uf_specs as $s ) {
+			if ( $s['on'] ) {
+				$uf_any = true;
+				break;
+			}
+		}
+
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-client.php';
 		$courses = SZEducate_Client::get_permitted_courses_data();
 
@@ -881,6 +1089,7 @@ class SZEducate_Course_Cards_Widget extends \Elementor\Widget_Base {
 				'is_active' => $is_active,
 				'chips'     => $chips,
 				'meta'      => $meta,
+				'f'         => $uf_any ? $this->uf_course_values( $data ) : null,
 			);
 
 			if ( $group_key !== '' ) {
@@ -931,6 +1140,7 @@ class SZEducate_Course_Cards_Widget extends \Elementor\Widget_Base {
 		$card_class = 'sz-cc-card sz-cc-hover-' . $hover;
 
 		echo '<div class="sz-cc-widget">';
+		echo $this->uf_render_panel( $uf_specs, $uf_any, $uf_label( 'uf_bool_yes', 'Igen' ), $uf_label( 'uf_bool_no', 'Nem' ), $uf_label, $this->get_id() );
 		foreach ( $grouped as $name => $cards ) {
 			echo '<div class="sz-cc-group">';
 			if ( $group_key !== '' ) {
@@ -942,6 +1152,11 @@ class SZEducate_Course_Cards_Widget extends \Elementor\Widget_Base {
 			}
 			echo '</div></div>';
 		}
+
+		if ( $uf_any ) {
+			echo $this->uf_render_script();
+		}
+
 		echo '</div>';
 	}
 
@@ -953,7 +1168,17 @@ class SZEducate_Course_Cards_Widget extends \Elementor\Widget_Base {
 
 		$classes = $card_class . ( $card['is_active'] ? ' sz-cc-is-active' : ' sz-cc-is-inactive' );
 
-		echo '<article class="' . esc_attr( $classes ) . '">';
+		$data_attrs = '';
+		if ( ! empty( $card['f'] ) ) {
+			foreach ( array( 'munkarend', 'nyelv' ) as $fk ) {
+				$data_attrs .= ' data-f-' . $fk . '="' . esc_attr( implode( ' ', $card['f'][ $fk ] ) ) . '"';
+			}
+			foreach ( array( 'dualis', 'emelt' ) as $fk ) {
+				$data_attrs .= ' data-f-' . $fk . '="' . esc_attr( $card['f'][ $fk ] ) . '"';
+			}
+		}
+
+		echo '<article class="' . esc_attr( $classes ) . '"' . $data_attrs . '>';
 
 		if ( $show_dot && ( $card['is_active'] || ( isset( $settings['show_inactive_dot'] ) && $settings['show_inactive_dot'] === 'yes' ) ) ) {
 			$pos   = ( isset( $settings['dot_position'] ) && $settings['dot_position'] === 'top-left' ) ? 'sz-cc-dot-left' : 'sz-cc-dot-right';
@@ -1041,7 +1266,244 @@ class SZEducate_Course_Cards_Widget extends \Elementor\Widget_Base {
 			. '.sz-cc-dot-active::after{content:"";position:absolute;inset:0;border-radius:50%;background:var(--sz-cc-dot,#22C55E);animation:sz-cc-pulse 1.8s ease-out infinite;}'
 			. '@keyframes sz-cc-pulse{0%{transform:scale(1);opacity:.65;}100%{transform:scale(2.6);opacity:0;}}'
 			. '@media(prefers-reduced-motion:reduce){.sz-cc-dot-active::after{animation:none;}.sz-cc-card,.sz-cc-image img{transition:none;}.sz-cc-hover-lift:hover,.sz-cc-hover-both:hover{transform:none;}}'
+			// Látogatói szűrőpanel (szerkezet + pirula-jelölők); a színeket a Stílus-vezérlők adják.
+			. '.sz-cc-hidden{display:none !important;}'
+			. '.sz-cc-filters{border-width:1px;border-style:solid;padding:16px 20px;box-sizing:border-box;}'
+			. '.sz-cc-lf-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:12px;}'
+			. '.sz-cc-lf-title{font-weight:700;font-size:14px;text-transform:uppercase;letter-spacing:.06em;}'
+			. '.sz-cc-lf-reset{padding:5px 14px;border:1px solid #dfe3ea;border-radius:999px;background:#fff;color:inherit;cursor:pointer;font:inherit;font-size:12px;transition:background .2s,color .2s;}'
+			. '.sz-cc-lf-reset:hover{background:#242943;color:#fff;}'
+			. '.sz-cc-lf-groups{display:flex;flex-wrap:wrap;align-items:flex-start;gap:8px 28px;}'
+			. '.sz-cc-lf-group{border:0;margin:0;padding:0;min-width:0;}'
+			. '.sz-cc-lf-group legend{font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em;opacity:.75;margin-bottom:5px;padding:0;}'
+			. '.sz-cc-lf-group label{display:inline-flex;align-items:center;gap:6px;margin:0 5px 5px 0;padding:3px 11px;border:1px solid #dfe3ea;border-radius:999px;background:#fff;font-size:13px;line-height:1.4;cursor:pointer;white-space:nowrap;transition:background .2s,color .2s,border-color .2s;}'
+			. '.sz-cc-lf-group label:hover{border-color:var(--sz-cc-accent,#044790);}'
+			. '.sz-cc-lf-group input{width:15px;height:15px;margin:0;flex-shrink:0;accent-color:var(--sz-cc-accent,#044790);}'
+			. '@supports selector(:has(a)){'
+			. '.sz-cc-lf-group input{position:absolute;opacity:0;width:1px;height:1px;}'
+			. '.sz-cc-lf-group label:has(input:checked){background:var(--sz-cc-accent,#044790);border-color:var(--sz-cc-accent,#044790);color:#fff;}'
+			. '.sz-cc-lf-group label:has(input:focus-visible){outline:3px solid #50ADC9;outline-offset:2px;}'
+			. '}'
+			. '.sz-cc-no-results{font-style:italic;padding:16px 0;}'
 			. '</style>';
+	}
+
+	// A séma bármely (akár beágyazott) mezőjének opció-listáját megkeresi kulcs alapján;
+	// ha nincs / üres, a megadott tartalékot adja vissza. A Munkarend és a Nyelv al-mezőként
+	// él a "munkarend_csoportok" repeaterben, ezért kell a mélységi bejárás (lásd Szaklista).
+	private function uf_schema_options( $schema, $key, $fallback ) {
+		if ( is_array( $schema ) ) {
+			foreach ( $schema as $group ) {
+				if ( empty( $group['fields'] ) || ! is_array( $group['fields'] ) ) {
+					continue;
+				}
+				$found = $this->uf_options_deep( $group['fields'], $key );
+				if ( ! empty( $found ) ) {
+					return $found;
+				}
+			}
+		}
+		return $fallback;
+	}
+
+	private function uf_options_deep( $fields, $key ) {
+		foreach ( (array) $fields as $f ) {
+			if ( ! is_array( $f ) ) {
+				continue;
+			}
+			if ( isset( $f['key'] ) && $f['key'] === $key && ! empty( $f['options'] ) ) {
+				return array_values(
+					array_filter(
+						array_map( 'trim', explode( ';', $f['options'] ) ),
+						function ( $o ) {
+							return $o !== '';
+						}
+					)
+				);
+			}
+			if ( ! empty( $f['sub_fields'] ) ) {
+				$r = $this->uf_options_deep( $f['sub_fields'], $key );
+				if ( ! empty( $r ) ) {
+					return $r;
+				}
+			}
+		}
+		return array();
+	}
+
+	// Egy képzés szűrő-értékei: Munkarend / Nyelv a beágyazott "munkarend_csoportok"
+	// listából (tartalék az archivált felső szintű mező), a Duális / Emelt a felső szintű
+	// boolean mezőkből ("emelt" -> "emelt_kovetelmeny"). Ugyanaz, mint a Szaklistában.
+	private function uf_course_values( $data ) {
+		$mr = array();
+		$ny = array();
+		if ( isset( $data['munkarend_csoportok'] ) && is_array( $data['munkarend_csoportok'] ) ) {
+			foreach ( $data['munkarend_csoportok'] as $mg ) {
+				if ( ! is_array( $mg ) ) {
+					continue;
+				}
+				if ( isset( $mg['munkarend'] ) && trim( (string) $mg['munkarend'] ) !== '' ) {
+					$mr[] = trim( (string) $mg['munkarend'] );
+				}
+				if ( isset( $mg['variansok'] ) && is_array( $mg['variansok'] ) ) {
+					foreach ( $mg['variansok'] as $vr ) {
+						if ( is_array( $vr ) && isset( $vr['nyelv'] ) && trim( (string) $vr['nyelv'] ) !== '' ) {
+							$ny[] = trim( (string) $vr['nyelv'] );
+						}
+					}
+				}
+			}
+		}
+		if ( empty( $mr ) && isset( $data['munkarend'] ) ) {
+			$mr = is_array( $data['munkarend'] ) ? $data['munkarend'] : array_map( 'trim', explode( ';', (string) $data['munkarend'] ) );
+		}
+		if ( empty( $ny ) && isset( $data['nyelv'] ) ) {
+			$ny = is_array( $data['nyelv'] ) ? $data['nyelv'] : array_map( 'trim', explode( ';', (string) $data['nyelv'] ) );
+		}
+
+		return array(
+			'munkarend' => array_values( array_unique( array_filter( array_map( 'sanitize_title', $mr ) ) ) ),
+			'nyelv'     => array_values( array_unique( array_filter( array_map( 'sanitize_title', $ny ) ) ) ),
+			'dualis'    => ( isset( $data['dualis'] ) && self::is_truthy( $data['dualis'] ) ) ? '1' : '0',
+			'emelt'     => ( isset( $data['emelt_kovetelmeny'] ) && self::is_truthy( $data['emelt_kovetelmeny'] ) ) ? '1' : '0',
+		);
+	}
+
+	private function uf_render_panel( $uf_specs, $uf_any, $uf_yes, $uf_no, $uf_label, $wid ) {
+		if ( ! $uf_any ) {
+			return '';
+		}
+
+		$title  = $uf_label( 'uf_title', 'Szűrés' );
+		$reset  = $uf_label( 'uf_reset_text', 'Szűrő törlése' );
+		$no_res = $uf_label( 'uf_no_results_text', 'Nincs a szűrésnek megfelelő képzés.' );
+
+		$out  = '<form class="sz-cc-filters" onsubmit="return false;">';
+		$out .= '<div class="sz-cc-lf-head"><span class="sz-cc-lf-title">' . esc_html( $title ) . '</span>';
+		$out .= '<button type="button" class="sz-cc-lf-reset">' . esc_html( $reset ) . '</button></div>';
+		$out .= '<div class="sz-cc-lf-groups">';
+		foreach ( $uf_specs as $fkey => $spec ) {
+			if ( empty( $spec['on'] ) ) {
+				continue;
+			}
+			$out .= '<fieldset class="sz-cc-lf-group" data-key="' . esc_attr( $fkey ) . '">';
+			$out .= '<legend>' . esc_html( $spec['label'] ) . '</legend>';
+			if ( ! empty( $spec['bool'] ) ) {
+				// Rádió: Igen / Nem / (egyik sem). A "kivehető" viselkedést a JS adja hozzá. A name
+				// widget-példányonként egyedi, hogy egy oldalon több widget ne ütközzön.
+				$rname = 'sz-cc-lf-' . $fkey . '-' . $wid;
+				$out  .= '<label><input type="radio" name="' . esc_attr( $rname ) . '" value="1"> ' . esc_html( $uf_yes ) . '</label>';
+				$out  .= '<label><input type="radio" name="' . esc_attr( $rname ) . '" value="0"> ' . esc_html( $uf_no ) . '</label>';
+			} else {
+				foreach ( (array) $spec['opts'] as $opt ) {
+					$slug = sanitize_title( $opt );
+					if ( $slug === '' ) {
+						continue;
+					}
+					$out .= '<label><input type="checkbox" value="' . esc_attr( $slug ) . '"> ' . esc_html( $opt ) . '</label>';
+				}
+			}
+			$out .= '</fieldset>';
+		}
+		$out .= '</div></form>';
+		$out .= '<p class="sz-cc-no-results sz-cc-hidden">' . esc_html( $no_res ) . '</p>';
+
+		return $out;
+	}
+
+	// A kliensoldali szűrő-logika; globálisan egyszer írjuk ki, minden .sz-cc-widget
+	// konténert magától bekapcsol, és véd a dupla bekötés ellen.
+	private function uf_render_script() {
+		static $js_done = false;
+		if ( $js_done ) {
+			return '';
+		}
+		$js_done = true;
+
+		return <<<'HTML'
+<script>
+(function(){
+  function boot(root){
+    if(!root || root.__szCcLf) return;
+    var form = root.querySelector('.sz-cc-filters');
+    if(!form) return;
+    root.__szCcLf = true;
+    var items  = [].slice.call(root.querySelectorAll('.sz-cc-card'));
+    var blocks = [].slice.call(root.querySelectorAll('.sz-cc-group'));
+    var noRes  = root.querySelector('.sz-cc-no-results');
+    function selected(){
+      var s = {};
+      [].forEach.call(form.querySelectorAll('.sz-cc-lf-group'), function(g){
+        var k = g.getAttribute('data-key'), v = [];
+        [].forEach.call(g.querySelectorAll('input'), function(cb){ if(cb.checked) v.push(cb.value); });
+        if(v.length) s[k] = v;
+      });
+      return s;
+    }
+    function matches(el, s){
+      for(var k in s){
+        var have = (el.getAttribute('data-f-' + k) || '').split(' ').filter(Boolean);
+        var ok = s[k].some(function(x){ return have.indexOf(x) > -1; });
+        if(!ok) return false;
+      }
+      return true;
+    }
+    function apply(){
+      var s = selected(), any = false;
+      items.forEach(function(el){
+        var vis = matches(el, s);
+        el.classList.toggle('sz-cc-hidden', !vis);
+        if(vis) any = true;
+      });
+      blocks.forEach(function(b){
+        var vis = 0;
+        [].forEach.call(b.querySelectorAll('.sz-cc-card'), function(el){
+          if(!el.classList.contains('sz-cc-hidden')) vis++;
+        });
+        b.classList.toggle('sz-cc-hidden', vis === 0);
+      });
+      if(noRes) noRes.classList.toggle('sz-cc-hidden', any);
+    }
+    form.addEventListener('change', apply);
+    // Igen/Nem rádiók: a már bejelöltre újra kattintva kivehető a jelölés (= "egyik se").
+    var radioState = {};
+    [].forEach.call(form.querySelectorAll('.sz-cc-lf-group'), function(g){
+      var key = g.getAttribute('data-key');
+      var pre = g.querySelector('input[type=radio]:checked');
+      radioState[key] = pre ? pre.value : null;
+      [].forEach.call(g.querySelectorAll('input[type=radio]'), function(r){
+        r.addEventListener('click', function(){
+          if(radioState[key] === r.value){
+            r.checked = false;
+            radioState[key] = null;
+            apply();
+          } else {
+            radioState[key] = r.value;
+          }
+        });
+      });
+    });
+    var reset = form.querySelector('.sz-cc-lf-reset');
+    if(reset) reset.addEventListener('click', function(){
+      [].forEach.call(form.querySelectorAll('input'), function(cb){ cb.checked = false; });
+      for(var k in radioState){ radioState[k] = null; }
+      apply();
+    });
+    apply();
+  }
+  function initAll(){ [].forEach.call(document.querySelectorAll('.sz-cc-widget'), boot); }
+  if(document.readyState !== 'loading') initAll();
+  else document.addEventListener('DOMContentLoaded', initAll);
+  window.addEventListener('load', initAll);
+  if(window.elementorFrontend && window.elementorFrontend.hooks){
+    elementorFrontend.hooks.addAction('frontend/element_ready/szeducate_course_cards.default', function($scope){
+      var el = ($scope && $scope[0]) ? $scope[0].querySelector('.sz-cc-widget') : null;
+      boot(el);
+    });
+  }
+})();
+</script>
+HTML;
 	}
 
 	// Egy mező értékeit szöveg-listává egyszerűsíti: tömbből a skalárokat, szövegből a
