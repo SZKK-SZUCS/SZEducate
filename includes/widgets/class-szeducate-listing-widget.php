@@ -317,6 +317,9 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 			]
 		);
 
+		// Kereső mező + tetszőleges séma-mezőből felvehető extra szűrők (közös a Képzéskártyákkal).
+		SZEducate_Filter_Extras::register_controls( $this, $schema );
+
 		$this->add_control(
 			'uf_bool_yes',
 			[
@@ -337,22 +340,14 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 
 		$this->end_controls_section();
 
-		// A szekció csak akkor jelenik meg, ha legalább egy szűrő be van kapcsolva
-		// (OR-feltétel: az sima 'condition' tömb AND-et jelentene).
+		// Nincs megjelenítési feltétel: a panel az extra szűrők (ismétlődő vezérlő) vagy a kereső
+		// mező miatt is megjelenhet, és az Elementor 'conditions' feltétele egy ismétlődő
+		// vezérlő "van benne elem" állapotára nem megbízható - ezért a szekció mindig látszik.
 		$this->start_controls_section(
 			'style_user_filters_section',
 			[
-				'label'      => 'Látogatói szűrőpanel',
-				'tab'        => \Elementor\Controls_Manager::TAB_STYLE,
-				'conditions' => [
-					'relation' => 'or',
-					'terms'    => [
-						[ 'name' => 'uf_munkarend', 'operator' => '===', 'value' => 'yes' ],
-						[ 'name' => 'uf_nyelv',     'operator' => '===', 'value' => 'yes' ],
-						[ 'name' => 'uf_dualis',    'operator' => '===', 'value' => 'yes' ],
-						[ 'name' => 'uf_emelt',     'operator' => '===', 'value' => 'yes' ],
-					],
-				],
+				'label' => 'Látogatói szűrőpanel',
+				'tab'   => \Elementor\Controls_Manager::TAB_STYLE,
 			]
 		);
 
@@ -842,6 +837,11 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 		);
 		$uf_any = false;
 		foreach ( $uf_specs as $s ) { if ( $s['on'] ) { $uf_any = true; break; } }
+
+		// Séma-mezőből felvett extra szűrők és a panel kereső mezője (közös a Képzéskártyákkal).
+		$uf_extras = SZEducate_Filter_Extras::build_extras( $settings, $schema );
+		$uf_search = SZEducate_Filter_Extras::build_search( $settings );
+		if ( ! empty( $uf_extras ) || $uf_search['on'] ) { $uf_any = true; }
 		$uf_yes = $uf_label( 'uf_bool_yes', 'Igen' );
 		$uf_no  = $uf_label( 'uf_bool_no', 'Nem' );
 
@@ -1071,6 +1071,8 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 				$f_vals['emelt']  = ( isset( $data['emelt_kovetelmeny'] ) && self::uf_truthy( $data['emelt_kovetelmeny'] ) ) ? '1' : '0';
 			}
 
+			$xf = $uf_any ? SZEducate_Filter_Extras::course_values( $course['title'], $data, $uf_extras, $uf_search ) : null;
+
 			$groups_for_course = array();
 			if ( ! empty( $group_key ) ) {
 				$gv_raw = isset( $data[ $group_key ] ) ? $data[ $group_key ] : '';
@@ -1097,6 +1099,7 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 					'is_active' => $is_active,
 					'score'     => $score,
 					'f'         => $f_vals,
+					'xf'        => $xf,
 				);
 			}
 		}
@@ -1150,7 +1153,7 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 		}
 		echo '<div class="sz-listing-widget' . ( $modern ? ' sz-modern' : '' ) . '" id="sz-listing-' . esc_attr( $wid ) . '">';
 
-		echo $this->uf_render_panel( $uf_specs, $uf_any, $uf_yes, $uf_no, $uf_label, $wid );
+		echo $this->uf_render_panel( $uf_specs, $uf_any, $uf_yes, $uf_no, $uf_label, $wid, $uf_extras, $uf_search );
 
 		echo $filter_badge_html;
 
@@ -1182,6 +1185,9 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 					$li_data .= ' data-f-nyelv="' . esc_attr( implode( ' ', isset( $fi['nyelv'] ) ? $fi['nyelv'] : array() ) ) . '"';
 					$li_data .= ' data-f-dualis="' . esc_attr( isset( $fi['dualis'] ) ? $fi['dualis'] : '0' ) . '"';
 					$li_data .= ' data-f-emelt="' . esc_attr( isset( $fi['emelt'] ) ? $fi['emelt'] : '0' ) . '"';
+					if ( ! empty( $item['xf'] ) ) {
+						$li_data .= SZEducate_Filter_Extras::data_attrs( $item['xf'] );
+					}
 				}
 
 				echo '<li' . $li_data . ' style="display:flex; align-items:flex-start;">';
@@ -1238,6 +1244,9 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 			. $m . ' .sz-lf-title{color:var(--sz-navy);font-size:15px;letter-spacing:.08em;}'
 			. $m . ' .sz-lf-reset{padding:5px 14px;border:1px solid var(--sz-line);border-radius:999px;background:#fff;text-decoration:none;opacity:1;font-size:12px;transition:background .2s,color .2s;}'
 			. $m . ' .sz-lf-reset:hover{background:var(--sz-navy);color:#fff;}'
+			. $m . ' .sz-lf-search-label{color:var(--sz-blue);opacity:1;font-size:11px;}'
+			. $m . ' .sz-lf-search-input{border-radius:999px;padding:8px 16px;font-size:13.5px;}'
+			. $m . ' .sz-lf-search-input:focus{outline:3px solid var(--sz-cyan);outline-offset:1px;}'
 			. $m . ' .sz-lf-groups{flex-wrap:nowrap;align-items:flex-start;gap:8px 26px;}'
 			. $m . ' .sz-lf-group{min-width:0;flex:0 1 auto;}'
 			. $m . ' .sz-lf-group legend{color:var(--sz-blue);opacity:1;font-size:11px;margin-bottom:5px;}'
@@ -1346,7 +1355,7 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 		return ! in_array( $n, array( '', '0', 'false', 'hamis', 'nem', 'no', 'n' ), true );
 	}
 
-	private function uf_render_panel( $uf_specs, $uf_any, $uf_yes, $uf_no, $uf_label, $wid ) {
+	private function uf_render_panel( $uf_specs, $uf_any, $uf_yes, $uf_no, $uf_label, $wid, $uf_extras = array(), $uf_search = array() ) {
 		if ( ! $uf_any ) return '';
 
 		$title = $uf_label( 'uf_title', 'Szűrés' );
@@ -1373,12 +1382,16 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 				. '.sz-listing-filters .sz-lf-group legend{font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.02em;opacity:.7;margin-bottom:4px;padding:0;}'
 				. '.sz-listing-filters .sz-lf-group label{display:flex;align-items:center;gap:8px;font-size:14px;line-height:1.85;cursor:pointer;}'
 				. '.sz-listing-filters .sz-lf-group input{width:16px;height:16px;margin:0;flex-shrink:0;}'
+				. '.sz-listing-filters .sz-lf-search{margin-bottom:12px;}'
+				. '.sz-listing-filters .sz-lf-search-label{display:block;font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.02em;opacity:.7;margin-bottom:4px;}'
+				. '.sz-listing-filters .sz-lf-search-input{width:100%;max-width:420px;box-sizing:border-box;padding:7px 12px;border:1px solid #dfe3ea;border-radius:8px;background:#fff;color:inherit;font:inherit;font-size:14px;}'
 				. '</style>';
 		}
 
 		$out .= '<form class="sz-listing-filters" onsubmit="return false;">';
 		$out .= '<div class="sz-lf-head"><span class="sz-lf-title">' . esc_html( $title ) . '</span>';
 		$out .= '<button type="button" class="sz-lf-reset">' . esc_html( $reset ) . '</button></div>';
+		$out .= SZEducate_Filter_Extras::search_html( $uf_search, 'sz-lf', $wid );
 		$out .= '<div class="sz-lf-groups">';
 		foreach ( $uf_specs as $fkey => $spec ) {
 			if ( empty( $spec['on'] ) ) continue;
@@ -1401,6 +1414,7 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
 			}
 			$out .= '</fieldset>';
 		}
+		$out .= SZEducate_Filter_Extras::groups_html( $uf_extras, 'sz-lf', $wid, $uf_yes, $uf_no );
 		$out .= '</div></form>';
 		$out .= '<p class="sz-listing-no-results sz-lf-hidden" style="font-style:italic; padding:16px 0;">' . esc_html( $no_res ) . '</p>';
 
@@ -1425,6 +1439,20 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
     var items  = [].slice.call(root.querySelectorAll('.sz-course-list > li'));
     var blocks = [].slice.call(root.querySelectorAll('.sz-group-block'));
     var noRes  = root.querySelector('.sz-listing-no-results');
+    var sInput = form.querySelector('.sz-lf-search-input');
+    // Ugyanaz a hajtogatas, mint a szerveroldali fold(): kisbetu + ekezet-lehuzas.
+    function fold(t){
+      t = (t || '').toLowerCase();
+      try { t = t.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); } catch(e) {}
+      return t.replace(/\s+/g, ' ').trim();
+    }
+    function matchesQ(li){
+      if(!sInput) return true;
+      var q = fold(sInput.value);
+      if(!q) return true;
+      var hay = li.getAttribute('data-s') || '';
+      return q.split(' ').every(function(w){ return hay.indexOf(w) > -1; });
+    }
     function selected(){
       var s = {};
       [].forEach.call(form.querySelectorAll('.sz-lf-group'), function(g){
@@ -1445,7 +1473,7 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
     function apply(){
       var s = selected(), any = false;
       items.forEach(function(li){
-        var vis = matches(li, s);
+        var vis = matches(li, s) && matchesQ(li);
         li.classList.toggle('sz-lf-hidden', !vis);
         if(vis) any = true;
       });
@@ -1459,6 +1487,7 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
       if(noRes) noRes.classList.toggle('sz-lf-hidden', any);
     }
     form.addEventListener('change', apply);
+    if(sInput) sInput.addEventListener('input', apply);
     // Igen/Nem rádiógombok: a már bejelöltre újra kattintva kivehető a jelölés
     // (= "egyik se"). A rádió ezt natívan nem engedi. Csoportonként tartjuk az
     // aktív értéket; ha a click ugyanazt hozza, kivesszük. (A click a beviteli
@@ -1483,6 +1512,7 @@ class SZEducate_Listing_Widget extends \Elementor\Widget_Base {
     var reset = form.querySelector('.sz-lf-reset');
     if(reset) reset.addEventListener('click', function(){
       [].forEach.call(form.querySelectorAll('input'), function(cb){ cb.checked = false; });
+      if(sInput) sInput.value = '';
       for(var k in radioState){ radioState[k] = null; }
       apply();
     });

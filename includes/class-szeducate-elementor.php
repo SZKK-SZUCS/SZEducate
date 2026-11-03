@@ -53,6 +53,7 @@ class SZEducate_Elementor {
 	public function register_widgets( $widgets_manager ) {
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/widgets/class-szeducate-links-widget.php';
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/widgets/class-szeducate-status-widget.php';
+		require_once SZEDUCATE_PLUGIN_DIR . 'includes/widgets/class-szeducate-filter-extras.php';
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/widgets/class-szeducate-listing-widget.php';
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/widgets/class-szeducate-keywords-widget.php';
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/widgets/class-szeducate-search-widget.php';
