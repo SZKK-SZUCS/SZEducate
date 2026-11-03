@@ -116,6 +116,7 @@ Az oldalak szerkesztésekor az Elementor panelen a _SZEducate_ kategóriában ta
 
 - **SZEducate Okos Kereső:** Bárhova elhelyezhető. Beállítható benne, hogy "Enter" ütése esetén melyik URL-re vigye a látogatót (Céloldal). A **„Szűrés (aloldalakhoz)"** szekcióban egy vagy több séma-mezőre (pl. Képzési Forma = BSc) korlátozható, hogy egy szűrt aloldalon csak az oda illő képzésekben keressen.
 - **SZEducate Szaklista:** A fő archívum widget. Megadhatod benne az alapértelmezett csoportosítást (pl. Képzési Terület szerint), és egyedi sorrendet is felállíthatsz. Automatikusan reagál, ha a Keresőből vagy a Kulcsszavak widgetből érkezik a látogató. A **Dinamikus Szűrők** közül beállított alap szűrő (pl. csak MSc) mindig érvényes, de nem jelenik meg badge-ként; ha a látogató keresésből érkezik, a badge mellett egy „Szűrő törlése" link visszavezet a teljes (alap-szűrt) listára.
+- **SZEducate Képzéskártyák:** A Szaklista kártyás (3–4 oszlopos rács) változata, külön widgetként. Kártyánként kiemelt kép (ennek hiányában a Beállítások oldali alapértelmezett kép), választható séma-mezőkből címkék (pl. képzési forma, tudományterület), opcionális „Felirat: érték" adatsorok és „Tovább" gomb; a kártya egésze kattintható. A kártya sarkában állapot-pötty jelzi a meghirdetést: aktív képzésnél pulzáló, a színe a Stílus fülön állítható, nem meghirdetettnél szürke (kikapcsolható). Opcionális csoportosítás fejléccel, alap szűrők és láthatóság-kapcsoló ugyanúgy, mint a Szaklistában. Ár, előjelentkezés és leírás egyelőre nincs a kártyán.
 - **SZEducate Kulcsszavak:** Kiteszi egy adott szak címkéit. Ha megadod a "Szaklista" oldalad URL-jét a beállításaiban, a címkék kattinthatóvá válnak.
 
 ---
@@ -150,6 +151,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 4.  A weboldalak WordPress rendszere ezt érzékelni fogja, és felajánlja az adminisztrátoroknak a frissítést.
 
 ## Changelog
+
+### 0.9.66
+
+- **Új widget: SZEducate Képzéskártyák (#68).** A Szaklista kártyás (3–4 oszlopos) változata külön widgetként, a unichamb.sze.hu szakirányú továbbképzések oldalának mintájára: kiemelt kép (ennek hiányában a Beállítások oldali alapértelmezett kép), választható séma-mezőkből címkék (pl. képzési forma, tudományterület), opcionális „Felirat: érték” adatsorok és „Tovább” gomb. A kártya sarkában állapot-pötty jelzi a meghirdetést: aktív képzésnél pulzáló, a színe a Stílus fülön állítható; nem meghirdetettnél szürke (kikapcsolható). Opcionális csoportosítás, alap szűrők és láthatóság-kapcsoló, mint a Szaklistában. Ár, előjelentkezés és leírás egyelőre nincs a kártyán. A meglévő Szaklista widget nem változott.
 
 ### 0.9.65
 
