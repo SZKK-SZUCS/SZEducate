@@ -152,6 +152,12 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.69
+
+- **Javítás: az automata inaktiválás nem működött (#76).** A napi ellenőrzés a `passziv_ettol` mezőt olvasta, a sémában viszont az "Inaktiválás dátuma (ha van)" mező kulcsa `inaktiv_ettol`, így a megadott dátum sosem váltott ki inaktiválást - a lejárt képzések aktívak maradtak. Mostantól az `inaktiv_ettol` (és a régi `passziv_ettol`) dátumot is figyeli, és a dátum napján már inaktivál (a widgetekkel egyezően: "ma >= dátum"). Az inaktiválás után a Hub felé szinkronizál, és a listázó widgetek gyorsítótárát is üríti.
+- A Képzések lista tömeges **Aktiválás** művelete is az `inaktiv_ettol` mezőbe írja a megadott lejárati dátumot (korábban egy, a sémában nem létező `passziv_ettol` kulcsba).
+- **Figyelem frissítéskor:** a következő napi futáskor (legfeljebb 24 órán belül) minden, már lejárt dátumú, de még aktív képzés egyszerre inaktívvá válik és szinkronizálódik a Hubra.
+
 ### 0.9.68
 
 - **Képzéskártyák: a Szaklista keresője és kategória-URL-je is működik (#72).** Eddig a widget figyelmen kívül hagyta a `?sz_search=` paramétert (a Szaklista Kereső widget ide irányít) és a `/oldal/<mező>/<érték>/` kategórialinket, ezért a `/kepzesek/` összes-szak oldalon nem lehetett a régi Szaklista helyére tenni. Mostantól: a szabadszavas keresés a Szaklista pontozásával szűr és rendez (cím pontos / eleji / szó / rész egyezés, kiemelt mezők nagyobb súllyal), a kategórialink felülírja az alap szűrőket, a `?sz_group=<mező>` felülírja a csoportosítást (csak létező séma-mezőt fogad el). Új „Aktív szűrő kiírása a lista fölött" és „Szűrő-törlő link szövege" vezérlők (mint a Szaklistában): csak extra szűrésnél (kereső / kategórialink) jelenik meg, az alap szűrőt nem írja ki.

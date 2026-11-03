@@ -702,10 +702,11 @@ class SZEducate_Client {
 
 				$data['meghirdetes_allapota'] = $status_val;
 				
-				if ( $bulk_action === 'szeducate_activate' ) {
-					$data['passziv_ettol'] = $expiry_date;
-				} else {
-					$data['passziv_ettol'] = ''; 
+				// A séma szerinti `inaktiv_ettol` mezőbe írunk (lásd EXPIRY_DATE_KEYS), a régi
+				// `passziv_ettol` kulcsot pedig kiürítjük, hogy ne maradjon ellentmondó dátum.
+				$data['inaktiv_ettol'] = ( $bulk_action === 'szeducate_activate' ) ? $expiry_date : '';
+				if ( isset( $data['passziv_ettol'] ) ) {
+					$data['passziv_ettol'] = '';
 				}
 
 				$wpdb->update(
@@ -1125,31 +1126,56 @@ class SZEducate_Client {
 		}
 	}
 
+	// A séma (zárolt) mezője az "Inaktiválás dátuma (ha van)", kulcsa `inaktiv_ettol`. A régi
+	// `passziv_ettol` kulcsot is figyeljük: a cron korábban CSAK ezt olvasta, ezért a ténylegesen
+	// megadott dátum sosem váltott ki inaktiválást (#76).
+	const EXPIRY_DATE_KEYS = array( 'inaktiv_ettol', 'passziv_ettol' );
+
 	public function process_daily_expirations() {
 		global $wpdb;
 		$table_name = $wpdb->prefix . 'szeducate_courses_data';
 		$courses = $wpdb->get_results( "SELECT id, local_post_id, course_data FROM $table_name", ARRAY_A );
 		$today = current_time( 'Y-m-d' );
+		$changed = false;
 
 		foreach ( $courses as $course ) {
 			$data = json_decode( $course['course_data'], true );
 			if ( ! is_array( $data ) ) continue;
 
-			if ( isset( $data['meghirdetes_allapota'] ) && $data['meghirdetes_allapota'] === 'Aktív' ) {
-				if ( ! empty( $data['passziv_ettol'] ) && $data['passziv_ettol'] < $today ) {
-					
-					$data['meghirdetes_allapota'] = 'Inaktív';
-					$data['passziv_ettol'] = '';
+			$status = isset( $data['meghirdetes_allapota'] ) ? mb_strtolower( trim( (string) $data['meghirdetes_allapota'] ), 'UTF-8' ) : '';
+			if ( $status !== 'aktív' && $status !== 'aktiv' ) continue;
 
-					$wpdb->update(
-						$table_name,
-						array( 'course_data' => wp_json_encode( $data, JSON_UNESCAPED_UNICODE ) ),
-						array( 'id' => $course['id'] )
-					);
-
-					wp_schedule_single_event( time(), 'szeducate_background_sync', array( $course['local_post_id'] ) );
+			// A dátum "-tól" jellegű (a widgetek is így kezelik: ma >= dátum -> inaktív), ezért a
+			// megadott napon is inaktiválunk, nem csak a következőn.
+			$expired = false;
+			foreach ( self::EXPIRY_DATE_KEYS as $date_key ) {
+				$raw = isset( $data[ $date_key ] ) ? trim( (string) $data[ $date_key ] ) : '';
+				if ( $raw === '' ) continue;
+				$ts = strtotime( $raw );
+				if ( $ts !== false && gmdate( 'Y-m-d', $ts ) <= $today ) {
+					$expired = true;
 				}
 			}
+			if ( ! $expired ) continue;
+
+			$data['meghirdetes_allapota'] = 'Inaktív';
+			foreach ( self::EXPIRY_DATE_KEYS as $date_key ) {
+				if ( isset( $data[ $date_key ] ) ) $data[ $date_key ] = '';
+			}
+
+			$wpdb->update(
+				$table_name,
+				array( 'course_data' => wp_json_encode( $data, JSON_UNESCAPED_UNICODE ) ),
+				array( 'id' => $course['id'] )
+			);
+
+			wp_schedule_single_event( time(), 'szeducate_background_sync', array( $course['local_post_id'] ) );
+			$changed = true;
+		}
+
+		// A listázó widgetek / keresők 5 perces gyorsítótára ne mutassa tovább aktívként.
+		if ( $changed ) {
+			self::invalidate_courses_cache();
 		}
 	}
 
