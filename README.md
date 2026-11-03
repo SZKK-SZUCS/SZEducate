@@ -152,6 +152,12 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.69
+
+- **Dinamikus hivatkozás címke: működő `mailto:` / `tel:` (#74).** Az Elementor „Előtte" mezőjébe írt `mailto:` / `tel:` mögé eddig `http://` került (`tel:http://+3630…`), mert a WordPress `esc_url()`-je a séma nélküli e-mailt / telefonszámot automatikusan `http://`-sel látta el. Mostantól az e-mail és a telefonszám felismerése után séma nélküli, tisztított érték (a telefonszámból szóköz, kötőjel, zárójel kikerül) adódik át; ha az „Előtte" üres, a címke maga teszi hozzá a `mailto:` / `tel:` előtagot. A „Képzés Adat" címke „Kattintható hivatkozásként" módjában is javítva.
+- **A „Képzés Videó URL (SZEducate)" címke új neve: „Képzés Hivatkozás (SZEducate)" (#74).** Nem csak videóhoz használható: bármely Link mezőbe köthető, és mostantól az E-mail típusú séma-mezők (pl. kapcsolattartó e-mail) is kiválaszthatók benne. A belső azonosító nem változott, a meglévő oldalak nem sérülnek.
+- **„Másolás ikon (vágólap)" a „Képzés Adat" címkében (#74).** Új kapcsoló: az érték mellé kattintható ikon kerül, ami a vágólapra másolja (pl. kapcsolattartó e-mail / telefonszám); sikeres másoláskor rövid ideig pipára vált. Az ikon a szöveg színét és betűméretét követi (`.szeducate-copy` CSS-osztállyal átszabható), mailto / tel hivatkozáson belül sem indítja el a levelezőt / tárcsázót, billentyűzettel is használható.
+
 ### 0.9.68
 
 - **Képzéskártyák: a Szaklista keresője és kategória-URL-je is működik (#72).** Eddig a widget figyelmen kívül hagyta a `?sz_search=` paramétert (a Szaklista Kereső widget ide irányít) és a `/oldal/<mező>/<érték>/` kategórialinket, ezért a `/kepzesek/` összes-szak oldalon nem lehetett a régi Szaklista helyére tenni. Mostantól: a szabadszavas keresés a Szaklista pontozásával szűr és rendez (cím pontos / eleji / szó / rész egyezés, kiemelt mezők nagyobb súllyal), a kategórialink felülírja az alap szűrőket, a `?sz_group=<mező>` felülírja a csoportosítást (csak létező séma-mezőt fogad el). Új „Aktív szűrő kiírása a lista fölött" és „Szűrő-törlő link szövege" vezérlők (mint a Szaklistában): csak extra szűrésnél (kereső / kategórialink) jelenik meg, az alap szűrőt nem írja ki.
