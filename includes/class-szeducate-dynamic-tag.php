@@ -3,6 +3,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-contact-link.php';
+
 class SZEducate_Dynamic_Tag extends \Elementor\Core\DynamicTags\Tag {
 
 	public function get_name() {
@@ -127,6 +129,22 @@ class SZEducate_Dynamic_Tag extends \Elementor\Core\DynamicTags\Tag {
 				'condition'    => array( 'field_key!' => '', 'render_as' => 'link' ),
 			)
 		);
+
+		// Opt-in: az érték mellé kattintható "másolás a vágólapra" ikon kerül (kapcsolattartó
+		// e-mail / telefonszám, vagy bármely más egyetlen értékű mező mellé).
+		$this->add_control(
+			'copy_button',
+			array(
+				'label'        => 'Másolás ikon (vágólap)',
+				'type'         => \Elementor\Controls_Manager::SWITCHER,
+				'label_on'     => 'Igen',
+				'label_off'    => 'Nem',
+				'return_value' => 'yes',
+				'default'      => '',
+				'description'  => 'Az érték mellé egy ikon kerül, amire kattintva a látogató a vágólapra másolhatja. Az ikon a szöveg színét és a betűméretet követi (osztály: .szeducate-copy). Csak egyetlen értékű (nem lista) mezőnél jelenik meg.',
+				'condition'    => array( 'field_key!' => '' ),
+			)
+		);
 	}
 
 	// A megadott kulcsú séma-mező jelölőnégyzet (több opció) típusú-e - ezeknél a
@@ -212,7 +230,10 @@ class SZEducate_Dynamic_Tag extends \Elementor\Core\DynamicTags\Tag {
 		// kontextusban (Címsor / Szövegszerkesztő) is elhelyezhető egy dinamikus URL-re
 		// mutató inline hivatkozás (pl. „Kattints ide"), nem csak nyers URL-ként.
 		if ( $this->get_settings( 'render_as' ) === 'link' && is_string( $value ) ) {
-			$url = esc_url( trim( $value ) );
+			// E-mail / telefonszám: a séma nélküli érték esc_url-je "http://"-t fűzne elé -
+			// itt mindig mi tesszük hozzá a "mailto:" / "tel:" előtagot.
+			$contact = SZEducate_Contact_Link::classify( $value );
+			$url     = esc_url( $contact['scheme'] . $contact['value'] );
 			if ( $url === '' ) return; // érvénytelen / nem támogatott protokoll -> a Fallback él
 
 			$link_text = $this->get_settings( 'link_text' );
@@ -228,6 +249,10 @@ class SZEducate_Dynamic_Tag extends \Elementor\Core\DynamicTags\Tag {
 				: '';
 
 			echo '<a href="' . $url . '"' . $target . '>' . esc_html( $link_text ) . '</a>';
+			// A másolás ikon a hivatkozáson KÍVÜL áll, hogy a kattintás ne nyissa meg azt.
+			if ( $this->get_settings( 'copy_button' ) === 'yes' ) {
+				echo SZEducate_Contact_Link::copy_button( $contact['value'] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- a segéd maga escape-el
+			}
 			return;
 		}
 
@@ -259,7 +284,11 @@ class SZEducate_Dynamic_Tag extends \Elementor\Core\DynamicTags\Tag {
 		} elseif ( is_bool( $value ) ) {
 			echo $value ? 'Igen' : 'Nem';
 		} else {
-			echo wp_kses_post( $this->format_hu_value( $field_key, $value ) );
+			$formatted = $this->format_hu_value( $field_key, $value );
+			echo wp_kses_post( $formatted );
+			if ( $this->get_settings( 'copy_button' ) === 'yes' && is_scalar( $formatted ) ) {
+				echo SZEducate_Contact_Link::copy_button( $formatted ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- a segéd maga escape-el
+			}
 		}
 	}
 }

@@ -3,13 +3,17 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-// URL-kategóriás Dynamic Tag: egy "url" típusú séma-mező (pl. a képzés videója)
-// hivatkozását adja vissza, hogy az Elementor PRO beépített Videó widgetjének
-// "Link" mezőjébe dinamikus forrásként beköthető legyen - így a natív widget teljes
-// felszerelése (arány, előnézeti kép, lightbox, lejátszás ikon, stílusok) használható.
-// A sima "Képzés Adat" tag SZÖVEG-kategóriás, azt a Videó widget nem fogadja el.
+// URL-kategóriás Dynamic Tag: egy "url" / "text" / "email" típusú séma-mező hivatkozását
+// adja vissza, bármelyik Elementor "Link" mezőbe dinamikus forrásként beköthető (gomb,
+// kép-hivatkozás, Videó widget "Link" mezője - így a natív Videó widget teljes felszerelése
+// is használható). A sima "Képzés Adat" tag SZÖVEG-kategóriás, azt a Link mezők nem fogadják el.
 // (Dynamic Tag = Elementor PRO funkció; PRO nélkül a "SZEducate Képzés Videó" widget
 //  a megoldás.)
+//
+// A tag neve ('szeducate-course-video-url') tudatosan nem változott, mert a már elmentett
+// oldalak ezen az azonosítón hivatkoznak rá - csak a megjelenő cím lett általános.
+require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-contact-link.php';
+
 class SZEducate_Video_Dynamic_Tag extends \Elementor\Core\DynamicTags\Tag {
 
 	public function get_name() {
@@ -17,7 +21,7 @@ class SZEducate_Video_Dynamic_Tag extends \Elementor\Core\DynamicTags\Tag {
 	}
 
 	public function get_title() {
-		return 'Képzés Videó URL (SZEducate)';
+		return 'Képzés Hivatkozás (SZEducate)';
 	}
 
 	public function get_group() {
@@ -36,7 +40,7 @@ class SZEducate_Video_Dynamic_Tag extends \Elementor\Core\DynamicTags\Tag {
 			foreach ( $schema as $group ) {
 				if ( empty( $group['fields'] ) ) continue;
 				foreach ( $group['fields'] as $field ) {
-					if ( isset( $field['type'], $field['key'] ) && in_array( $field['type'], array( 'url', 'text' ), true ) ) {
+					if ( isset( $field['type'], $field['key'] ) && in_array( $field['type'], array( 'url', 'text', 'email' ), true ) ) {
 						$options[ $field['key'] ] = isset( $field['label'] ) ? $field['label'] : $field['key'];
 					}
 				}
@@ -46,11 +50,11 @@ class SZEducate_Video_Dynamic_Tag extends \Elementor\Core\DynamicTags\Tag {
 		$this->add_control(
 			'field_key',
 			array(
-				'label'       => 'Videó / URL mező',
+				'label'       => 'Hivatkozás mező',
 				'type'        => \Elementor\Controls_Manager::SELECT,
 				'options'     => $options,
 				'default'     => isset( $options['video'] ) ? 'video' : '',
-				'description' => 'Csak a Séma Tervezőben "Link" (url) típusúra állított mezők.',
+				'description' => 'Link (url), Egysoros szöveg és E-mail típusú mezők. E-mail / telefonszám esetén az "Előtte" (Speciális fül) mezőbe írt "mailto:" / "tel:" közvetlenül az értékhez kerül; ha üresen hagyod, a tag magától hozzáteszi.',
 			)
 		);
 	}
@@ -66,6 +70,17 @@ class SZEducate_Video_Dynamic_Tag extends \Elementor\Core\DynamicTags\Tag {
 		$data = SZEducate_Client::get_course_data_for_post( $post_id );
 		if ( ! is_array( $data ) || empty( $data[ $field_key ] ) || ! is_string( $data[ $field_key ] ) ) return;
 
-		echo esc_url( trim( $data[ $field_key ] ) );
+		// E-mail / telefonszám: az esc_url() séma nélkül "http://"-t fűzne elé, ami a kézzel
+		// beírt "mailto:" / "tel:" előtaggal együtt "tel:http://+36..." hibát adna. Ezért itt
+		// a séma nélküli (tisztított) értéket adjuk; a séma vagy az "Előtte" mezőből jön,
+		// vagy - ha az üres - mi tesszük hozzá.
+		$link = SZEducate_Contact_Link::classify( $data[ $field_key ] );
+		if ( $link['kind'] !== 'url' ) {
+			$before = $this->get_settings( 'before' );
+			echo esc_attr( ( is_string( $before ) && trim( $before ) !== '' ) ? $link['value'] : $link['scheme'] . $link['value'] );
+			return;
+		}
+
+		echo esc_url( $link['value'] );
 	}
 }
