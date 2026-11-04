@@ -152,6 +152,11 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.74
+
+- **Excel import: a dátum mezők ÉÉÉÉ-HH-NN formátumban kerülnek be (#84).** Az importer korábban a dátumcellákat a cella megjelenített formátumában olvasta be (`toArray()`), ezért a valódi Excel-dátumok amerikai `8/31/2027` alakban kerültek a `date` típusú mezőkbe (pl. jelentkezési határidő). Mostantól a cella nyers értékéből számol, így a cella számformátumától függetlenül `2027-08-31` lesz. Szövegként beírt dátumnál az egyértelmű formátumokat (`2027.02.20.`, `20.02.2027`, `2027/02/20`, egyértelmű perjeles) alakítja át; ami nem felismerhető (pl. „2026. szeptember"), vagy nem eldönthető sorrendű (`3/4/2027`), az érintetlen marad. Nem éjféli időrész megmarad (`2027-03-15 14:30`).
+- **Nem érinti:** a már tárolt adatot nem írja át; a korábban betöltött rossz formátumú dátumok javítása külön lépés.
+
 ### 0.9.73
 
 - **Indulás időszaka: szavanként szétesett régi értékek visszaállítása (#82).** Egyes képzéseknél a többszavas opció szavanként szétesve volt tárolva (pl. `Szeptemberi; általános; eljárás` a `Szeptemberi általános eljárás` helyett), ezért a szerkesztőben egyik opció sem látszott bejelölve, a 0.9.72 óta pedig „(egyéb)" elemként jelentek meg. A Kliens és a Hub szerkesztője betöltéskor visszaállítja az opciót, ha az egymás utáni elemek pontosan egy többszavas séma-opció szavai; a vesszővel összefűzött maradékot is kezeli, a duplikációt kiszűri. Ami nem illeszkedik, érintetlen marad. Minden jelölőnégyzet-mezőre érvényes.
