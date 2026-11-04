@@ -11,6 +11,8 @@ use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
 
+require_once __DIR__ . '/class-szeducate-date-normalizer.php';
+
 class SZEducate_Import_Export {
 
     public function init() {
@@ -553,6 +555,26 @@ class SZEducate_Import_Export {
         exit;
     }
 
+    /**
+     * Egy "date" típusú mező cellájának értéke ÉÉÉÉ-HH-NN formában. Valódi Excel-dátumcellánál
+     * a nyers sorszámból számol (a toArray() megjelenített szövege a cella formátumától függ),
+     * szövegnél a felismerhető formátumokat alakítja át, a többit érintetlenül hagyja.
+     */
+    private function read_date_cell( $sheet, $col_index, $row_index, $val_str ) {
+        if ( $val_str === '' ) return '';
+        try {
+            $cell = $sheet->getCell( array( (int) $col_index + 1, (int) $row_index + 1 ) );
+            $raw  = $cell->isFormula() ? $cell->getCalculatedValue() : $cell->getValue();
+            if ( is_numeric( $raw ) && \PhpOffice\PhpSpreadsheet\Shared\Date::isDateTime( $cell ) ) {
+                $iso = SZEducate_Date_Normalizer::from_excel_serial( $raw );
+                if ( $iso !== null ) return $iso;
+            }
+        } catch ( \Throwable $e ) {
+            // Nem olvasható a cella: a megjelenített szövegből dolgozunk tovább.
+        }
+        return SZEducate_Date_Normalizer::from_text( $val_str );
+    }
+
     public function render_page() {
         $parsed_data = null;
         $error_msg = '';
@@ -611,6 +633,12 @@ class SZEducate_Import_Export {
                                                 $val_to_set = null;
                                             }
                                         } 
+                                        elseif ( $ftype === 'date' ) {
+                                            // A date mező ÉÉÉÉ-HH-NN értéket vár: a cella nyers értékéből számolunk,
+                                            // mert a toArray() a cella megjelenített formátumát adja (pl. "8/31/2027").
+                                            $val_to_set = $this->read_date_cell( $sheet, $index, $i, $val_str );
+                                            if ( $val_to_set === '' ) $val_to_set = null;
+                                        }
                                         elseif ( in_array($ftype, ['repeater', 'links', 'group', 'flexible_content']) ) {
                                             if ( $val_str === '' ) {
                                                 $val_to_set = null;
