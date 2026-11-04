@@ -152,6 +152,12 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.71
+
+- **WYSIWYG szerkesztő: betűtípus, betűméret és igazítás (#78).** A Kliens szerkesztő formázott szöveg (WYSIWYG) mezőjének eszköztára két sorra bomlik, és új legördülők kerülnek bele: betűtípus (Montserrat, Arial, Georgia, Times New Roman, Verdana, Courier New) és betűméret (12–32px). Az alapértelmezett a Montserrat 16px: a szerkesztő törzse ezt használja, így az alap szöveg nem kap felesleges inline stílust.
+- **Igazítás: balra, középre, jobbra, sorkizárt, és új „Sorkizárt (utolsó sor középen)" gomb.** Az utolsó sor középre zárása `text-align:justify` + `text-align-last:center` stílussal készül; a többi igazítás-gomb törli a `text-align-last`-ot, hogy ne maradjon vissza. A frontenden a „Képzés Adat" dynamic tag kimenete csak erre az egy esetre engedélyezi a `text-align-last` tulajdonságot a `wp_kses_post` szűrőben (globálisan nem).
+- **Nem érinti:** a Hub oldali Képzések áttekintő szerkesztőjét (sima `wp_editor`). A szerkesztő-előnézetben a Montserrat csak akkor látszik, ha a böngészőben elérhető; a frontenden a téma betűtípusa érvényes.
+
 ### 0.9.70
 
 - **Javítás: az automata inaktiválás nem működött (#76).** A napi ellenőrzés a `passziv_ettol` mezőt olvasta, a sémában viszont az "Inaktiválás dátuma (ha van)" mező kulcsa `inaktiv_ettol`, így a megadott dátum sosem váltott ki inaktiválást - a lejárt képzések aktívak maradtak. Mostantól az `inaktiv_ettol` (és a régi `passziv_ettol`) dátumot is figyeli, és a dátum napján már inaktivál (a widgetekkel egyezően: "ma >= dátum"). Az inaktiválás után a Hub felé szinkronizál, és a listázó widgetek gyorsítótárát is üríti.
