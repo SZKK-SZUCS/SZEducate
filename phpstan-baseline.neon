@@ -152,7 +152,7 @@ parameters:
 
 		-
 			message: "#^Constant SZEDUCATE_PLUGIN_DIR not found\\.$#"
-			count: 16
+			count: 17
 			path: includes/class-szeducate-elementor.php
 
 		-
@@ -212,6 +212,11 @@ parameters:
 
 		-
 			message: "#^Instantiated class SZEducate_Status_Widget not found\\.$#"
+			count: 1
+			path: includes/class-szeducate-elementor.php
+
+		-
+			message: "#^Instantiated class SZEducate_Title_Dynamic_Tag not found\\.$#"
 			count: 1
 			path: includes/class-szeducate-elementor.php
 

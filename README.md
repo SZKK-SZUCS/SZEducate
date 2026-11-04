@@ -152,6 +152,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.76
+
+- **Új dinamikus tag: „Képzés Címe – tördelhető (SZEducate)".** A képzés címét írja ki, a perjel (`/`) után láthatatlan tördelési ponttal (zero-width space). A hosszú, perjeles szaknevek (pl. „Élelmezésszervező szakmérnök/szakmenedzser") így a perjelnél törnek, nem a szó közepén, és nem lógnak ki az oszlopból. A beépített „Bejegyzés címe" tag változatlan, a meglévő oldalak nem érintettek; az új tagot a sablon címsorában kell kiválasztani.
+
 ### 0.9.75
 
 - **„Képzés Adat" dinamikus tag: a magyar formázású dátum számmal jelenik meg (#86).** A „Magyar formázás" mostantól a dátum típusú mezőket `2027. 02. 20.` alakban írja ki (ÉÉÉÉ. HH. NN.), a korábbi `2027. február 20.` hónapnévvel írt forma helyett. A tárolt érték változatlanul `ÉÉÉÉ-HH-NN`.
