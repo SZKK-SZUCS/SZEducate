@@ -152,6 +152,11 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.73
+
+- **Indulás időszaka: szavanként szétesett régi értékek visszaállítása (#82).** Egyes képzéseknél a többszavas opció szavanként szétesve volt tárolva (pl. `Szeptemberi; általános; eljárás` a `Szeptemberi általános eljárás` helyett), ezért a szerkesztőben egyik opció sem látszott bejelölve, a 0.9.72 óta pedig „(egyéb)" elemként jelentek meg. A Kliens és a Hub szerkesztője betöltéskor visszaállítja az opciót, ha az egymás utáni elemek pontosan egy többszavas séma-opció szavai; a vesszővel összefűzött maradékot is kezeli, a duplikációt kiszűri. Ami nem illeszkedik, érintetlen marad. Minden jelölőnégyzet-mezőre érvényes.
+- **Nem érinti:** a Hubon már tárolt adatot nem írja át tömegesen; a javított érték a képzés következő mentésekor kerül vissza az adatba.
+
 ### 0.9.72
 
 - **Indulás időszaka: szabad szöveges „Egyéb időszak" (#80).** Az `indulas_idoszaka` jelölőnégyzet-mező alatt szövegmező jelent meg (pl. „2027 február"), a Kliens szerkesztőben és a Hub Képzések áttekintő szerkesztőjében is. Az érték ugyanabba a listába kerül, mint a bejelölt séma-opciók, így az import/export, a státusz widget és a szűrők változtatás nélkül kezelik. A séma-opciókon kívüli értékek „(egyéb)" felirattal, bejelölve jelennek meg, és a pipa kivételével törölhetők. A `;` karaktert (ez az elválasztó) szóközre cseréli, a duplikációt kis/nagybetűtől függetlenül kiszűri.

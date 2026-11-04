@@ -416,6 +416,51 @@ class SZEducate_Courses_Overview {
 		<?php
 	}
 
+	/**
+	 * Régi hibás adatok javítása: egyes képzéseknél a többszavas opció szavanként szétesve
+	 * van tárolva ("Szeptemberi; általános; eljárás"), így egyik opció sem látszott
+	 * bejelölve. Ha az egymás utáni elemek pontosan egy többszavas opció szavai,
+	 * visszaállítjuk az opciót; ami nem illeszkedik, érintetlen marad.
+	 * A React-szerkesztő (reassembleSplitOptions, src/index.js) ugyanezt csinálja.
+	 */
+	private static function reassemble_split_options( $values, $options ) {
+		$known = array_values( array_filter( array_map( 'trim', (array) $options ), function ( $o ) { return $o !== ''; } ) );
+
+		$multi = array();
+		foreach ( $known as $o ) {
+			if ( preg_match( '/\s/u', $o ) ) {
+				$multi[ $o ] = preg_split( '/\s+/u', $o );
+			}
+		}
+		if ( empty( $multi ) ) return $values;
+		uasort( $multi, function ( $a, $b ) { return count( $b ) <=> count( $a ); } );
+
+		// A vesszővel összefűzött maradékok ("eljárás, Februári") külön elemek, de csak ha az
+		// elem nem maga is ismert opció (az opcióban legitim vessző lehet).
+		$out = array();
+		foreach ( (array) $values as $v ) {
+			$s = trim( (string) $v );
+			if ( $s !== '' && strpos( $s, ',' ) !== false && ! in_array( $s, $known, true ) ) {
+				foreach ( explode( ',', $s ) as $p ) {
+					$p = trim( $p );
+					if ( $p !== '' ) $out[] = $p;
+				}
+			} elseif ( $s !== '' ) {
+				$out[] = $s;
+			}
+		}
+
+		foreach ( $multi as $opt => $words ) {
+			$n = count( $words );
+			for ( $i = 0; $i + $n <= count( $out ); $i++ ) {
+				if ( array_slice( $out, $i, $n ) === $words ) {
+					array_splice( $out, $i, $n, array( $opt ) );
+				}
+			}
+		}
+		return array_values( array_unique( $out ) );
+	}
+
 	private function render_field_input( $field, $value ) {
 		$key   = $field['key'];
 		$type  = isset( $field['type'] ) ? $field['type'] : 'text';
@@ -473,6 +518,7 @@ class SZEducate_Courses_Overview {
 			case 'checkbox':
 				$options = isset( $field['options'] ) ? array_map( 'trim', explode( ';', $field['options'] ) ) : array();
 				$selected_vals = is_array( $value ) ? $value : ( $value !== '' ? explode( ';', $value ) : array() );
+				$selected_vals = self::reassemble_split_options( $selected_vals, $options );
 				foreach ( $options as $opt ) {
 					if ( $opt === '' ) continue;
 					$checked = in_array( trim( $opt ), array_map( 'trim', $selected_vals ), true );
