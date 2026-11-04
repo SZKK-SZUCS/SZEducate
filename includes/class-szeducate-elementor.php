@@ -44,10 +44,12 @@ class SZEducate_Elementor {
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-dynamic-tag.php';
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-image-dynamic-tag.php';
 		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-video-dynamic-tag.php';
+		require_once SZEDUCATE_PLUGIN_DIR . 'includes/class-szeducate-title-dynamic-tag.php';
 		$dynamic_tags_manager->register_group( 'szeducate', array( 'title' => 'SZEducate Adatok' ) );
 		$dynamic_tags_manager->register( new SZEducate_Dynamic_Tag() );
 		$dynamic_tags_manager->register( new SZEducate_Image_Dynamic_Tag() );
 		$dynamic_tags_manager->register( new SZEducate_Video_Dynamic_Tag() );
+		$dynamic_tags_manager->register( new SZEducate_Title_Dynamic_Tag() );
 	}
 
 	public function register_widgets( $widgets_manager ) {

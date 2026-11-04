@@ -19,3 +19,4 @@ parameters:
         - includes/class-szeducate-dynamic-tag.php
         - includes/class-szeducate-image-dynamic-tag.php
         - includes/class-szeducate-video-dynamic-tag.php
+        - includes/class-szeducate-title-dynamic-tag.php
