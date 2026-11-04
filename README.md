@@ -152,11 +152,17 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
-### 0.9.69
+### 0.9.70
 
 - **Javítás: az automata inaktiválás nem működött (#76).** A napi ellenőrzés a `passziv_ettol` mezőt olvasta, a sémában viszont az "Inaktiválás dátuma (ha van)" mező kulcsa `inaktiv_ettol`, így a megadott dátum sosem váltott ki inaktiválást - a lejárt képzések aktívak maradtak. Mostantól az `inaktiv_ettol` (és a régi `passziv_ettol`) dátumot is figyeli, és a dátum napján már inaktivál (a widgetekkel egyezően: "ma >= dátum"). Az inaktiválás után a Hub felé szinkronizál, és a listázó widgetek gyorsítótárát is üríti.
 - A Képzések lista tömeges **Aktiválás** művelete is az `inaktiv_ettol` mezőbe írja a megadott lejárati dátumot (korábban egy, a sémában nem létező `passziv_ettol` kulcsba).
 - **Figyelem frissítéskor:** a következő napi futáskor (legfeljebb 24 órán belül) minden, már lejárt dátumú, de még aktív képzés egyszerre inaktívvá válik és szinkronizálódik a Hubra.
+
+### 0.9.69
+
+- **Dinamikus hivatkozás címke: működő `mailto:` / `tel:` (#74).** Az Elementor „Előtte" mezőjébe írt `mailto:` / `tel:` mögé eddig `http://` került (`tel:http://+3630…`), mert a WordPress `esc_url()`-je a séma nélküli e-mailt / telefonszámot automatikusan `http://`-sel látta el. Mostantól az e-mail és a telefonszám felismerése után séma nélküli, tisztított érték (a telefonszámból szóköz, kötőjel, zárójel kikerül) adódik át; ha az „Előtte" üres, a címke maga teszi hozzá a `mailto:` / `tel:` előtagot. A „Képzés Adat" címke „Kattintható hivatkozásként" módjában is javítva.
+- **A „Képzés Videó URL (SZEducate)" címke új neve: „Képzés Hivatkozás (SZEducate)" (#74).** Nem csak videóhoz használható: bármely Link mezőbe köthető, és mostantól az E-mail típusú séma-mezők (pl. kapcsolattartó e-mail) is kiválaszthatók benne. A belső azonosító nem változott, a meglévő oldalak nem sérülnek.
+- **„Másolás ikon (vágólap)" a „Képzés Adat" címkében (#74).** Új kapcsoló: az érték mellé kattintható ikon kerül, ami a vágólapra másolja (pl. kapcsolattartó e-mail / telefonszám); sikeres másoláskor rövid ideig pipára vált. Az ikon a szöveg színét és betűméretét követi (`.szeducate-copy` CSS-osztállyal átszabható), mailto / tel hivatkozáson belül sem indítja el a levelezőt / tárcsázót, billentyűzettel is használható.
 
 ### 0.9.68
 
