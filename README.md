@@ -152,6 +152,11 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.75
+
+- **„Képzés Adat" dinamikus tag: a magyar formázású dátum számmal jelenik meg (#86).** A „Magyar formázás" mostantól a dátum típusú mezőket `2027. 02. 20.` alakban írja ki (ÉÉÉÉ. HH. NN.), a korábbi `2027. február 20.` hónapnévvel írt forma helyett. A tárolt érték változatlanul `ÉÉÉÉ-HH-NN`.
+- **Figyelem:** a „Magyar formázás" módot használó meglévő oldalakon a dátumok a frissítés után az új, számos alakban jelennek meg. A „Nyers érték" mód és a szám típusú mezők formázása nem változott.
+
 ### 0.9.74
 
 - **Excel import: a dátum mezők ÉÉÉÉ-HH-NN formátumban kerülnek be (#84).** Az importer korábban a dátumcellákat a cella megjelenített formátumában olvasta be (`toArray()`), ezért a valódi Excel-dátumok amerikai `8/31/2027` alakban kerültek a `date` típusú mezőkbe (pl. jelentkezési határidő). Mostantól a cella nyers értékéből számol, így a cella számformátumától függetlenül `2027-08-31` lesz. Szövegként beírt dátumnál az egyértelmű formátumokat (`2027.02.20.`, `20.02.2027`, `2027/02/20`, egyértelmű perjeles) alakítja át; ami nem felismerhető (pl. „2026. szeptember"), vagy nem eldönthető sorrendű (`3/4/2027`), az érintetlen marad. Nem éjféli időrész megmarad (`2027-03-15 14:30`).
