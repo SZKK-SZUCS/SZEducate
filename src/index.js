@@ -161,6 +161,73 @@ const EmptyStateRow = ({ children }) => (
   </div>
 );
 
+// Azok a jelölőnégyzet-mezők, ahol a séma-opciók mellett szabad szöveges érték is
+// felvehető (pl. "2027 február"). Szándékosan kulcs szerint, nem minden checkbox
+// mezőre: a többi (pl. képzési terület) értékkészlete zárt kell maradjon.
+const CUSTOM_VALUE_CHECKBOX_KEYS = ["indulas_idoszaka"];
+
+// Az egyedi érték a többi opcióval együtt egy ";"-vel elválasztott listában tárolódik,
+// ezért a ";" nem maradhat benne - különben az érték két külön elemre esne szét.
+const normalizeCustomValue = (text) =>
+  String(text || "")
+    .replace(/;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const CustomValueInput = ({ selectedValues, knownOptions, onAdd }) => {
+  const [text, setText] = useState("");
+  const [notice, setNotice] = useState("");
+
+  const add = () => {
+    const clean = normalizeCustomValue(text);
+    if (clean === "") return;
+    const exists = [...knownOptions, ...selectedValues].some(
+      (v) => v.toLowerCase() === clean.toLowerCase(),
+    );
+    if (exists) {
+      setNotice("Ez az időszak már szerepel a listában.");
+      return;
+    }
+    setNotice("");
+    onAdd(clean);
+    setText("");
+  };
+
+  return (
+    <div style={{ marginTop: "4px" }}>
+      <div style={{ display: "flex", gap: "8px", alignItems: "flex-end" }}>
+        <div style={{ flex: 1 }}>
+          <TextControl
+            label="Egyéb időszak (szabad szöveg)"
+            placeholder="pl. 2027 február"
+            value={text}
+            onChange={(v) => {
+              setText(v);
+              setNotice("");
+            }}
+            onKeyDown={(e) => {
+              // Enter ne küldje be az egész képzés-űrlapot, csak vegye fel az értéket.
+              if (e.key === "Enter") {
+                e.preventDefault();
+                add();
+              }
+            }}
+            __nextHasNoMarginBottom
+          />
+        </div>
+        <Button variant="secondary" onClick={add} disabled={!text.trim()}>
+          Hozzáadás
+        </Button>
+      </div>
+      {notice && (
+        <p style={{ fontSize: "12px", color: "#b32d2e", margin: "4px 0 0" }}>
+          {notice}
+        </p>
+      )}
+    </div>
+  );
+};
+
 const KeywordControl = ({
   label,
   fieldKey,
@@ -2609,6 +2676,12 @@ const SZEducateEditor = () => {
           : typeof value === "string" && value !== ""
           ? value.split(";").map((v) => v.trim())
           : [];
+        const allowsCustomValue = CUSTOM_VALUE_CHECKBOX_KEYS.includes(field.key);
+        // A séma-opciókon kívüli (korábban felvett) értékek: ezeket külön kirajzoljuk,
+        // különben a szerkesztő nem mutatná, és nem is lehetne törölni őket.
+        const customSelected = allowsCustomValue
+          ? selectedValues.filter((v) => v !== "" && !chkOptions.includes(v))
+          : [];
         control = (
           <div
             style={{
@@ -2624,7 +2697,7 @@ const SZEducateEditor = () => {
                 flexDirection: "column",
                 gap: "10px",
               }}>
-              {chkOptions.length === 0 ? (
+              {chkOptions.length === 0 && customSelected.length === 0 ? (
                 <EmptyStateRow>
                   Ehhez a mezőhöz nincsenek beállítva választható opciók.
                 </EmptyStateRow>
@@ -2644,6 +2717,30 @@ const SZEducateEditor = () => {
                     style={{ marginBottom: 0 }}
                   />
                 ))
+              )}
+              {customSelected.map((opt) => (
+                <CheckboxControl
+                  key={"custom-" + opt}
+                  label={opt + " (egyéb)"}
+                  checked
+                  disabled={isReadonly}
+                  onChange={() =>
+                    handleChange(
+                      field.key,
+                      selectedValues.filter((v) => v !== opt),
+                    )
+                  }
+                  style={{ marginBottom: 0 }}
+                />
+              ))}
+              {allowsCustomValue && !isReadonly && (
+                <CustomValueInput
+                  selectedValues={selectedValues}
+                  knownOptions={chkOptions}
+                  onAdd={(v) =>
+                    handleChange(field.key, [...selectedValues, v])
+                  }
+                />
               )}
             </div>
           </div>
