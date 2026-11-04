@@ -179,6 +179,11 @@ class SZEducate_Dynamic_Tag extends \Elementor\Core\DynamicTags\Tag {
 		return '';
 	}
 
+	public static function allow_text_align_last( $styles ) {
+		$styles[] = 'text-align-last';
+		return $styles;
+	}
+
 	// "Magyar formázás": csak date és number típusú mezőre hat, a többit érintetlenül hagyja.
 	// Az ezres tagoló nem törhető szóköz, hogy az "50 000 Ft" ne törjön két sorba.
 	private function format_hu_value( $key, $value ) {
@@ -285,7 +290,12 @@ class SZEducate_Dynamic_Tag extends \Elementor\Core\DynamicTags\Tag {
 			echo $value ? 'Igen' : 'Nem';
 		} else {
 			$formatted = $this->format_hu_value( $field_key, $value );
+			// A WYSIWYG-ben a "sorkizárt, utolsó sor középen" igazítás text-align-last-ot
+			// használ, amit a wp_kses_post alapból kidobna (nincs a safe_style_css listán).
+			// Csak ennek a kimenetnek az idejére engedélyezzük, nem globálisan.
+			add_filter( 'safe_style_css', array( __CLASS__, 'allow_text_align_last' ) );
 			echo wp_kses_post( $formatted );
+			remove_filter( 'safe_style_css', array( __CLASS__, 'allow_text_align_last' ) );
 			if ( $this->get_settings( 'copy_button' ) === 'yes' && is_scalar( $formatted ) ) {
 				echo SZEducate_Contact_Link::copy_button( $formatted ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- a segéd maga escape-el
 			}

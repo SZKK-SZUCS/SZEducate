@@ -952,6 +952,79 @@ const registerSzeducateTablePlugin = () => {
   });
 };
 
+// Az alap (nem stílusozott) szöveg a frontenden Montserrat 16px: ezért ez az első a
+// listában, és a szerkesztő törzse is ezt használja - így az alap szöveg nem kap felesleges
+// inline stílust, csak a tényleges eltérés.
+const SZ_FONT_FORMATS =
+  "Montserrat=Montserrat,sans-serif;" +
+  "Arial=arial,helvetica,sans-serif;" +
+  "Georgia=georgia,serif;" +
+  "Times New Roman='times new roman',times,serif;" +
+  "Verdana=verdana,geneva,sans-serif;" +
+  "Courier New='courier new',courier,monospace";
+const SZ_FONT_SIZES = "12px 14px 16px 18px 20px 24px 28px 32px";
+
+// Sorkizárt igazítás, az utolsó sor középre zárva. A TinyMCE-ben nincs ilyen beépített
+// gomb, ezért a blokk(ok)ra két inline stílust teszünk: text-align:justify +
+// text-align-last:center. A frontenden a wp_kses_post alapból kidobná a text-align-last-ot,
+// ezért a dynamic tag külön engedélyezi (lásd SZEducate_Dynamic_Tag).
+// A többi igazítás-parancs (balra/közép/jobbra/sorkizárt) törli a text-align-last-ot,
+// különben a "sima" sorkizárt vagy a balra igazítás mellett is megmaradna az utolsó sor középre zárása.
+const registerJustifyLastCenterButton = (editor) => {
+  const isJustifyLastCenter = (block) =>
+    !!block &&
+    block.style.textAlign === "justify" &&
+    block.style.textAlignLast === "center";
+
+  const runEdit = (fn) => {
+    editor.undoManager.transact(fn);
+    editor.fire("change");
+  };
+
+  editor.addButton("szeducate_justify_last_center", {
+    text: "Sorkizárt (utolsó sor középen)",
+    tooltip: "Sorkizárt, az utolsó sor középre igazítva",
+    onclick: function () {
+      const blocks = editor.selection.getSelectedBlocks();
+      if (!blocks.length) return;
+      const turnOff = blocks.every(isJustifyLastCenter);
+      runEdit(() => {
+        blocks.forEach((block) => {
+          editor.dom.setStyle(block, "textAlign", turnOff ? null : "justify");
+          editor.dom.setStyle(
+            block,
+            "textAlignLast",
+            turnOff ? null : "center",
+          );
+        });
+      });
+    },
+    onPostRender: function () {
+      const button = this;
+      editor.on("NodeChange", () => {
+        const block = editor.dom.getParent(
+          editor.selection.getStart(),
+          "p,h1,h2,h3,h4,h5,h6,div,li,td,th,blockquote,pre",
+        );
+        button.active(isJustifyLastCenter(block));
+      });
+    },
+  });
+
+  editor.on("ExecCommand", (e) => {
+    if (!/^Justify(Left|Center|Right|Full)$/i.test(e.command)) return;
+    const stale = editor.selection
+      .getSelectedBlocks()
+      .filter((block) => block.style.textAlignLast);
+    if (!stale.length) return;
+    runEdit(() => {
+      stale.forEach((block) =>
+        editor.dom.setStyle(block, "textAlignLast", null),
+      );
+    });
+  });
+};
+
 const WysiwygControl = ({
   label,
   fieldKey,
@@ -972,13 +1045,23 @@ const WysiwygControl = ({
         tinymce: {
           readonly: isReadonly ? 1 : 0,
           plugins: "paste,lists,link,textcolor,colorpicker,szeducate_table",
+          // Két sorra bontva: a betűtípus/méret legördülők miatt egy sorban már nem férne el.
           toolbar1:
-            "formatselect,bold,italic,underline,bullist,numlist,link,unlink,forecolor,backcolor,szeducate_table_insert,szeducate_table_edit",
+            "formatselect,fontselect,fontsizeselect,bold,italic,underline,forecolor,backcolor",
+          toolbar2:
+            "alignleft,aligncenter,alignright,alignjustify,szeducate_justify_last_center,bullist,numlist,link,unlink,szeducate_table_insert,szeducate_table_edit",
+          // Az első elem (Montserrat) az alapértelmezett: ezt a szerkesztő törzse is
+          // használja (lásd content_style), így a legördülő alapból "Montserrat"-ot mutat.
+          font_formats: SZ_FONT_FORMATS,
+          fontsize_formats: SZ_FONT_SIZES,
           // A húzással kijelölt táblázat-cellák vizuális kiemelése (lásd a
-          // szeducate_table plugin egér-figyelését).
+          // szeducate_table plugin egér-figyelését) + az alap betűtípus/méret (Montserrat 16px).
           content_style:
+            "body{font-family:Montserrat,sans-serif;font-size:16px;}" +
             ".szeducate-cell-selected{background-color:rgba(34,113,177,0.25) !important;outline:1px solid #2271b1;}",
           setup: function (editor) {
+            registerJustifyLastCenterButton(editor);
+
             // Csak a "change" eseményre figyelünk, NEM a "keyup"-ra is - a keyup
             // minden billentyűre lefut, a nyílgombokkal való puszta navigációra is
             // (tényleges tartalomváltozás nélkül), ami feleslegesen "módosítottnak"
