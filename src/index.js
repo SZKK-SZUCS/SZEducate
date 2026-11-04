@@ -166,6 +166,46 @@ const EmptyStateRow = ({ children }) => (
 // mezőre: a többi (pl. képzési terület) értékkészlete zárt kell maradjon.
 const CUSTOM_VALUE_CHECKBOX_KEYS = ["indulas_idoszaka"];
 
+// Régi hibás adatok javítása: egyes képzéseknél a többszavas opció szavanként szétesve
+// tárolódik ("Szeptemberi; általános; eljárás" a "Szeptemberi általános eljárás" helyett),
+// és emiatt egyik opció sem látszott bejelölve. Ha az egymás utáni elemek pontosan egy
+// többszavas séma-opció szavai, visszaállítjuk az opciót. Ami nem illeszkedik, érintetlen.
+const reassembleSplitOptions = (values, optionsString) => {
+  const known = (optionsString || "")
+    .split(";")
+    .map((o) => o.trim())
+    .filter((o) => o !== "");
+  const multiWord = known
+    .filter((o) => /\s/.test(o))
+    .map((o) => ({ opt: o, words: o.split(/\s+/) }))
+    .sort((a, b) => b.words.length - a.words.length);
+  if (multiWord.length === 0) return values;
+
+  // A vesszővel összefűzött maradékok ("eljárás, Februári") külön elemek, de csak ha
+  // az elem nem maga is ismert opció (az opcióban legitim vessző lehet).
+  const out = [];
+  values.forEach((v) => {
+    const s = String(v).trim();
+    if (s.includes(",") && !known.includes(s)) {
+      s.split(",")
+        .map((p) => p.trim())
+        .filter(Boolean)
+        .forEach((p) => out.push(p));
+    } else if (s !== "") {
+      out.push(s);
+    }
+  });
+
+  multiWord.forEach(({ opt, words }) => {
+    for (let i = 0; i + words.length <= out.length; i++) {
+      if (words.every((w, j) => out[i + j] === w)) {
+        out.splice(i, words.length, opt);
+      }
+    }
+  });
+  return out.filter((v, i) => out.indexOf(v) === i);
+};
+
 // Az egyedi érték a többi opcióval együtt egy ";"-vel elválasztott listában tárolódik,
 // ezért a ";" nem maradhat benne - különben az érték két külön elemre esne szét.
 const normalizeCustomValue = (text) =>
@@ -2336,8 +2376,17 @@ const SZEducateEditor = () => {
               migratedData[field.key] = [{ [targetCol]: val }];
               needsMigration = true;
             } else if (field.type === "checkbox" && typeof val === "string") {
-              migratedData[field.key] = val.split(";").map((v) => v.trim());
+              migratedData[field.key] = reassembleSplitOptions(
+                val.split(";").map((v) => v.trim()),
+                field.options,
+              );
               needsMigration = true;
+            } else if (field.type === "checkbox" && Array.isArray(val)) {
+              const fixed = reassembleSplitOptions(val, field.options);
+              if (JSON.stringify(fixed) !== JSON.stringify(val)) {
+                migratedData[field.key] = fixed;
+                needsMigration = true;
+              }
             } else if (field.type === "links" && typeof val === "string") {
               migratedData[field.key] = [
                 {
