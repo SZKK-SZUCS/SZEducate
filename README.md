@@ -152,6 +152,11 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.72
+
+- **Indulás időszaka: szabad szöveges „Egyéb időszak" (#80).** Az `indulas_idoszaka` jelölőnégyzet-mező alatt szövegmező jelent meg (pl. „2027 február"), a Kliens szerkesztőben és a Hub Képzések áttekintő szerkesztőjében is. Az érték ugyanabba a listába kerül, mint a bejelölt séma-opciók, így az import/export, a státusz widget és a szűrők változtatás nélkül kezelik. A séma-opciókon kívüli értékek „(egyéb)" felirattal, bejelölve jelennek meg, és a pipa kivételével törölhetők. A `;` karaktert (ez az elválasztó) szóközre cseréli, a duplikációt kis/nagybetűtől függetlenül kiszűri.
+- **Csak ennél a mezőnél:** a többi jelölőnégyzet-mező értékkészlete zárt marad (`CUSTOM_VALUE_CHECKBOX_KEYS`, a két szerkesztőben egyformán tartandó). A státusz widgetben a nem ismert időszak a „Később" sor végére kerül; ha csak ilyen van megadva, az lesz a „Következő indulás".
+
 ### 0.9.71
 
 - **WYSIWYG szerkesztő: betűtípus, betűméret és igazítás (#78).** A Kliens szerkesztő formázott szöveg (WYSIWYG) mezőjének eszköztára két sorra bomlik, és új legördülők kerülnek bele: betűtípus (Montserrat, Arial, Georgia, Times New Roman, Verdana, Courier New) és betűméret (12–32px). Az alapértelmezett a Montserrat 16px: a szerkesztő törzse ezt használja, így az alap szöveg nem kap felesleges inline stílust.

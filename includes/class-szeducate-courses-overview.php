@@ -8,6 +8,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 // szerkeszthető, archiválható, törölhető és manuálisan (újra)szinkronizálható is egy Képzés.
 class SZEducate_Courses_Overview {
 
+	// Jelölőnégyzet-mezők, ahol a séma-opciók mellett szabad szöveges érték is felvehető
+	// (pl. "2027 február"). Kulcs szerint, mert a többi checkbox értékkészlete zárt kell
+	// maradjon. A React-szerkesztő (src/index.js) ugyanezt a listát tartja.
+	const CUSTOM_VALUE_CHECKBOX_KEYS = array( 'indulas_idoszaka' );
+
 	private $courses_table;
 	private $clients_table;
 
@@ -144,6 +149,7 @@ class SZEducate_Courses_Overview {
 
 		$posted_simple = isset( $_POST['course_data'] ) ? wp_unslash( $_POST['course_data'] ) : array();
 		$posted_raw    = isset( $_POST['course_data_raw'] ) ? wp_unslash( $_POST['course_data_raw'] ) : array();
+		$posted_custom = isset( $_POST['course_data_custom'] ) && is_array( $_POST['course_data_custom'] ) ? wp_unslash( $_POST['course_data_custom'] ) : array();
 		$raw_json_error = false;
 
 		foreach ( $fields as $field ) {
@@ -171,7 +177,20 @@ class SZEducate_Courses_Overview {
 
 				case 'checkbox':
 					$vals = isset( $posted_simple[ $key ] ) && is_array( $posted_simple[ $key ] ) ? $posted_simple[ $key ] : array();
-					$course_data[ $key ] = array_map( 'sanitize_text_field', $vals );
+					$vals = array_map( 'sanitize_text_field', $vals );
+
+					// Szabad szöveges "Egyéb" érték (csak a CUSTOM_VALUE_CHECKBOX_KEYS mezőknél).
+					// A ";" az elválasztó a tárolt listában, ezért kicseréljük szóközre.
+					if ( in_array( $key, self::CUSTOM_VALUE_CHECKBOX_KEYS, true ) && ! empty( $posted_custom[ $key ] ) ) {
+						$custom = trim( preg_replace( '/\s+/u', ' ', str_replace( ';', ' ', sanitize_text_field( $posted_custom[ $key ] ) ) ) );
+						if ( $custom !== '' ) {
+							$lc = array_map( 'mb_strtolower', $vals );
+							if ( ! in_array( mb_strtolower( $custom ), $lc, true ) ) {
+								$vals[] = $custom;
+							}
+						}
+					}
+					$course_data[ $key ] = $vals;
 					break;
 
 				case 'number':
@@ -458,6 +477,17 @@ class SZEducate_Courses_Overview {
 					if ( $opt === '' ) continue;
 					$checked = in_array( trim( $opt ), array_map( 'trim', $selected_vals ), true );
 					echo '<label style="margin-right:14px; display:inline-block;"><input type="checkbox" name="course_data[' . esc_attr( $key ) . '][]" value="' . esc_attr( $opt ) . '" ' . checked( $checked, true, false ) . '> ' . esc_html( $opt ) . '</label>';
+				}
+
+				if ( in_array( $key, self::CUSTOM_VALUE_CHECKBOX_KEYS, true ) ) {
+					// A séma-opciókon kívüli, korábban felvett értékek: bejelölve jelennek meg,
+					// így nem vesznek el mentéskor, és a pipa kivételével törölhetők.
+					$known = array_map( 'trim', $options );
+					foreach ( array_map( 'trim', $selected_vals ) as $sel ) {
+						if ( $sel === '' || in_array( $sel, $known, true ) ) continue;
+						echo '<label style="margin-right:14px; display:inline-block;"><input type="checkbox" name="course_data[' . esc_attr( $key ) . '][]" value="' . esc_attr( $sel ) . '" checked> ' . esc_html( $sel ) . ' <em>(egyéb)</em></label>';
+					}
+					echo '<div style="margin-top:6px;"><input type="text" class="f-input" style="max-width:320px;" name="course_data_custom[' . esc_attr( $key ) . ']" placeholder="Egyéb időszak, pl. 2027 február" value=""></div>';
 				}
 				break;
 
