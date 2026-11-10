@@ -196,7 +196,7 @@ class SZEducate_Pricing_Table_Widget extends \Elementor\Widget_Base {
 				'label_on'    => 'Be',
 				'label_off'   => 'Ki',
 				'default'     => '',
-				'description' => 'Bekapcsolva, ha a Képzésnek csak egyetlen munkarendje van, a táblázatban a Fin. forma oszlop elé egy "Képz. forma" oszlop kerül (pl. N / L / T jelöléssel). Több munkarendnél nem jelenik meg - ott a fülek különítik el őket.',
+				'description' => 'Bekapcsolva, ha a Képzésnek csak egyetlen munkarendje van, a táblázatban a Fin. forma oszlop elé egy "Képz. forma" oszlop kerül (pl. N / L / T jelöléssel). Ilyenkor a (feleslegessé váló) munkarend-fül is el van rejtve. Több munkarendnél nem jelenik meg - ott a fülek különítik el őket.',
 			]
 		);
 		$this->add_control(
@@ -909,7 +909,7 @@ class SZEducate_Pricing_Table_Widget extends \Elementor\Widget_Base {
 			// fülek már megmondják, melyik táblát nézi a látogató, az oszlop csak ismételné.
 			$show_form_col = $form_col_enabled && $single_form;
 			?>
-			<div class="sz-pt-tabs" role="tablist">
+			<div class="sz-pt-tabs" role="tablist"<?php echo $show_form_col ? ' style="display:none;"' : ''; ?>>
 				<?php if ( $show_indicator ) : ?>
 					<span class="sz-pt-tab-indicator" aria-hidden="true"></span>
 				<?php endif; ?>
@@ -1034,7 +1034,7 @@ class SZEducate_Pricing_Table_Widget extends \Elementor\Widget_Base {
 			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-form-abbr { font-weight: 700; }
 			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-legend { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; margin-left: 6px; border: 1px solid currentColor; border-radius: 50%; font-size: 11px; font-weight: 700; line-height: 1; cursor: help; vertical-align: middle; text-transform: none; }
 			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-legend:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
-			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-legend-pop { position: absolute; top: calc(100% + 8px); left: 0; min-width: 220px; max-width: 280px; padding: 10px 12px; background: #ffffff; color: #242943; font-size: 12px; font-weight: 400; line-height: 1.5; text-align: left; text-transform: none; letter-spacing: normal; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.18); opacity: 0; visibility: hidden; transform: translateY(-4px); transition: opacity .15s ease, transform .15s ease; z-index: 30; pointer-events: none; }
+			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-legend-pop { position: fixed; top: 0; left: 0; min-width: 220px; max-width: 280px; padding: 10px 12px; background: #ffffff; color: #242943; font-size: 12px; font-weight: 400; line-height: 1.5; text-align: left; text-transform: none; letter-spacing: normal; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.18); opacity: 0; visibility: hidden; transform: translateY(-4px); transition: opacity .15s ease, transform .15s ease; z-index: 99999; pointer-events: none; }
 			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-legend-pop b { font-weight: 700; }
 			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-legend:hover .sz-pt-legend-pop,
 			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-legend:focus-within .sz-pt-legend-pop { opacity: 1; visibility: visible; transform: translateY(0); }
@@ -1072,6 +1072,28 @@ class SZEducate_Pricing_Table_Widget extends \Elementor\Widget_Base {
 			var panels = Array.prototype.slice.call( root.querySelectorAll('.sz-pt-panel') );
 			var tabsWrap = root.querySelector('.sz-pt-tabs');
 			var indicator = root.querySelector('.sz-pt-tab-indicator');
+
+			// Jelmagyarázat-buborék: a táblázat-burkoló overflow:hidden-je (a lekerekített sarkok miatt)
+			// levágná az abszolút pozicionált buborékot, főleg egysoros táblázatnál, ahol a buborék a
+			// táblázat alján túlnyúlik. Ezért position:fixed, a helyét pedig a jelzőhöz mérten itt számoljuk.
+			var legends = Array.prototype.slice.call( root.querySelectorAll('.sz-pt-legend') );
+			var activeLegend = null;
+			function placeLegend( lg ) {
+				var pop = lg.querySelector('.sz-pt-legend-pop');
+				if ( ! pop ) return;
+				var r = lg.getBoundingClientRect();
+				pop.style.top = ( r.bottom + 8 ) + 'px';
+				pop.style.left = Math.max( 8, Math.min( r.left, window.innerWidth - pop.offsetWidth - 8 ) ) + 'px';
+			}
+			legends.forEach(function(lg){
+				[ 'mouseenter', 'focus' ].forEach(function(ev){
+					lg.addEventListener(ev, function(){ activeLegend = lg; placeLegend( lg ); });
+				});
+				[ 'mouseleave', 'blur' ].forEach(function(ev){
+					lg.addEventListener(ev, function(){ if ( activeLegend === lg ) activeLegend = null; });
+				});
+			});
+			window.addEventListener('scroll', function(){ if ( activeLegend ) placeLegend( activeLegend ); }, { passive: true });
 
 			// A jelzősávot csak a méret/pozíció (transform+width/height) mozgatja - ezek
 			// kompozitor-barát tulajdonságok, nincs kényszerített reflow, nincs villanás.
