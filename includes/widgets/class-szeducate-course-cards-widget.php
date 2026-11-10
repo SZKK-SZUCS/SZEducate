@@ -218,14 +218,63 @@ class SZEducate_Course_Cards_Widget extends \Elementor\Widget_Base {
 			)
 		);
 
-		$this->add_control(
-			'meta_fields',
+		// A korábbi 'meta_fields' (egyszerű többes választó) helyett ismétlő: soronként
+		// állítható a felirat és a kiírt szöveg. A régi beállítás a rendereléskor még
+		// érvényes marad (lásd get_meta_rows()), így a már elmentett oldalak nem változnak.
+		$meta_repeater = new \Elementor\Repeater();
+
+		$meta_repeater->add_control(
+			'field',
 			array(
-				'label'       => 'További adatsorok („Felirat: érték”)',
-				'type'        => \Elementor\Controls_Manager::SELECT2,
-				'multiple'    => true,
+				'label'       => 'Mező',
+				'type'        => \Elementor\Controls_Manager::SELECT,
 				'label_block' => true,
-				'options'     => $field_options,
+				'options'     => array( '' => '— válassz —' ) + $field_options,
+				'default'     => '',
+			)
+		);
+
+		$meta_repeater->add_control(
+			'show_label',
+			array(
+				'label'        => 'Felirat mutatása',
+				'type'         => \Elementor\Controls_Manager::SWITCHER,
+				'label_on'     => 'Igen',
+				'label_off'    => 'Nem',
+				'return_value' => 'yes',
+				'default'      => 'yes',
+			)
+		);
+
+		$meta_repeater->add_control(
+			'label_text',
+			array(
+				'label'       => 'Egyedi felirat',
+				'type'        => \Elementor\Controls_Manager::TEXT,
+				'label_block' => true,
+				'placeholder' => 'Üresen a mező címkéje',
+				'condition'   => array( 'show_label' => 'yes' ),
+			)
+		);
+
+		$meta_repeater->add_control(
+			'format',
+			array(
+				'label'       => 'Kiírt szöveg (sablon)',
+				'type'        => \Elementor\Controls_Manager::TEXT,
+				'label_block' => true,
+				'placeholder' => '{value}',
+				'description' => 'Üresen az érték jelenik meg. A {value} az értéket, a {label} a feliratot helyettesíti, pl. „{value} félév”.',
+			)
+		);
+
+		$this->add_control(
+			'meta_rows',
+			array(
+				'label'       => 'További adatsorok',
+				'type'        => \Elementor\Controls_Manager::REPEATER,
+				'fields'      => $meta_repeater->get_controls(),
+				'title_field' => '{{{ field }}}',
 				'default'     => array(),
 				'description' => 'Pl. indulás időszaka. Az üres értékű mezők kimaradnak.',
 			)
@@ -971,7 +1020,7 @@ class SZEducate_Course_Cards_Widget extends \Elementor\Widget_Base {
 		$show_inactive = ( ! isset( $settings['show_inactive'] ) || $settings['show_inactive'] === 'yes' );
 
 		$chip_fields = ( ! empty( $settings['chip_fields'] ) && is_array( $settings['chip_fields'] ) ) ? $settings['chip_fields'] : array();
-		$meta_fields = ( ! empty( $settings['meta_fields'] ) && is_array( $settings['meta_fields'] ) ) ? $settings['meta_fields'] : array();
+		$meta_rows   = $this->get_meta_rows( $settings );
 
 		// Mező-címkék az adatsorokhoz (a séma "label"-je).
 		$labels = array();
@@ -1133,14 +1182,25 @@ class SZEducate_Course_Cards_Widget extends \Elementor\Widget_Base {
 			}
 
 			$meta = array();
-			foreach ( $meta_fields as $mk ) {
+			foreach ( $meta_rows as $row ) {
+				$mk   = $row['key'];
 				$vals = $this->field_values( $data, $mk );
-				if ( ! empty( $vals ) ) {
-					$meta[] = array(
-						'label' => isset( $labels[ $mk ] ) ? $labels[ $mk ] : $mk,
-						'value' => implode( ', ', $vals ),
-					);
+				if ( empty( $vals ) ) {
+					continue;
 				}
+
+				$field_label = isset( $labels[ $mk ] ) ? $labels[ $mk ] : $mk;
+				// Elrejtett felirat esetén nincs "Felirat:" előtag; különben az egyedi, üresen a séma-címke.
+				$label = $row['show_label'] ? ( $row['label'] !== '' ? $row['label'] : $field_label ) : '';
+				$value = implode( ', ', $vals );
+				// Sima szövegcsere (nem regex), a kimenet escape-elése a rendereléskor történik.
+				$text = $row['format'] !== '' ? strtr( $row['format'], array( '{value}' => $value, '{label}' => $label ) ) : $value;
+
+				$meta[] = array(
+					// Ha a sablon maga tartalmazza a {label}-t, a szerző döntött a helyéről: nincs külön előtag.
+					'label' => ( $label !== '' && strpos( $row['format'], '{label}' ) === false ) ? $label : '',
+					'text'  => $text,
+				);
 			}
 
 			$card = array(
@@ -1288,7 +1348,8 @@ class SZEducate_Course_Cards_Widget extends \Elementor\Widget_Base {
 		echo '<h3 class="sz-cc-title">' . esc_html( $card['title'] ) . '</h3>';
 
 		foreach ( $card['meta'] as $m ) {
-			echo '<div class="sz-cc-meta"><strong>' . esc_html( $m['label'] ) . ':</strong> ' . esc_html( $m['value'] ) . '</div>';
+			$label_html = $m['label'] !== '' ? '<strong>' . esc_html( $m['label'] ) . ':</strong> ' : '';
+			echo '<div class="sz-cc-meta">' . $label_html . esc_html( $m['text'] ) . '</div>';
 		}
 
 		// A link a kártya egészét lefedi (a .sz-cc-btn::before nyújtja ki). Ha a gomb
@@ -1688,6 +1749,42 @@ HTML;
 
 	// Egy mező értékeit szöveg-listává egyszerűsíti: tömbből a skalárokat, szövegből a
 	// ";"-vel elválasztott részeket veszi; az üres és a logikai értékeket kihagyja.
+	// Az adatsorok normalizált listája. Ha az új ismétlő ('meta_rows') üres, de a régi
+	// többes választó ('meta_fields') ki volt töltve, az továbbra is érvényes (felirat + érték),
+	// hogy a frissítés ne változtassa meg a már elmentett oldalakat.
+	private function get_meta_rows( $settings ) {
+		$rows = array();
+
+		if ( ! empty( $settings['meta_rows'] ) && is_array( $settings['meta_rows'] ) ) {
+			foreach ( $settings['meta_rows'] as $r ) {
+				$key = isset( $r['field'] ) ? trim( (string) $r['field'] ) : '';
+				if ( $key === '' ) {
+					continue;
+				}
+				$rows[] = array(
+					'key'        => $key,
+					'show_label' => ! isset( $r['show_label'] ) || $r['show_label'] === 'yes',
+					'label'      => isset( $r['label_text'] ) ? trim( (string) $r['label_text'] ) : '',
+					'format'     => isset( $r['format'] ) ? trim( (string) $r['format'] ) : '',
+				);
+			}
+			return $rows;
+		}
+
+		if ( ! empty( $settings['meta_fields'] ) && is_array( $settings['meta_fields'] ) ) {
+			foreach ( $settings['meta_fields'] as $key ) {
+				$rows[] = array(
+					'key'        => (string) $key,
+					'show_label' => true,
+					'label'      => '',
+					'format'     => '',
+				);
+			}
+		}
+
+		return $rows;
+	}
+
 	private function field_values( $data, $key ) {
 		if ( $key === '' || ! isset( $data[ $key ] ) ) {
 			return array();
