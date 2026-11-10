@@ -152,6 +152,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.79
+
+- **Képzéskártyák: módosítható adatsorok.** A „További adatsorok" beállítás ismétlővé vált: soronként elrejthető vagy átírható a mező címkéje, és `{value}` / `{label}` helyőrzős sablonnal módosítható a kiírt szöveg (pl. `{value} félév`). A korábban elmentett, régi beállítású kártyák változatlanul működnek, amíg az új ismétlő üres.
+
 ### 0.9.78
 
 - **Támogatási Táblázat: jelmagyarázat levágásának javítása.** A `?` jelmagyarázat-buborékot a táblázat burkolója levágta (főleg egysoros táblázatnál). A buborék most a jelzőhöz igazodva, a burkolón kívül jelenik meg, és nem lóg ki a képernyő szélén.
