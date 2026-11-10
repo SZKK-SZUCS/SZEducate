@@ -152,6 +152,11 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.78
+
+- **Támogatási Táblázat: jelmagyarázat levágásának javítása.** A `?` jelmagyarázat-buborékot a táblázat burkolója levágta (főleg egysoros táblázatnál). A buborék most a jelzőhöz igazodva, a burkolón kívül jelenik meg, és nem lóg ki a képernyő szélén.
+- **Támogatási Táblázat: munkarend-fül elrejtése a „Képz. forma" oszlopnál.** Bekapcsolt „Képz. forma oszlop" beállításnál és egyetlen munkarendnél a (feleslegessé váló) munkarend-fül nem jelenik meg. Több munkarendnél a fülek maradnak.
+
 ### 0.9.77
 
 - **Támogatási Táblázat: „Képz. forma" oszlop egyetlen munkarendnél.** A widget Feliratok szekciójában új, alapból kikapcsolt kapcsoló: bekapcsolva, ha a képzésnek csak egy munkarendje van, a Fin. forma oszlop elé új „Képz. forma" oszlop kerül (N – Nappali, L – Levelező, T – Távoktatás) jelmagyarázattal. A munkarend → jelölés párok, az oszlop felirata és szélessége állítható; több munkarendnél az oszlop nem jelenik meg. A meglévő oldalak nem érintettek.
