@@ -152,6 +152,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.77
+
+- **Támogatási Táblázat: „Képz. forma" oszlop egyetlen munkarendnél.** A widget Feliratok szekciójában új, alapból kikapcsolt kapcsoló: bekapcsolva, ha a képzésnek csak egy munkarendje van, a Fin. forma oszlop elé új „Képz. forma" oszlop kerül (N – Nappali, L – Levelező, T – Távoktatás) jelmagyarázattal. A munkarend → jelölés párok, az oszlop felirata és szélessége állítható; több munkarendnél az oszlop nem jelenik meg. A meglévő oldalak nem érintettek.
+
 ### 0.9.76
 
 - **Új dinamikus tag: „Képzés Címe – tördelhető (SZEducate)".** A képzés címét írja ki, a perjel (`/`) után láthatatlan tördelési ponttal (zero-width space). A hosszú, perjeles szaknevek (pl. „Élelmezésszervező szakmérnök/szakmenedzser") így a perjelnél törnek, nem a szó közepén, és nem lógnak ki az oszlopból. A beépített „Bejegyzés címe" tag változatlan, a meglévő oldalak nem érintettek; az új tagot a sablon címsorában kell kiválasztani.
