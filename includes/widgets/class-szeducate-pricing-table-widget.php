@@ -182,6 +182,50 @@ class SZEducate_Pricing_Table_Widget extends \Elementor\Widget_Base {
 			]
 		);
 
+		// Alternatív megjelenítés: ha a Képzésnek csak egyetlen munkarendje van, a fül
+		// helyett/mellett a táblázatba kerül egy "Képz. forma" oszlop a Fin. forma elé.
+		$this->add_control(
+			'form_col_heading',
+			[ 'label' => 'Képzési forma oszlop (egy munkarendnél)', 'type' => \Elementor\Controls_Manager::HEADING, 'separator' => 'before' ]
+		);
+		$this->add_control(
+			'form_col_enabled',
+			[
+				'label'       => 'Képz. forma oszlop, ha csak egy munkarend van',
+				'type'        => \Elementor\Controls_Manager::SWITCHER,
+				'label_on'    => 'Be',
+				'label_off'   => 'Ki',
+				'default'     => '',
+				'description' => 'Bekapcsolva, ha a Képzésnek csak egyetlen munkarendje van, a táblázatban a Fin. forma oszlop elé egy "Képz. forma" oszlop kerül (pl. N / L / T jelöléssel). Több munkarendnél nem jelenik meg - ott a fülek különítik el őket.',
+			]
+		);
+		$this->add_control(
+			'col_form_label',
+			[ 'label' => 'Oszlop: Képz. forma', 'type' => \Elementor\Controls_Manager::TEXT, 'default' => 'Képz. forma', 'condition' => [ 'form_col_enabled' => 'yes' ] ]
+		);
+		$this->add_control(
+			'form_col_map',
+			[
+				'label'       => 'Munkarend → jelölés',
+				'type'        => \Elementor\Controls_Manager::TEXTAREA,
+				'rows'        => 4,
+				'default'     => "Nappali=N\nLevelező=L\nTávoktatás=T",
+				'description' => 'Soronként egy "Munkarend=Jelölés" pár. Ha egy munkarend nincs a listában, a neve első betűje jelenik meg. A jelmagyarázat is ebből készül.',
+				'condition'   => [ 'form_col_enabled' => 'yes' ],
+			]
+		);
+		$this->add_control(
+			'form_col_legend_show',
+			[
+				'label'     => 'Jelmagyarázat (?) a Képz. forma fejlécben',
+				'type'      => \Elementor\Controls_Manager::SWITCHER,
+				'label_on'  => 'Be',
+				'label_off' => 'Ki',
+				'default'   => 'yes',
+				'condition' => [ 'form_col_enabled' => 'yes' ],
+			]
+		);
+
 		$this->end_controls_section();
 
 		// ------------------------------------------------------------------
@@ -348,6 +392,10 @@ class SZEducate_Pricing_Table_Widget extends \Elementor\Widget_Base {
 		$this->add_control(
 			'col_badge_width',
 			[ 'label' => 'Oszlopszélesség: Fin. forma', 'type' => \Elementor\Controls_Manager::SLIDER, 'size_units' => [ '%' ], 'range' => [ '%' => [ 'min' => 5, 'max' => 50 ] ], 'default' => [ 'unit' => '%', 'size' => 14 ], 'selectors' => [ '{{WRAPPER}} .sz-pt-col-badge' => 'width: {{SIZE}}{{UNIT}};' ] ]
+		);
+		$this->add_control(
+			'col_form_width',
+			[ 'label' => 'Oszlopszélesség: Képz. forma', 'type' => \Elementor\Controls_Manager::SLIDER, 'size_units' => [ '%' ], 'range' => [ '%' => [ 'min' => 5, 'max' => 50 ] ], 'default' => [ 'unit' => '%', 'size' => 12 ], 'condition' => [ 'form_col_enabled' => 'yes' ], 'selectors' => [ '{{WRAPPER}} .sz-pt-col-form' => 'width: {{SIZE}}{{UNIT}};' ] ]
 		);
 		$this->add_control(
 			'col_name_width',
@@ -702,6 +750,23 @@ class SZEducate_Pricing_Table_Widget extends \Elementor\Widget_Base {
 		$legend_state_text = isset( $settings['legend_state_text'] ) && $settings['legend_state_text'] !== '' ? $settings['legend_state_text'] : 'Államilag finanszírozott';
 		$legend_self_text  = isset( $settings['legend_self_text'] ) && $settings['legend_self_text'] !== '' ? $settings['legend_self_text'] : 'Önköltséges';
 
+		$form_col_enabled      = isset( $settings['form_col_enabled'] ) && $settings['form_col_enabled'] === 'yes';
+		$form_col_legend_show  = ( ! isset( $settings['form_col_legend_show'] ) ) || $settings['form_col_legend_show'] === 'yes';
+		$form_col_label        = ! empty( $settings['col_form_label'] ) ? $settings['col_form_label'] : 'Képz. forma';
+		$form_col_map_raw      = isset( $settings['form_col_map'] ) ? (string) $settings['form_col_map'] : "Nappali=N\nLevelező=L\nTávoktatás=T";
+
+		// "Munkarend=Jelölés" sorok -> [ kisbetűs munkarend => jelölés ]. A kulcs kisbetűs, hogy a
+		// séma-opció írásmódja (nagy/kisbetű) ne számítson; a jelmagyarázat a megadott sorrendet követi.
+		$form_col_map = array();
+		foreach ( preg_split( '/\R/u', $form_col_map_raw ) as $map_line ) {
+			$parts = explode( '=', $map_line, 2 );
+			if ( count( $parts ) !== 2 ) continue;
+			$map_name = trim( $parts[0] );
+			$map_abbr = trim( $parts[1] );
+			if ( $map_name === '' || $map_abbr === '' ) continue;
+			$form_col_map[ mb_strtolower( $map_name, 'UTF-8' ) ] = array( 'name' => $map_name, 'abbr' => $map_abbr );
+		}
+
 		$pagination_enabled   = ( ! isset( $settings['pagination_enabled'] ) ) || $settings['pagination_enabled'] === 'yes';
 		$pagination_threshold = isset( $settings['pagination_threshold'] ) && intval( $settings['pagination_threshold'] ) > 0 ? intval( $settings['pagination_threshold'] ) : 8;
 
@@ -840,6 +905,9 @@ class SZEducate_Pricing_Table_Widget extends \Elementor\Widget_Base {
 			// Egyetlen munkarendnél is kirajzoljuk a fület (különben a látogató nem látja, hogy az az
 			// egy micsoda), csak letiltva: nincs mire váltani, ezért kattintani sem lehet rá.
 			$single_form = ( count( $forms ) === 1 );
+			// A "Képz. forma" oszlop csak egyetlen munkarendnél jelenik meg: több munkarendnél a
+			// fülek már megmondják, melyik táblát nézi a látogató, az oszlop csak ismételné.
+			$show_form_col = $form_col_enabled && $single_form;
 			?>
 			<div class="sz-pt-tabs" role="tablist">
 				<?php if ( $show_indicator ) : ?>
@@ -862,13 +930,24 @@ class SZEducate_Pricing_Table_Widget extends \Elementor\Widget_Base {
 					? $this->paginate_plan( count( $rows ), $pagination_threshold )
 					: array( 'pages' => 1, 'per_page' => max( 1, count( $rows ) ) );
 				$has_pager   = $plan['pages'] > 1;
+				$form_lc     = mb_strtolower( $form, 'UTF-8' );
+				$form_abbr   = isset( $form_col_map[ $form_lc ] ) ? $form_col_map[ $form_lc ]['abbr'] : mb_strtoupper( mb_substr( $form, 0, 1, 'UTF-8' ), 'UTF-8' );
 			?>
 				<div class="sz-pt-panel" data-sz-panel="<?php echo esc_attr( $panel_slug ); ?>" <?php echo $i !== 0 ? 'style="display:none;"' : ''; ?>>
 					<div class="sz-pt-table-wrap">
 					<table class="sz-pt-table">
 						<thead>
 							<tr>
-								<th class="sz-pt-col-badge"><?php echo esc_html( $badge_label ); ?><?php if ( $legend_show ) : ?><span class="sz-pt-legend" tabindex="0" role="button" aria-label="Finanszírozási forma jelmagyarázat">?<span class="sz-pt-legend-pop"><b><?php echo esc_html( $state_badge ); ?></b> = <?php echo esc_html( $legend_state_text ); ?><br><b><?php echo esc_html( $self_badge ); ?></b> = <?php echo esc_html( $legend_self_text ); ?></span></span><?php endif; ?></th>
+								<?php if ( $show_form_col ) : ?>
+					<th class="sz-pt-col-form"><?php echo esc_html( $form_col_label ); ?><?php if ( $form_col_legend_show && ! empty( $form_col_map ) ) : ?><span class="sz-pt-legend" tabindex="0" role="button" aria-label="Képzési forma jelmagyarázat">?<span class="sz-pt-legend-pop"><?php
+						$legend_lines = array();
+						foreach ( $form_col_map as $m ) {
+							$legend_lines[] = '<b>' . esc_html( $m['abbr'] ) . '</b> = ' . esc_html( $m['name'] );
+						}
+						echo implode( '<br>', $legend_lines ); // phpcs:ignore WordPress.Security.EscapeOutput -- minden elem fent escape-elve
+					?></span></span><?php endif; ?></th>
+				<?php endif; ?>
+				<th class="sz-pt-col-badge"><?php echo esc_html( $badge_label ); ?><?php if ( $legend_show ) : ?><span class="sz-pt-legend" tabindex="0" role="button" aria-label="Finanszírozási forma jelmagyarázat">?<span class="sz-pt-legend-pop"><b><?php echo esc_html( $state_badge ); ?></b> = <?php echo esc_html( $legend_state_text ); ?><br><b><?php echo esc_html( $self_badge ); ?></b> = <?php echo esc_html( $legend_self_text ); ?></span></span><?php endif; ?></th>
 								<th class="sz-pt-col-name"><?php echo esc_html( $name_label ); ?></th>
 								<th class="sz-pt-col-cost"><?php echo esc_html( $cost_label ); ?></th>
 								<th class="sz-pt-col-duration"><?php echo esc_html( $duration_label ); ?></th>
@@ -885,6 +964,9 @@ class SZEducate_Pricing_Table_Widget extends \Elementor\Widget_Base {
 									: '';
 							?>
 								<tr class="sz-pt-row<?php echo ( $has_pager && $page_no !== 1 ) ? ' sz-pt-row-hidden' : ''; ?>" data-sz-pt-page="<?php echo esc_attr( $page_no ); ?>"<?php echo $row_style; ?>>
+									<?php if ( $show_form_col ) : ?>
+										<td class="sz-pt-col-form" data-label="<?php echo esc_attr( $form_col_label ); ?>"><span class="sz-pt-form-abbr"><?php echo esc_html( $form_abbr ); ?></span></td>
+									<?php endif; ?>
 									<td class="sz-pt-col-badge" data-label="<?php echo esc_attr( $badge_label ); ?>"><span class="sz-pt-badge<?php echo $r['is_state'] ? ' sz-pt-badge-state' : ' sz-pt-badge-self'; ?>"><?php echo esc_html( $r['is_state'] ? $state_badge : $self_badge ); ?></span></td>
 									<td class="sz-pt-col-name" data-label="<?php echo esc_attr( $name_label ); ?>"><?php echo esc_html( $r['display_title'] ); ?></td>
 									<td class="sz-pt-col-cost" data-label="<?php echo esc_attr( $cost_label ); ?>"><?php echo esc_html( $r['cost_display'] ); ?></td>
@@ -947,7 +1029,9 @@ class SZEducate_Pricing_Table_Widget extends \Elementor\Widget_Base {
 			/* Jelmagyarázat "?" a Fin. forma fejlécben. A színek itt fixek (sötét fejléc,
 			   világos buborék) - szándékosan NEM Elementor-vezéreltek, hogy egy be nem
 			   állított Stílus-szekció se hagyja olvashatatlanul. */
-			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-col-badge { position: relative; }
+			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-col-badge,
+			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-col-form { position: relative; }
+			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-form-abbr { font-weight: 700; }
 			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-legend { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; margin-left: 6px; border: 1px solid currentColor; border-radius: 50%; font-size: 11px; font-weight: 700; line-height: 1; cursor: help; vertical-align: middle; text-transform: none; }
 			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-legend:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-legend-pop { position: absolute; top: calc(100% + 8px); left: 0; min-width: 220px; max-width: 280px; padding: 10px 12px; background: #ffffff; color: #242943; font-size: 12px; font-weight: 400; line-height: 1.5; text-align: left; text-transform: none; letter-spacing: normal; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.18); opacity: 0; visibility: hidden; transform: translateY(-4px); transition: opacity .15s ease, transform .15s ease; z-index: 30; pointer-events: none; }
