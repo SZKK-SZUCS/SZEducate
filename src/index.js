@@ -2128,6 +2128,8 @@ const SZEducateEditor = () => {
 
   const [versions, setVersions] = useState([]);
   const [versionsSource, setVersionsSource] = useState("hub");
+  // A helyi tartalék-lista oka: "forbidden" (Hub 403), "not_synced", vagy egyéb (elérhetetlen Hub).
+  const [versionsHubStatus, setVersionsHubStatus] = useState("");
   const [isLoadingVersions, setIsLoadingVersions] = useState(false);
   const [isRestoring, setIsRestoring] = useState(null);
 
@@ -2186,6 +2188,7 @@ const SZEducateEditor = () => {
           // elérhető, a végpont csak a helyi (erről a kliensről ismert) listával
           // tér vissza - ezt jelezzük is, hogy ne tűnjön hamisan teljesnek.
           setVersionsSource(data.source === "local" ? "local" : "hub");
+          setVersionsHubStatus(data.hub_status || "");
         }
       })
       .catch(() => {})
@@ -3077,6 +3080,7 @@ const SZEducateEditor = () => {
     (keys || []).map((key) => {
       if (key === "__initial__") return "Kezdeti verzió";
       if (key === "__title__") return "Cím";
+      if (key === "__hub_rejected__") return "⚠ Hubra nem került fel";
       return fieldLabelByKey[key] || key;
     });
 
@@ -3454,8 +3458,11 @@ const SZEducateEditor = () => {
                       padding: "6px 8px",
                       margin: "0 0 8px 0",
                     }}>
-                    A Hub jelenleg nem érhető el - csak az ezen a kliensen
-                    ismert (nem feltétlenül teljes) előzmény látszik.
+                    {versionsHubStatus === "forbidden"
+                      ? "A Hub elutasította a hozzáférést ehhez a képzéshez (a Hubon tárolt állapota nem tartozik a kliens jogosultsági körébe), ezért csak az ezen a kliensen mentett előzmény látszik. A „Hubra nem került fel” jelölésű mentések nem jutottak el a Hubra."
+                      : versionsHubStatus === "not_synced"
+                        ? "Ez a képzés még nem került fel a Hubra - csak az ezen a kliensen mentett előzmény látszik."
+                        : "A Hub jelenleg nem érhető el - csak az ezen a kliensen ismert (nem feltétlenül teljes) előzmény látszik."}
                   </p>
                 )}
 

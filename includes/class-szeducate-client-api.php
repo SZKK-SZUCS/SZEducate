@@ -168,9 +168,16 @@ class SZEducate_Client_API {
 	// A Hub REST API-jának egy GET végpontját hívja meg a Kliens saját (Hub felé is
 	// használt) hitelesítésével. NULL-t ad vissza, ha a Hub nincs beállítva, nem
 	// elérhető, vagy hibát adott - ilyenkor a hívó fél a helyi tartalékra vált.
+	// A legutóbbi hívás kimenetele (ok | not_configured | unreachable | forbidden | error), hogy
+	// a hívó meg tudja különböztetni az "elérhetetlen Hub"-ot a Hub 403-as elutasításától.
+	private $last_hub_status = '';
+
 	private function proxy_hub_get( $path_with_query ) {
 		$options = get_option( 'szeducate_settings', array() );
-		if ( empty( $options['hub_url'] ) || empty( $options['api_token'] ) ) return null;
+		if ( empty( $options['hub_url'] ) || empty( $options['api_token'] ) ) {
+			$this->last_hub_status = 'not_configured';
+			return null;
+		}
 
 		$endpoint = rtrim( $options['hub_url'], '/' ) . '/wp-json/szeducate/v1' . $path_with_query;
 
@@ -179,9 +186,18 @@ class SZEducate_Client_API {
 			'timeout' => 10,
 		) );
 
-		if ( is_wp_error( $response ) || wp_remote_retrieve_response_code( $response ) !== 200 ) return null;
+		if ( is_wp_error( $response ) ) {
+			$this->last_hub_status = 'unreachable';
+			return null;
+		}
+		$code = wp_remote_retrieve_response_code( $response );
+		if ( $code !== 200 ) {
+			$this->last_hub_status = ( $code === 403 ) ? 'forbidden' : 'error';
+			return null;
+		}
 
 		$data = json_decode( wp_remote_retrieve_body( $response ), true );
+		$this->last_hub_status = is_array( $data ) ? 'ok' : 'error';
 		return is_array( $data ) ? $data : null;
 	}
 
@@ -195,15 +211,17 @@ class SZEducate_Client_API {
 		}
 
 		$hub_id = $this->resolve_hub_id( $post_id );
+		$hub_status = 'not_synced';
 		if ( $hub_id ) {
 			$proxied = $this->proxy_hub_get( '/hub/course-versions?hub_id=' . $hub_id );
 			if ( $proxied !== null ) {
 				$proxied['source'] = 'hub';
 				return new WP_REST_Response( $proxied, 200 );
 			}
+			$hub_status = $this->last_hub_status;
 		}
 
-		return $this->get_local_course_versions( $post_id );
+		return $this->get_local_course_versions( $post_id, $hub_status );
 	}
 
 	public function get_course_version_detail( WP_REST_Request $request ) {
@@ -227,7 +245,7 @@ class SZEducate_Client_API {
 		return $this->get_local_course_version_detail( $version_id, $post_id );
 	}
 
-	private function get_local_course_versions( $post_id ) {
+	private function get_local_course_versions( $post_id, $hub_status = '' ) {
 		global $wpdb;
 		$table = $wpdb->prefix . 'szeducate_course_versions';
 		$rows = $wpdb->get_results( $wpdb->prepare(
@@ -247,7 +265,7 @@ class SZEducate_Client_API {
 			);
 		}
 
-		return new WP_REST_Response( array( 'success' => true, 'versions' => $versions, 'source' => 'local' ), 200 );
+		return new WP_REST_Response( array( 'success' => true, 'versions' => $versions, 'source' => 'local', 'hub_status' => $hub_status ), 200 );
 	}
 
 	private function get_local_course_version_detail( $version_id, $post_id ) {
@@ -353,6 +371,7 @@ class SZEducate_Client_API {
 			'edited_by'      => $editor_label,
 			'edited_at'      => current_time( 'mysql' ),
 		) );
+		$version_id = intval( $wpdb->insert_id );
 
 		// Csak az utolsó 50 verziót őrizzük meg Képzésenként, hogy a tábla ne nőjön a végtelenségig.
 		$count = intval( $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $versions_table WHERE local_post_id = %d", $post_id ) ) );
@@ -361,6 +380,22 @@ class SZEducate_Client_API {
 				"DELETE FROM $versions_table WHERE local_post_id = %d ORDER BY edited_at ASC LIMIT %d",
 				$post_id, $count - 50
 			) );
+		}
+
+		return $version_id;
+	}
+
+	// A Hub által elutasított (vagy el sem ért) mentés helyi verzióját megjelöli, hogy az előzmény
+	// ne azt sugallja, mintha a Hubra is felkerült volna.
+	private function mark_version_not_synced( $version_id ) {
+		global $wpdb;
+		if ( ! $version_id ) return;
+		$versions_table = $wpdb->prefix . 'szeducate_course_versions';
+		$changed = json_decode( (string) $wpdb->get_var( $wpdb->prepare( "SELECT changed_fields FROM $versions_table WHERE id = %d", $version_id ) ), true );
+		$changed = is_array( $changed ) ? $changed : array();
+		if ( ! in_array( '__hub_rejected__', $changed, true ) ) {
+			$changed[] = '__hub_rejected__';
+			$wpdb->update( $versions_table, array( 'changed_fields' => wp_json_encode( $changed ) ), array( 'id' => $version_id ) );
 		}
 	}
 
@@ -838,7 +873,7 @@ class SZEducate_Client_API {
 				}
 			}
 
-			$this->record_course_version( $saved_post_id, $title, $dynamic_data, $old_title, $old_course_data, $json_blob );
+			$local_version_id = $this->record_course_version( $saved_post_id, $title, $dynamic_data, $old_title, $old_course_data, $json_blob );
 
 			$wpdb->query( 'COMMIT' );
 
@@ -888,6 +923,7 @@ class SZEducate_Client_API {
 			}
 
 			if ( $hub_err_msg ) {
+				$this->mark_version_not_synced( $local_version_id );
 				return new WP_REST_Response( array( 
 					'success' => false, 
 					'message' => 'Helyben mentve, DE a Hub hibát jelzett: ' . $hub_err_msg,
