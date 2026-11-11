@@ -464,6 +464,22 @@ class SZEducate_Hub_API {
 		}
 
 		if ( ! $this->evaluate_conditions( $conditions, $condition_check_data ) ) {
+			if ( $existing_row ) {
+				// Meglévő sornál a feltétel a Hubon TÁROLT adatra vonatkozik (nem a beküldöttre), ezért
+				// a kliens hiába állítja át helyben a mezőt a megengedett értékre, amíg a Hub-sor nem
+				// felel meg. Ezt kimondjuk, különben a "Nincs jogosultsága" üzenet értelmezhetetlen.
+				$cond_fields = SZEducate_Conditions::fields_in( $conditions );
+				return new WP_Error(
+					'forbidden_record',
+					sprintf(
+						'A(z) „%1$s" képzés (Hub ID #%2$d) már létezik a Hubon, és a Hubon tárolt állapota nem tartozik a kliens jogosultsági körébe%3$s. Meglévő képzésnél a feltételeket a Hubon MÁR TÁROLT adat alapján ellenőrizzük, nem a most beküldött alapján - ezért a helyi módosítás nem segít; a Hub adminisztrátor tudja a Hub-sort átállítani vagy törölni.',
+						$existing_row['title'],
+						intval( $existing_row['id'] ),
+						$cond_fields ? ' (feltétel-mezők: ' . implode( ', ', $cond_fields ) . ')' : ''
+					),
+					array( 'status' => 403 )
+				);
+			}
 			return new WP_Error( 'forbidden_record', 'Nincs jogosultsága a kliensnek ezt a képzést beküldeni.', array( 'status' => 403 ) );
 		}
 
