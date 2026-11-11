@@ -152,6 +152,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.80
+
+- **Hub-elutasítás érthetően, pontosabb verzió-előzmény.** Ha a Hub 403-at ad egy már létező képzés mentésekor, az üzenet kimondja az okot: a feltételt a Hubon MÁR TÁROLT adatra értékeli (Hub ID-val és a feltétel-mezőkkel), ezért a helyi átállítás nem segít. A Szerkesztő „Verzió Előzmények” panelje külön szöveget ír, ha a Hub elutasította a hozzáférést, ha a képzés még nincs szinkronizálva, és ha a Hub tényleg elérhetetlen; a Hub által elutasított mentések helyi verziója „⚠ Hubra nem került fel” jelölést kap.
+
 ### 0.9.79
 
 - **Képzéskártyák: módosítható adatsorok.** A „További adatsorok" beállítás ismétlővé vált: soronként elrejthető vagy átírható a mező címkéje, és `{value}` / `{label}` helyőrzős sablonnal módosítható a kiírt szöveg (pl. `{value} félév`). A korábban elmentett, régi beállítású kártyák változatlanul működnek, amíg az új ismétlő üres.
