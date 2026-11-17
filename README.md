@@ -152,6 +152,10 @@ Az élő weboldalak (Kliensek) a Plugin Update Checker segítségével figyelik 
 
 ## Changelog
 
+### 0.9.81
+
+- **Támogatási Táblázat: a „Képz. forma" jelölés jelvényként jelenik meg.** Az N / L / T jelölés ugyanolyan jelvény, mint a Fin. forma A / K jelvénye (azonos betűtípus, méret, belső margó, lekerekítés), így nem tér el a tipográfiája, és telefonon sem csúszik el. Új beállítások: Képz. forma jelvény szövegszíne és háttere.
+
 ### 0.9.80
 
 - **Hub-elutasítás érthetően, pontosabb verzió-előzmény.** Ha a Hub 403-at ad egy már létező képzés mentésekor, az üzenet kimondja az okot: a feltételt a Hubon MÁR TÁROLT adatra értékeli (Hub ID-val és a feltétel-mezőkkel), ezért a helyi átállítás nem segít. A Szerkesztő „Verzió Előzmények” panelje külön szöveget ír, ha a Hub elutasította a hozzáférést, ha a képzés még nincs szinkronizálva, és ha a Hub tényleg elérhetetlen; a Hub által elutasított mentések helyi verziója „⚠ Hubra nem került fel” jelölést kap.
