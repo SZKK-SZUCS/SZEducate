@@ -525,6 +525,14 @@ class SZEducate_Pricing_Table_Widget extends \Elementor\Widget_Base {
 			[ 'label' => 'Önköltséges jelvény háttér', 'type' => \Elementor\Controls_Manager::COLOR, 'default' => '', 'selectors' => [ '{{WRAPPER}} .sz-pt-badge-self' => 'background-color: {{VALUE}};' ] ]
 		);
 		$this->add_control(
+			'form_badge_color',
+			[ 'label' => 'Képz. forma jelvény szöveg', 'type' => \Elementor\Controls_Manager::COLOR, 'default' => '#242943', 'condition' => [ 'form_col_enabled' => 'yes' ], 'selectors' => [ '{{WRAPPER}} .sz-pt-badge-form' => 'color: {{VALUE}};' ] ]
+		);
+		$this->add_control(
+			'form_badge_bg',
+			[ 'label' => 'Képz. forma jelvény háttér', 'type' => \Elementor\Controls_Manager::COLOR, 'default' => '', 'condition' => [ 'form_col_enabled' => 'yes' ], 'selectors' => [ '{{WRAPPER}} .sz-pt-badge-form' => 'background-color: {{VALUE}};' ] ]
+		);
+		$this->add_control(
 			'badge_radius',
 			[ 'label' => 'Jelvény lekerekítés', 'type' => \Elementor\Controls_Manager::SLIDER, 'size_units' => [ 'px', '%' ], 'range' => [ 'px' => [ 'min' => 0, 'max' => 40 ], '%' => [ 'min' => 0, 'max' => 50 ] ], 'default' => [ 'unit' => 'px', 'size' => 6 ], 'selectors' => [ '{{WRAPPER}} .sz-pt-badge' => 'border-radius: {{SIZE}}{{UNIT}};' ] ]
 		);
@@ -965,7 +973,7 @@ class SZEducate_Pricing_Table_Widget extends \Elementor\Widget_Base {
 							?>
 								<tr class="sz-pt-row<?php echo ( $has_pager && $page_no !== 1 ) ? ' sz-pt-row-hidden' : ''; ?>" data-sz-pt-page="<?php echo esc_attr( $page_no ); ?>"<?php echo $row_style; ?>>
 									<?php if ( $show_form_col ) : ?>
-										<td class="sz-pt-col-form" data-label="<?php echo esc_attr( $form_col_label ); ?>"><span class="sz-pt-form-abbr"><?php echo esc_html( $form_abbr ); ?></span></td>
+										<td class="sz-pt-col-form" data-label="<?php echo esc_attr( $form_col_label ); ?>"><span class="sz-pt-badge sz-pt-badge-form"><?php echo esc_html( $form_abbr ); ?></span></td>
 									<?php endif; ?>
 									<td class="sz-pt-col-badge" data-label="<?php echo esc_attr( $badge_label ); ?>"><span class="sz-pt-badge<?php echo $r['is_state'] ? ' sz-pt-badge-state' : ' sz-pt-badge-self'; ?>"><?php echo esc_html( $r['is_state'] ? $state_badge : $self_badge ); ?></span></td>
 									<td class="sz-pt-col-name" data-label="<?php echo esc_attr( $name_label ); ?>"><?php echo esc_html( $r['display_title'] ); ?></td>
@@ -1031,7 +1039,6 @@ class SZEducate_Pricing_Table_Widget extends \Elementor\Widget_Base {
 			   állított Stílus-szekció se hagyja olvashatatlanul. */
 			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-col-badge,
 			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-col-form { position: relative; }
-			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-form-abbr { font-weight: 700; }
 			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-legend { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; margin-left: 6px; border: 1px solid currentColor; border-radius: 50%; font-size: 11px; font-weight: 700; line-height: 1; cursor: help; vertical-align: middle; text-transform: none; }
 			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-legend:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 			#<?php echo esc_attr( $widget_id ); ?> .sz-pt-legend-pop { position: fixed; top: 0; left: 0; min-width: 220px; max-width: 280px; padding: 10px 12px; background: #ffffff; color: #242943; font-size: 12px; font-weight: 400; line-height: 1.5; text-align: left; text-transform: none; letter-spacing: normal; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.18); opacity: 0; visibility: hidden; transform: translateY(-4px); transition: opacity .15s ease, transform .15s ease; z-index: 99999; pointer-events: none; }
